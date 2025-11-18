@@ -2,6 +2,7 @@
 
 #include <vk_types.h>
 #include <util.h>
+#include <vk_descriptors.h>
 
 constexpr unsigned int kFrameCount{ 2 };
 
@@ -33,12 +34,22 @@ private:
 	void InitSwapchain();
 	void InitCommands();
 	void InitSyncStructures();
+	void InitDescriptors();
+	void InitPipelines();
+	void InitBackgroundPipelines();
 	void CreateSwapchain(u32 width, u32 height);
 	void DestroySwapchain();
 	void BeginRecording(VkCommandBuffer cmd);
 	void RenderBackground(VkCommandBuffer cmd);
 
 public:
+	VkPipeline					m_gradientPipeline;
+	VkPipelineLayout			m_gradientPipelineLayout;
+
+	DescriptorAllocator			m_globalDescriptorAllocator;
+	VkDescriptorSet				m_renderImageDescriptors;
+	VkDescriptorSetLayout		m_renderImageDescriptorLayout;
+
 	AllocatedImage				m_renderImage;
 	VkExtent2D					m_renderExtent;
 
