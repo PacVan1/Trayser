@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <vk_types.h>
+#include <util.h>
 
 constexpr unsigned int kFrameCount{ 2 };
 
@@ -10,6 +11,8 @@ struct FrameData
 	VkCommandBuffer commandBuffer;
 	VkSemaphore     swapchainSemaphore, renderSemaphore;
 	VkFence			renderFence;
+
+	vkutil::DeletionQueue deletionQueue;
 };
 
 class VulkanEngine 
@@ -33,8 +36,15 @@ private:
 	void CreateSwapchain(u32 width, u32 height);
 	void DestroySwapchain();
 	void BeginRecording(VkCommandBuffer cmd);
+	void RenderBackground(VkCommandBuffer cmd);
 
 public:
+	AllocatedImage				m_renderImage;
+	VkExtent2D					m_renderExtent;
+
+	VmaAllocator				m_allocator;
+	vkutil::DeletionQueue		m_deletionQueue;
+
 	VkInstance					m_instance;			// Vulkan library handle
 	VkDebugUtilsMessengerEXT	m_debugMessenger;	// Vulkan debug output handle
 	VkPhysicalDevice			m_chosenGPU;		// GPU chosen as the default device

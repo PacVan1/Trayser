@@ -3,6 +3,8 @@
 add_executable (engine 
   main.cpp
   vk_types.h
+  util.h
+  util.cpp
   vk_initializers.cpp
   vk_initializers.h
   vk_images.h

@@ -35,3 +35,12 @@ typedef uint32_t        u32;
 typedef uint16_t        u16;
 typedef uint8_t         u8;
 typedef unsigned int    uint;
+
+struct AllocatedImage 
+{
+    VkImage         image;
+    VkImageView     imageView;
+    VmaAllocation   allocation;
+    VkExtent3D      imageExtent;
+    VkFormat        imageFormat;
+};
