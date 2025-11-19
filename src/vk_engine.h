@@ -6,6 +6,14 @@
 
 constexpr unsigned int kFrameCount{ 2 };
 
+struct ComputePushConstants 
+{
+	glm::vec4 data1;
+	glm::vec4 data2;
+	glm::vec4 data3;
+	glm::vec4 data4;
+};
+
 struct FrameData
 {
 	VkCommandPool	commandPool;
@@ -26,6 +34,7 @@ public:
 	void Cleanup();
 	void Render();
 	void Run();
+	void ImmediateSubmit(std::function<void(VkCommandBuffer cmd)>&& function);
 
 	[[nodiscard]] FrameData& GetCurrentFrame() { return m_frames[m_frameIdx]; }
 
@@ -43,6 +52,11 @@ private:
 	void RenderBackground(VkCommandBuffer cmd);
 
 public:
+	// Immediate submit structures
+	VkFence						m_immFence;
+	VkCommandBuffer				m_immCommandBuffer;
+	VkCommandPool				m_immCommandPool;
+
 	VkPipeline					m_gradientPipeline;
 	VkPipelineLayout			m_gradientPipelineLayout;
 

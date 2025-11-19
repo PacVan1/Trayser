@@ -184,6 +184,31 @@ void VulkanEngine::Run()
     }
 }
 
+void VulkanEngine::ImmediateSubmit(std::function<void(VkCommandBuffer cmd)>&& function)
+{
+    VK_CHECK(vkResetFences(m_device, 1, &m_immFence));
+    VK_CHECK(vkResetCommandBuffer(m_immCommandBuffer, 0));
+
+    VkCommandBuffer cmd = m_immCommandBuffer;
+
+    VkCommandBufferBeginInfo cmdBeginInfo = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+
+    VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
+
+    function(cmd);
+
+    VK_CHECK(vkEndCommandBuffer(cmd));
+
+    VkCommandBufferSubmitInfo cmdinfo = vkinit::command_buffer_submit_info(cmd);
+    VkSubmitInfo2 submit = vkinit::submit_info(&cmdinfo, nullptr, nullptr);
+
+    // Submit command buffer to the queue and execute it.
+    // _renderFence will now block until the graphic commands finish execution
+    VK_CHECK(vkQueueSubmit2(m_graphicsQueue, 1, &submit, m_immFence));
+
+    VK_CHECK(vkWaitForFences(m_device, 1, &m_immFence, true, 9999999999));
+}
+
 void VulkanEngine::InitVulkan()
 {
     vkb::InstanceBuilder builder;
@@ -305,6 +330,18 @@ void VulkanEngine::InitCommands()
 
         VK_CHECK(vkAllocateCommandBuffers(m_device, &cmdAllocInfo, &m_frames[i].commandBuffer));
     }
+
+    VK_CHECK(vkCreateCommandPool(m_device, &commandPoolInfo, nullptr, &m_immCommandPool));
+
+    // allocate the command buffer for immediate submits
+    VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(m_immCommandPool, 1);
+
+    VK_CHECK(vkAllocateCommandBuffers(m_device, &cmdAllocInfo, &m_immCommandBuffer));
+
+    m_deletionQueue.Push([=]() 
+    {
+        vkDestroyCommandPool(m_device, m_immCommandPool, nullptr);
+    });
 }
 
 void VulkanEngine::InitSyncStructures()
@@ -322,6 +359,9 @@ void VulkanEngine::InitSyncStructures()
         VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_frames[i].swapchainSemaphore));
         VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_frames[i].renderSemaphore));
     }
+
+    VK_CHECK(vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_immFence));
+    m_deletionQueue.Push([=]() { vkDestroyFence(m_device, m_immFence, nullptr); });
 }
 
 void VulkanEngine::InitDescriptors()
@@ -381,11 +421,19 @@ void VulkanEngine::InitBackgroundPipelines()
     computeLayout.pSetLayouts = &m_renderImageDescriptorLayout;
     computeLayout.setLayoutCount = 1;
 
+    VkPushConstantRange pushConstant{};
+    pushConstant.offset = 0;
+    pushConstant.size = sizeof(ComputePushConstants);
+    pushConstant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+    computeLayout.pPushConstantRanges = &pushConstant;
+    computeLayout.pushConstantRangeCount = 1;
+
     VK_CHECK(vkCreatePipelineLayout(m_device, &computeLayout, nullptr, &m_gradientPipelineLayout));
 
     // Layout code
     VkShaderModule computeDrawShader;
-    if (!vkutil::LoadShaderModule("../../shaders/gradient.comp.spv", m_device, &computeDrawShader))
+    if (!vkutil::LoadShaderModule("../../shaders/sky.comp.spv", m_device, &computeDrawShader))
     {
         fmt::print("Error when building the compute shader \n");
     }
@@ -459,6 +507,11 @@ void VulkanEngine::RenderBackground(VkCommandBuffer cmd)
 
     // bind the descriptor set containing the draw image for the compute pipeline
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_gradientPipelineLayout, 0, 1, &m_renderImageDescriptors, 0, nullptr);
+
+    ComputePushConstants pc;
+    pc.data1 = glm::vec4(0.1, 0.2, 0.4, 0.97);
+
+    vkCmdPushConstants(cmd, m_gradientPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ComputePushConstants), &pc);
 
     // execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
     vkCmdDispatch(cmd, std::ceil(m_renderExtent.width / 16.0), std::ceil(m_renderExtent.height / 16.0), 1);
