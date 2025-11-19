@@ -46,16 +46,21 @@ private:
 	void InitDescriptors();
 	void InitPipelines();
 	void InitBackgroundPipelines();
+	void InitImGui();
 	void CreateSwapchain(u32 width, u32 height);
 	void DestroySwapchain();
 	void BeginRecording(VkCommandBuffer cmd);
 	void RenderBackground(VkCommandBuffer cmd);
+	void RenderImGui(VkCommandBuffer cmd, VkImageView targetImageView);
 
 public:
 	// Immediate submit structures
 	VkFence						m_immFence;
 	VkCommandBuffer				m_immCommandBuffer;
 	VkCommandPool				m_immCommandPool;
+
+	VkPipeline					m_triPipeline;
+	VkPipelineLayout			m_triPipelineLayout;
 
 	VkPipeline					m_gradientPipeline;
 	VkPipelineLayout			m_gradientPipelineLayout;
