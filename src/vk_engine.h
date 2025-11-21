@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <vk_loader.h>
 #include <vk_types.h>
 #include <util.h>
 #include <vk_descriptors.h>
@@ -24,32 +25,6 @@ struct FrameData
 	vkutil::DeletionQueue deletionQueue;
 };
 
-struct Vertex
-{
-	glm::vec3 position;
-	float uv_x;
-	glm::vec3 normal;
-	float uv_y;
-	glm::vec4 color;
-};
-
-namespace gpu
-{
-// holds the resources needed for a mesh
-struct MeshBuffers {
-
-	AllocatedBuffer indexBuffer;
-	AllocatedBuffer vertexBuffer;
-	VkDeviceAddress vertexBufferAddress;
-};
-
-// push constants for our mesh object draws
-struct RenderPushConstants {
-	glm::mat4 worldMatrix;
-	VkDeviceAddress vertexBuffer;
-};
-}
-
 class VulkanEngine 
 {
 public:
@@ -61,6 +36,7 @@ public:
 	void Render();
 	void Run();
 	void ImmediateSubmit(std::function<void(VkCommandBuffer cmd)>&& function);
+	gpu::MeshBuffers UploadMesh(std::span<uint32_t> indices, std::span<Vertex> vertices);
 
 	[[nodiscard]] FrameData& GetCurrentFrame() { return m_frames[m_frameIdx]; }
 
@@ -78,7 +54,6 @@ private:
 	void InitDefaultData();
 	void CreateSwapchain(u32 width, u32 height);
 	AllocatedBuffer CreateBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
-	gpu::MeshBuffers UploadMesh(std::span<uint32_t> indices, std::span<Vertex> vertices);
 	void DestroyBuffer(const AllocatedBuffer& buffer);
 	void DestroySwapchain();
 	void BeginRecording(VkCommandBuffer cmd);
@@ -136,5 +111,6 @@ private:
 	VkPipeline m_meshPipeline;
 
 	gpu::MeshBuffers rectangle;
+	std::vector<std::shared_ptr<MeshAsset>> testMeshes;
 
 };
