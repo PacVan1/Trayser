@@ -46,11 +46,13 @@ private:
 	void InitDescriptors();
 	void InitPipelines();
 	void InitBackgroundPipelines();
+	void InitTrianglePipelines();
 	void InitImGui();
 	void CreateSwapchain(u32 width, u32 height);
 	void DestroySwapchain();
 	void BeginRecording(VkCommandBuffer cmd);
 	void RenderBackground(VkCommandBuffer cmd);
+	void RenderTriangle(VkCommandBuffer cmd);
 	void RenderImGui(VkCommandBuffer cmd, VkImageView targetImageView);
 
 public:
