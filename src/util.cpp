@@ -1,3 +1,4 @@
+#include <pch.h>
 #include "util.h"
 
 void vkutil::DeletionQueue::Push(std::function<void()>&& function)
