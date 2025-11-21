@@ -1,5 +1,6 @@
 #pragma once
 
+// Standard
 #include <string>
 #include <vector>
 #include <filesystem>
@@ -11,6 +12,7 @@
 #include <functional>
 #include <deque>
 
+// Third-party
 #include <vulkan/vulkan.h>
 #include <vulkan/vk_enum_string_helper.h>
 #include <vk_mem_alloc.h>
@@ -21,4 +23,6 @@
 #include <glm/vec4.hpp>
 #include <glm/packing.hpp>
 
+// Engine
 #include <types.h>
+#include <input.h>

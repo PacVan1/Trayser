@@ -3,6 +3,8 @@
 add_executable (engine 
   main.cpp
   types.h
+  input.h
+  input.cpp
   util.h
   util.cpp
   editor.h
@@ -37,6 +39,11 @@ target_link_libraries(engine PUBLIC vma glm Vulkan::Vulkan fmt::fmt stb_image SD
 #else() # GCC/Clang
 #    target_compile_options(engine PRIVATE -Werror)
 #endif()
+
+# Enable multi-threaded compilation
+if (MSVC)
+    add_compile_options(/MP)
+endif()
 
 if(WIN32)
   add_custom_command(TARGET engine POST_BUILD

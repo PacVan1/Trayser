@@ -201,6 +201,8 @@ void VulkanEngine::Run()
                     m_stopRendering = false;
                 }
             }
+
+            m_input.ProcessEvent(e);
             ImGui_ImplSDL2_ProcessEvent(&e);
         }
 
@@ -226,6 +228,8 @@ void VulkanEngine::Run()
         ImGui::Render();
 
         Render();
+
+        m_input.UpdatePrevious();
     }
 }
 
