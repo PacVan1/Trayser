@@ -231,7 +231,9 @@ void VulkanEngine::Run()
         }
 
         m_scene.Update(1.0f);
-        m_camera.Input();
+
+        if (!m_editor.m_update)
+            m_camera.Input();
 
         // Do not render if we are minimized
         if (m_stopRendering) 

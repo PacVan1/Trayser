@@ -98,8 +98,11 @@ void InspectorWindow::EditNode(Entity ent)
 
 void InspectorWindow::Update()
 {
-	ImGui::Begin(m_title.c_str(), &m_opened, ImGuiWindowFlags_NoCollapse);
-	ImGui::BeginChild("Hierarchy", ImVec2(ImGui::GetContentRegionAvail().x, 150.0f));
+	ImGui::Begin(m_title.c_str(), &m_opened, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysUseWindowPadding);
+
+	float totalHeight = ImGui::GetContentRegionAvail().y - 3 * ImGui::GetFrameHeightWithSpacing() - 2 * ImGui::GetFrameHeight() - 2;
+
+	ImGui::BeginChild("Hierarchy", ImVec2(ImGui::GetContentRegionAvail().x, totalHeight));
 	EditNode(VulkanEngine::Get().m_scene.GetRootEntity());
 	ImGui::EndChild();
 
@@ -130,5 +133,6 @@ void InspectorWindow::Update()
 		if (ImGui::DragFloat3("Scale", glm::value_ptr(tf.position))) tf.dirty = true;
 		ImGui::PopStyleColor(3);
 	}
+
 	ImGui::End();
 };
