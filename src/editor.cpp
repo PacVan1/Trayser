@@ -17,62 +17,11 @@ Editor::Editor()
 	window->m_title = "Test Window0";
 	window->m_opened = false;
 	m_windows.push_back(window);
-	window = new TestWindow();
-	window->m_title = "Test Window1";
-	window->m_opened = false;
-	m_windows.push_back(window);
-	window = new TestWindow();
-	window->m_title = "Test Window2";
-	window->m_opened = false;
-	m_windows.push_back(window);
-	window = new TestWindow();
-	window->m_title = "Test Window3";
-	window->m_opened = false;
-	m_windows.push_back(window);
-	window = new TestWindow();
-	window->m_title = "Test Window4";
-	window->m_opened = false;
-	m_windows.push_back(window);
-	window = new TestWindow();
-	window->m_title = "Test Window0";
-	window->m_opened = false;
-	m_windows.push_back(window);
-	window = new TestWindow();
-	window->m_title = "Test Window1";
-	window->m_opened = false;
-	m_windows.push_back(window);
-	window = new TestWindow();
-	window->m_title = "Test Window2";
-	window->m_opened = false;
-	m_windows.push_back(window);
-	window = new TestWindow();
-	window->m_title = "Test Window3";
-	window->m_opened = false;
-	m_windows.push_back(window);
-	window = new TestWindow();
-	window->m_title = "Test Window4";
-	window->m_opened = false;
-	m_windows.push_back(window);
-	window = new TestWindow();
-	window->m_title = "Test Window0";
-	window->m_opened = false;
-	m_windows.push_back(window);
-	window = new TestWindow();
-	window->m_title = "Test Window1";
-	window->m_opened = false;
-	m_windows.push_back(window);
-	window = new TestWindow();
-	window->m_title = "Test Window2";
-	window->m_opened = false;
-	m_windows.push_back(window);
-	window = new TestWindow();
-	window->m_title = "Test Window3";
-	window->m_opened = false;
-	m_windows.push_back(window);
-	window = new TestWindow();
-	window->m_title = "Test Window4";
-	window->m_opened = false;
-	m_windows.push_back(window);
+	CameraWindow* window2 = nullptr;
+	window2 = new CameraWindow();
+	window2->m_title = "Camera Window";
+	window2->m_opened = false;
+	m_windows.push_back(window2);
 }
 
 Editor::~Editor()
@@ -115,4 +64,15 @@ void Editor::Update()
 			window->Update();
 		}
 	}
+}
+
+void CameraWindow::Update()
+{
+	Camera& cam = VulkanEngine::Get().m_camera;
+
+	ImGui::Begin(m_title.c_str(), &m_opened);
+	ImGui::DragFloat("FOV", &cam.m_fov, 0.05f);
+	ImGui::DragFloat("Speed", &cam.m_speed, 0.01f);
+	ImGui::DragFloat("Sensitivity", &cam.m_sensitivity, 0.002f);
+	ImGui::End();
 }

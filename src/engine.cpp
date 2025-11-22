@@ -51,7 +51,10 @@ void VulkanEngine::Init()
     InitImGui();
     InitDefaultData();
 
-    testMeshes = LoadglTF(this, kModelPaths[kInitModel]).value();
+    auto meshes = LoadglTF(this, kModelPaths[kInitModel]).value();
+    m_scene.CreateMesh(meshes[0]);
+    m_scene.CreateMesh(meshes[1]);
+    m_scene.CreateMesh(meshes[2]);
 
     m_isInitialized = true;
 }
@@ -184,6 +187,7 @@ void VulkanEngine::Run()
     while (!quit)
     {
         m_input.m_mouseDeltaPos = { 0.0f, 0.0f };
+        m_input.m_scroll = 0.0f;
 
         // Handle events on queue
         while (SDL_PollEvent(&e) != 0) 
@@ -201,6 +205,10 @@ void VulkanEngine::Run()
                 if (e.window.event == SDL_WINDOWEVENT_RESTORED) 
                 {
                     m_stopRendering = false;
+                }
+                if (e.window.event == SDL_WINDOWEVENT_RESIZED)
+                {
+                    ResizeSwapchain(); 
                 }
             }
 
@@ -332,38 +340,7 @@ void VulkanEngine::InitSwapchain()
 {
     CreateSwapchain(m_windowExtent.width, m_windowExtent.height);
 
-    // Draw image size will match the window
-    VkExtent3D drawImageExtent = 
-    {
-        m_windowExtent.width,
-        m_windowExtent.height,
-        1
-    };
-
-    // Hardcoding the render format to 32 bit float
-    m_renderImage.imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
-    m_renderImage.imageExtent = drawImageExtent;
-
-    VkImageUsageFlags drawImageUsages{};
-    drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-    drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-    drawImageUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
-    drawImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-
-    VkImageCreateInfo rimg_info = vkinit::image_create_info(m_renderImage.imageFormat, drawImageUsages, drawImageExtent);
-
-    // For the draw image, we want to allocate it from gpu local memory
-    VmaAllocationCreateInfo rimg_allocinfo = {};
-    rimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-    rimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-    // Allocate and create the image
-    vmaCreateImage(m_allocator, &rimg_info, &rimg_allocinfo, &m_renderImage.image, &m_renderImage.allocation, nullptr);
-
-    // Build a image-view for the draw image to use for rendering
-    VkImageViewCreateInfo rview_info = vkinit::imageview_create_info(m_renderImage.imageFormat, m_renderImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
-
-    VK_CHECK(vkCreateImageView(m_device, &rview_info, nullptr, &m_renderImage.imageView));
+    CreateSwapchainImageView();
 
     // Add to deletion queues
     m_deletionQueue.Push([=]() 
@@ -746,6 +723,62 @@ void VulkanEngine::InitImGui()
         ImGui_ImplVulkan_Shutdown();
         vkDestroyDescriptorPool(m_device, imguiPool, nullptr);
         });
+
+    ImGuiStyle* style = &ImGui::GetStyle();
+
+    style->WindowPadding = ImVec2(15, 15);
+    style->WindowRounding = 5.0f;
+    style->FramePadding = ImVec2(5, 5);
+    style->FrameRounding = 4.0f;
+    style->ItemSpacing = ImVec2(12, 8);
+    style->ItemInnerSpacing = ImVec2(8, 6);
+    style->IndentSpacing = 25.0f;
+    style->ScrollbarSize = 15.0f;
+    style->ScrollbarRounding = 9.0f;
+    style->GrabMinSize = 5.0f;
+    style->GrabRounding = 3.0f;
+
+    style->Colors[ImGuiCol_Text] = ImVec4(1.00f, 1.00f, 0.83f, 1.00f);
+    style->Colors[ImGuiCol_TextDisabled] = ImVec4(0.24f, 0.23f, 0.29f, 1.00f);
+    style->Colors[ImGuiCol_WindowBg] = ImVec4(0.06f, 0.05f, 0.07f, 1.00f);
+    style->Colors[ImGuiCol_PopupBg] = ImVec4(0.07f, 0.07f, 0.09f, 1.00f);
+    style->Colors[ImGuiCol_Border] = ImVec4(0.80f, 0.80f, 0.83f, 0.88f);
+    style->Colors[ImGuiCol_BorderShadow] = ImVec4(0.92f, 0.91f, 0.88f, 0.00f);
+    style->Colors[ImGuiCol_FrameBg] = ImVec4(0.10f, 0.09f, 0.12f, 1.00f);
+    style->Colors[ImGuiCol_FrameBgHovered] = ImVec4(0.24f, 0.23f, 0.29f, 1.00f);
+    style->Colors[ImGuiCol_FrameBgActive] = ImVec4(0.56f, 0.56f, 0.58f, 1.00f);
+    style->Colors[ImGuiCol_TitleBg] = ImVec4(0.10f, 0.09f, 0.12f, 1.00f);
+    style->Colors[ImGuiCol_TitleBgCollapsed] = ImVec4(1.00f, 0.98f, 0.95f, 0.75f);
+    style->Colors[ImGuiCol_TitleBgActive] = ImVec4(0.07f, 0.07f, 0.09f, 1.00f);
+    style->Colors[ImGuiCol_MenuBarBg] = ImVec4(0.10f, 0.09f, 0.12f, 1.00f);
+    style->Colors[ImGuiCol_ScrollbarBg] = ImVec4(0.10f, 0.09f, 0.12f, 1.00f);
+    style->Colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.80f, 0.80f, 0.83f, 0.31f);
+    style->Colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.56f, 0.56f, 0.58f, 1.00f);
+    style->Colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.06f, 0.05f, 0.07f, 1.00f);
+    style->Colors[ImGuiCol_CheckMark] = ImVec4(0.80f, 0.80f, 0.83f, 0.31f);
+    style->Colors[ImGuiCol_SliderGrab] = ImVec4(0.80f, 0.80f, 0.83f, 0.31f);
+    style->Colors[ImGuiCol_SliderGrabActive] = ImVec4(0.06f, 0.05f, 0.07f, 1.00f);
+    style->Colors[ImGuiCol_Button] = ImVec4(0.10f, 0.09f, 0.12f, 1.00f);
+    style->Colors[ImGuiCol_ButtonHovered] = ImVec4(0.24f, 0.23f, 0.29f, 1.00f);
+    style->Colors[ImGuiCol_ButtonActive] = ImVec4(0.56f, 0.56f, 0.58f, 1.00f);
+    style->Colors[ImGuiCol_Header] = ImVec4(0.10f, 0.09f, 0.12f, 1.00f);
+    style->Colors[ImGuiCol_HeaderHovered] = ImVec4(0.56f, 0.56f, 0.58f, 1.00f);
+    style->Colors[ImGuiCol_HeaderActive] = ImVec4(0.06f, 0.05f, 0.07f, 1.00f);
+    style->Colors[ImGuiCol_ResizeGrip] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+    style->Colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.56f, 0.56f, 0.58f, 1.00f);
+    style->Colors[ImGuiCol_ResizeGripActive] = ImVec4(0.56f, 0.56f, 0.58f, 1.00f);
+    style->Colors[ImGuiCol_PlotLines] = ImVec4(0.40f, 0.39f, 0.38f, 0.63f);
+    style->Colors[ImGuiCol_PlotLinesHovered] = ImVec4(0.25f, 1.00f, 0.00f, 1.00f);
+    style->Colors[ImGuiCol_PlotHistogram] = ImVec4(0.40f, 0.39f, 0.38f, 0.63f);
+    style->Colors[ImGuiCol_PlotHistogramHovered] = ImVec4(0.25f, 1.00f, 0.00f, 1.00f);
+    style->Colors[ImGuiCol_TextSelectedBg] = ImVec4(0.45f, 0.45f, 0.00f, 0.43f);
+    style->Colors[ImGuiCol_SeparatorHovered] = ImVec4(0.72f, 0.75f, 0.10f, 0.78f);
+    style->Colors[ImGuiCol_SeparatorActive] = ImVec4(0.70f, 0.75f, 0.10f, 1.00f);
+    style->Colors[ImGuiCol_Tab] = ImVec4(0.37f, 0.08f, 0.08f, 0.86f);
+    style->Colors[ImGuiCol_TabHovered] = ImVec4(0.87f, 0.00f, 0.00f, 0.80f);
+    style->Colors[ImGuiCol_TabActive] = ImVec4(0.87f, 0.00f, 0.00f, 1.00f);
+    style->Colors[ImGuiCol_TabUnfocused] = ImVec4(0.75f, 0.00f, 0.00f, 0.97f);
+    style->Colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.61f, 0.00f, 0.00f, 1.00f);
 }
 
 void VulkanEngine::InitDefaultData()
@@ -847,6 +880,42 @@ void VulkanEngine::CreateSwapchain(u32 width, u32 height)
     m_swapchain             = vkbSwapchain.swapchain;
     m_swapchainImages       = vkbSwapchain.get_images().value();
     m_swapchainImageViews   = vkbSwapchain.get_image_views().value();
+}
+
+void VulkanEngine::CreateSwapchainImageView()
+{
+    // Draw image size will match the window
+    VkExtent3D drawImageExtent =
+    {
+        m_windowExtent.width,
+        m_windowExtent.height,
+        1
+    };
+
+    // Hardcoding the render format to 32 bit float
+    m_renderImage.imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+    m_renderImage.imageExtent = drawImageExtent;
+
+    VkImageUsageFlags drawImageUsages{};
+    drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    drawImageUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
+    drawImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+    VkImageCreateInfo rimg_info = vkinit::image_create_info(m_renderImage.imageFormat, drawImageUsages, drawImageExtent);
+
+    // For the draw image, we want to allocate it from gpu local memory
+    VmaAllocationCreateInfo rimg_allocinfo = {};
+    rimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+    rimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    // Allocate and create the image
+    vmaCreateImage(m_allocator, &rimg_info, &rimg_allocinfo, &m_renderImage.image, &m_renderImage.allocation, nullptr);
+
+    // Build a image-view for the draw image to use for rendering
+    VkImageViewCreateInfo rview_info = vkinit::imageview_create_info(m_renderImage.imageFormat, m_renderImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
+
+    VK_CHECK(vkCreateImageView(m_device, &rview_info, nullptr, &m_renderImage.imageView));
 }
 
 AllocatedBuffer VulkanEngine::CreateBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage)
@@ -1074,22 +1143,26 @@ void VulkanEngine::RenderTriangle(VkCommandBuffer cmd)
 
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_meshPipelineLayout, 0, 1, &imageSet, 0, nullptr);
 
-    gpu::RenderPushConstants push_constants;
-    glm::mat4 view = m_camera.m_view;
-    // camera projection
-    glm::mat4 projection = glm::perspective(glm::radians(70.f), (float)m_renderExtent.width / (float)m_renderExtent.height, 10000.f, 0.1f);
+    auto view = m_scene.m_registry.view<WorldTransform, RenderComponent>();
+    for (const auto& [ent, tf, render] : view.each())
+    {
+        gpu::RenderPushConstants push_constants;
+        glm::mat4 view = m_camera.m_view;
+        // camera projection
+        glm::mat4 projection = m_camera.m_proj;
 
-    // invert the Y direction on projection matrix so that we are more similar
-    // to opengl and gltf axis
-    projection[1][1] *= -1;
+        // invert the Y direction on projection matrix so that we are more similar
+        // to opengl and gltf axis
+        projection[1][1] *= -1;
 
-    push_constants.worldMatrix = projection * view;
-    push_constants.vertexBuffer = testMeshes[2]->meshBuffers.vertexBufferAddress;
+        push_constants.worldMatrix = projection * view * tf.matrix;
+        push_constants.vertexBuffer = render.mesh->meshBuffers.vertexBufferAddress;
 
-    vkCmdPushConstants(cmd, m_meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(gpu::RenderPushConstants), &push_constants);
-    vkCmdBindIndexBuffer(cmd, testMeshes[2]->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdPushConstants(cmd, m_meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(gpu::RenderPushConstants), &push_constants);
+        vkCmdBindIndexBuffer(cmd, render.mesh->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
 
-    vkCmdDrawIndexed(cmd, testMeshes[2]->surfaces[0].count, 1, testMeshes[2]->surfaces[0].startIndex, 0, 0);
+        vkCmdDrawIndexed(cmd, render.mesh->surfaces[0].count, 1, render.mesh->surfaces[0].startIndex, 0, 0);
+    }
 
     vkCmdEndRendering(cmd);
 }
@@ -1097,7 +1170,7 @@ void VulkanEngine::RenderTriangle(VkCommandBuffer cmd)
 void VulkanEngine::RenderImGui(VkCommandBuffer cmd, VkImageView targetImageView)
 {
     VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(targetImageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-    VkRenderingInfo renderInfo = vkinit::rendering_info(m_swapchainExtent, &colorAttachment, nullptr);
+    VkRenderingInfo renderInfo = vkinit::rendering_info(m_renderExtent, &colorAttachment, nullptr);
 
     vkCmdBeginRendering(cmd, &renderInfo);
 
@@ -1118,8 +1191,14 @@ void VulkanEngine::ResizeSwapchain()
     m_windowExtent.height = h;
 
     m_renderImage.imageExtent = { m_windowExtent.width, m_windowExtent.height, 1 };
+    m_renderExtent = { m_windowExtent.width, m_windowExtent.height };
 
     CreateSwapchain(m_windowExtent.width, m_windowExtent.height);
+
+    vkDestroyImageView(m_device, m_renderImage.imageView, nullptr);
+    vmaDestroyImage(m_allocator, m_renderImage.image, m_renderImage.allocation);
+
+    CreateSwapchainImageView();
 
     m_resizeRequested = false;
 }

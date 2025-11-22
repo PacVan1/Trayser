@@ -7,6 +7,7 @@
 #include <editor.h>
 #include <input.h>
 #include <camera.h>
+#include <scene.h>
 
 constexpr unsigned int kFrameCount{ 2 };
 
@@ -65,6 +66,7 @@ private:
 	void InitImGui();
 	void InitDefaultData();
 	void CreateSwapchain(u32 width, u32 height);
+	void CreateSwapchainImageView();
 	AllocatedBuffer CreateBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
 	AllocatedImage CreateImage(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
 	AllocatedImage CreateImage(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
@@ -80,6 +82,7 @@ private:
 public:
 	Editor						m_editor;
 	Input						m_input;
+	Scene						m_scene;
 
 	Camera						m_camera;
 
@@ -133,7 +136,6 @@ private:
 	VkPipeline m_meshPipeline;
 
 	gpu::MeshBuffers rectangle;
-	std::vector<std::shared_ptr<MeshAsset>> testMeshes;
 	gpu::SceneData m_sceneData;
 	VkDescriptorSetLayout m_gpuSceneDataDescriptorLayout;
 	VkDescriptorSetLayout m_singleImageDescriptorLayout;

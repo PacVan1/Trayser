@@ -10,6 +10,10 @@ add_subdirectory(fastgltf)
 add_subdirectory(fmt EXCLUDE_FROM_ALL)
 add_subdirectory(SDL EXCLUDE_FROM_ALL)
 
+# EnTT header-only library
+add_library(entt INTERFACE)
+target_include_directories(entt INTERFACE entt/src)
+
 target_sources(vkbootstrap PRIVATE 
   vkbootstrap/VkBootstrap.h
   vkbootstrap/VkBootstrap.cpp
@@ -46,7 +50,15 @@ target_sources(imgui PRIVATE
   imgui/imgui_impl_vulkan.cpp
   imgui/imgui_impl_sdl2.cpp
   )
+  
+#target_include_directories(imguizmo PUBLIC imguizmo)
+
+#target_sources(imgui PRIVATE 
+#  imguizmo/ImGuizmo.h
+#  imguizmo/ImGuizmo.cpp
+#  )
 
 target_link_libraries(imgui PUBLIC Vulkan::Vulkan SDL2::SDL2)
+#target_link_libraries(imguizmo PUBLIC imgui)
 
 target_include_directories(stb_image INTERFACE stb_image)

@@ -72,6 +72,10 @@ void Input::ProcessEvent(SDL_Event& e)
 		m_mousePos		= { e.motion.x, e.motion.y };
 		m_mouseDeltaPos = { e.motion.xrel, e.motion.yrel };
 	}
+	if (e.type == SDL_MOUSEWHEEL)
+	{
+		m_scroll = e.wheel.y;
+	}
 }
 
 void Input::UpdatePrevious()
@@ -118,4 +122,9 @@ glm::ivec2 Input::GetMousePos() const
 glm::ivec2 Input::GetMouseDeltaPos() const
 {
 	return m_mouseDeltaPos;
+}
+
+int Input::GetMouseScroll() const
+{
+	return m_scroll;
 }

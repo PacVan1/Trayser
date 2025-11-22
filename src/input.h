@@ -58,6 +58,7 @@ public:
 	bool IsMouseButtonReleased(MouseButton button) const;
 	glm::ivec2 GetMousePos() const;
 	glm::ivec2 GetMouseDeltaPos() const;
+	int GetMouseScroll() const;
 
 public:
 	SDL_Keycode						m_keyMapping[kKeyboardKeyCount];
@@ -67,4 +68,5 @@ public:
 	std::bitset<kMouseButtonCount>	m_prevButtonStates;
 	glm::ivec2 m_mousePos;
 	glm::ivec2 m_mouseDeltaPos;
+	int m_scroll;
 };

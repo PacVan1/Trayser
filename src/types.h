@@ -9,6 +9,8 @@
 #include <glm/mat4x4.hpp>
 #include <glm/vec4.hpp>
 
+#include <entt/entt.hpp>
+
 #define VK_CHECK(x)                                                     \
     do {                                                                \
         VkResult err = x;                                               \
@@ -26,6 +28,8 @@ typedef int32_t         s32;
 typedef int16_t         s16;
 typedef int8_t          s8;
 typedef unsigned int    uint;
+
+using Entity = entt::entity;
 
 struct AllocatedImage 
 {

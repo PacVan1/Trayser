@@ -20,6 +20,12 @@ public:
 	void Update() override;
 };
 
+class CameraWindow final : public IWindow
+{
+public:
+	void Update() override;
+};
+
 class Editor
 {
 public:
