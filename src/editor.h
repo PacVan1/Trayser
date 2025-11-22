@@ -26,6 +26,16 @@ public:
 	void Update() override;
 };
 
+class InspectorWindow final : public IWindow
+{
+public:
+	Entity selected = entt::null;
+
+public:
+	void Update() override;
+	void EditNode(Entity ent);
+};
+
 class Editor
 {
 public:

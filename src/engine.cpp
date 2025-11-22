@@ -55,6 +55,15 @@ void VulkanEngine::Init()
     m_scene.CreateMesh(meshes[0]);
     m_scene.CreateMesh(meshes[1]);
     m_scene.CreateMesh(meshes[2]);
+    m_scene.CreateMesh(meshes[0]);
+    m_scene.CreateMesh(meshes[1]);
+    m_scene.CreateMesh(meshes[2]);
+    m_scene.CreateMesh(meshes[0]);
+    m_scene.CreateMesh(meshes[1]);
+    m_scene.CreateMesh(meshes[2]);
+    m_scene.CreateMesh(meshes[0]);
+    m_scene.CreateMesh(meshes[1]);
+    m_scene.CreateMesh(meshes[2]);
 
     m_isInitialized = true;
 }
@@ -221,6 +230,7 @@ void VulkanEngine::Run()
             __debugbreak();
         }
 
+        m_scene.Update(1.0f);
         m_camera.Input();
 
         // Do not render if we are minimized
