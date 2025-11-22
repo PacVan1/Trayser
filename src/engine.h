@@ -38,6 +38,24 @@ struct FrameData
 	DescriptorAllocatorGrowable descriptors;
 };
 
+enum RenderMode_ : u8
+{
+	RenderMode_TexCoord0,
+	RenderMode_Tangent,
+	RenderMode_Bitangent,
+	RenderMode_GeometryNormal,
+	RenderMode_ShadingNormal,
+	RenderMode_BaseColor,
+	RenderMode_NormalMap,
+	RenderMode_Metallic,
+	RenderMode_Roughness,
+	RenderMode_AmbientOcclusion,
+	RenderMode_Emission, 
+	RenderMode_Wireframe,
+	kRenderModeCount
+};
+using RenderMode = int;
+
 class VulkanEngine 
 {
 public:
@@ -128,6 +146,8 @@ public:
 	VkExtent2D					m_windowExtent{1700, 900};
 	struct SDL_Window*			m_window{nullptr};
 	bool						m_resizeRequested = false;
+
+	RenderMode					m_renderMode;
 
 private:
 	FrameData					m_frames[kFrameCount];
