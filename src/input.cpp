@@ -61,19 +61,23 @@ void Input::InitKeyMapping()
 
 void Input::ProcessEvent(SDL_Event& e)
 {
-    m_shouldUpdate = true;
-    SDL_Keycode key = e.key.keysym.sym;
-	if (e.type == SDL_KEYUP) { if (key >= 0) m_keyStates.reset(key & (SDL_NUM_SCANCODES - 1)); return; }
-    if (e.type == SDL_KEYDOWN) { if (key >= 0) m_keyStates.set(key & (SDL_NUM_SCANCODES - 1)); }
+	SDL_Keycode key = e.key.keysym.sym;
+	Uint8 button = e.button.button;
+	if (e.type == SDL_KEYUP) { if (key >= 0) m_keyStates.reset(key & (SDL_NUM_SCANCODES - 1)); }
+	if (e.type == SDL_KEYDOWN) { if (key >= 0) m_keyStates.set(key & (SDL_NUM_SCANCODES - 1)); }
+	if (e.type == SDL_MOUSEBUTTONUP) { if (button >= 0) m_buttonStates.reset(button & (kMouseButtonCount - 1)); }
+	if (e.type == SDL_MOUSEBUTTONDOWN) { if (button >= 0) m_buttonStates.set(button & (kMouseButtonCount - 1)); }
+	if (e.type == SDL_MOUSEMOTION)
+	{
+		m_mousePos		= { e.motion.x, e.motion.y };
+		m_mouseDeltaPos = { e.motion.xrel, e.motion.yrel };
+	}
 }
 
 void Input::UpdatePrevious()
 {
-    if (m_shouldUpdate)
-    {
-		m_prevKeyStates = m_keyStates;
-        m_shouldUpdate = false;
-    }
+	m_prevKeyStates		= m_keyStates;
+	m_prevButtonStates	= m_buttonStates;
 }
 
 bool Input::IsKeyUp(KeyboardKey key) const
@@ -89,4 +93,29 @@ bool Input::IsKeyDown(KeyboardKey key) const
 bool Input::IsKeyReleased(KeyboardKey key) const
 {
     return IsKeyUp(key) && m_prevKeyStates.test(m_keyMapping[key] & (SDL_NUM_SCANCODES - 1));
+}
+
+bool Input::IsMouseButtonUp(MouseButton button) const
+{
+	return !IsMouseButtonDown(button);
+}
+
+bool Input::IsMouseButtonDown(MouseButton button) const
+{
+	return m_buttonStates.test(button & (kMouseButtonCount - 1));
+}
+
+bool Input::IsMouseButtonReleased(MouseButton button) const
+{
+	return IsMouseButtonUp(button) && m_prevButtonStates.test(button & (kMouseButtonCount - 1));
+}
+
+glm::ivec2 Input::GetMousePos() const
+{
+	return m_mousePos;
+}
+
+glm::ivec2 Input::GetMouseDeltaPos() const
+{
+	return m_mouseDeltaPos;
 }

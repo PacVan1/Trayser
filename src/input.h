@@ -1,14 +1,16 @@
 #pragma once
 
 #include <types.h>
+#include <bitset>
 #include <SDL2/SDL_events.h>
 #include <SDL2/SDL_scancode.h>
 
 enum MouseButton_ : u32
 {
 	MouseButton_Left,
+	MouseButton_Middle,
 	MouseButton_Right,
-	MouseButton_Middle
+	kMouseButtonCount
 };
 using MouseButton = u32;
 
@@ -51,13 +53,18 @@ public:
 	bool IsKeyUp(KeyboardKey key) const;
 	bool IsKeyDown(KeyboardKey key) const;
 	bool IsKeyReleased(KeyboardKey key) const;
-	//bool IsMouseButtonUp(MouseButton button);
-	//bool IsMouseButtonDown(MouseButton button);
-	//bool IsMouseButtonReleased(MouseButton button);
+	bool IsMouseButtonUp(MouseButton button) const;
+	bool IsMouseButtonDown(MouseButton button) const;
+	bool IsMouseButtonReleased(MouseButton button) const;
+	glm::ivec2 GetMousePos() const;
+	glm::ivec2 GetMouseDeltaPos() const;
 
-private:
+public:
 	SDL_Keycode						m_keyMapping[kKeyboardKeyCount];
 	std::bitset<SDL_NUM_SCANCODES>	m_keyStates;
 	std::bitset<SDL_NUM_SCANCODES>	m_prevKeyStates;
-	bool							m_shouldUpdate = true;
+	std::bitset<kMouseButtonCount>	m_buttonStates;
+	std::bitset<kMouseButtonCount>	m_prevButtonStates;
+	glm::ivec2 m_mousePos;
+	glm::ivec2 m_mouseDeltaPos;
 };

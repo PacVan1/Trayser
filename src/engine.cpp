@@ -39,6 +39,8 @@ void VulkanEngine::Init()
         m_windowExtent.width,
         m_windowExtent.height,
         SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
+    SDL_ShowCursor(SDL_DISABLE);
+    SDL_SetRelativeMouseMode(SDL_FALSE);
 
     InitVulkan();
     InitSwapchain();
@@ -181,6 +183,8 @@ void VulkanEngine::Run()
     // Main loop
     while (!quit)
     {
+        m_input.m_mouseDeltaPos = { 0.0f, 0.0f };
+
         // Handle events on queue
         while (SDL_PollEvent(&e) != 0) 
         {
@@ -202,6 +206,11 @@ void VulkanEngine::Run()
 
             m_input.ProcessEvent(e);
             ImGui_ImplSDL2_ProcessEvent(&e);
+        }
+
+        if (m_input.IsKeyReleased(KeyboardKey_RightShift))
+        {
+            __debugbreak();
         }
 
         m_camera.Input();

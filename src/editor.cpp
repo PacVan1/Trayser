@@ -1,6 +1,6 @@
 #include <pch.h>
 #include "editor.h"
-
+#include "engine.h"
 #include "imgui.h"
 
 void TestWindow::Update() 
@@ -85,6 +85,12 @@ Editor::~Editor()
 
 void Editor::Update()
 {
+	if (VulkanEngine::Get().m_input.IsKeyReleased(KeyboardKey_Tab))
+	{
+		m_update = !m_update;
+		SDL_SetRelativeMouseMode(SDL_bool(!m_update));
+	}
+
 	if (!m_update)
 		return;
 
