@@ -56,8 +56,8 @@ public:
 	//bool IsMouseButtonReleased(MouseButton button);
 
 private:
-	SDL_Keycode	m_keyMapping[kKeyboardKeyCount];
-	bool		m_keyStates[SDL_NUM_SCANCODES];
-	bool		m_prevKeyStates[SDL_NUM_SCANCODES];
-	bool		m_shouldUpdate = true;
+	SDL_Keycode						m_keyMapping[kKeyboardKeyCount];
+	std::bitset<SDL_NUM_SCANCODES>	m_keyStates;
+	std::bitset<SDL_NUM_SCANCODES>	m_prevKeyStates;
+	bool							m_shouldUpdate = true;
 };

@@ -15,8 +15,6 @@
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_vulkan.h"
 
-#include "glm/gtc/matrix_transform.hpp"
-
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
 
@@ -205,6 +203,8 @@ void VulkanEngine::Run()
             m_input.ProcessEvent(e);
             ImGui_ImplSDL2_ProcessEvent(&e);
         }
+
+        m_camera.Input();
 
         // Do not render if we are minimized
         if (m_stopRendering) 
@@ -1066,7 +1066,7 @@ void VulkanEngine::RenderTriangle(VkCommandBuffer cmd)
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_meshPipelineLayout, 0, 1, &imageSet, 0, nullptr);
 
     gpu::RenderPushConstants push_constants;
-    glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3{ 0,0,-5 });
+    glm::mat4 view = m_camera.m_view;
     // camera projection
     glm::mat4 projection = glm::perspective(glm::radians(70.f), (float)m_renderExtent.width / (float)m_renderExtent.height, 10000.f, 0.1f);
 

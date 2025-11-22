@@ -3,8 +3,6 @@
 
 Input::Input()
 {
-	memset(m_keyStates, false, sizeof(bool) * SDL_NUM_SCANCODES);
-	memset(m_prevKeyStates, false, sizeof(bool) * SDL_NUM_SCANCODES);
 	InitKeyMapping();
 }
 
@@ -65,30 +63,30 @@ void Input::ProcessEvent(SDL_Event& e)
 {
     m_shouldUpdate = true;
     SDL_Keycode key = e.key.keysym.sym;
-    if (e.type == SDL_KEYUP)   { if (key >= 0) m_keyStates[key & (SDL_NUM_SCANCODES - 1)] = false; return; }
-    if (e.type == SDL_KEYDOWN) { if (key >= 0) m_keyStates[key & (SDL_NUM_SCANCODES - 1)] = true; }
+	if (e.type == SDL_KEYUP) { if (key >= 0) m_keyStates.reset(key & (SDL_NUM_SCANCODES - 1)); return; }
+    if (e.type == SDL_KEYDOWN) { if (key >= 0) m_keyStates.set(key & (SDL_NUM_SCANCODES - 1)); }
 }
 
 void Input::UpdatePrevious()
 {
     if (m_shouldUpdate)
     {
-        memcpy(m_prevKeyStates, m_keyStates, SDL_NUM_SCANCODES * sizeof(bool));
+		m_prevKeyStates = m_keyStates;
         m_shouldUpdate = false;
     }
 }
 
 bool Input::IsKeyUp(KeyboardKey key) const
 {
-    return !m_keyStates[m_keyMapping[key] & (SDL_NUM_SCANCODES - 1)];
+	return !IsKeyDown(key);
 }
 
 bool Input::IsKeyDown(KeyboardKey key) const
 {
-    return m_keyStates[m_keyMapping[key] & (SDL_NUM_SCANCODES - 1)];
+	return m_keyStates.test(m_keyMapping[key] & (SDL_NUM_SCANCODES - 1));
 }
 
 bool Input::IsKeyReleased(KeyboardKey key) const
 {
-    return IsKeyUp(key) && m_prevKeyStates[m_keyMapping[key] & (SDL_NUM_SCANCODES - 1)];
+    return IsKeyUp(key) && m_prevKeyStates.test(m_keyMapping[key] & (SDL_NUM_SCANCODES - 1));
 }

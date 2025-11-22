@@ -6,6 +6,7 @@
 #include <descriptors.h>
 #include <editor.h>
 #include <input.h>
+#include <camera.h>
 
 constexpr unsigned int kFrameCount{ 2 };
 
@@ -79,6 +80,8 @@ private:
 public:
 	Editor						m_editor;
 	Input						m_input;
+
+	Camera						m_camera;
 
 	// Immediate submit structures
 	VkFence						m_immFence;

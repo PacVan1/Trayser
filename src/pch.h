@@ -11,6 +11,7 @@
 #include <array>
 #include <functional>
 #include <deque>
+#include <bitset>
 
 // Third-party
 #include <vulkan/vulkan.h>
@@ -22,6 +23,7 @@
 #include <glm/mat4x4.hpp>
 #include <glm/vec4.hpp>
 #include <glm/packing.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 // Engine
 #include <types.h>
