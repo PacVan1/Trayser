@@ -114,18 +114,44 @@ void InspectorWindow::Update()
 	ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(150, 50, 50, 255));
 	ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(180, 70, 70, 255));
 	ImGui::PushStyleColor(ImGuiCol_FrameBgActive, IM_COL32(200, 90, 90, 255));
-	if (ImGui::DragFloat3("Translation", glm::value_ptr(tf.position), 0.01f)) tf.dirty = true;
+	if (ImGui::DragFloat3("##Translation", glm::value_ptr(tf.translation), 0.01f)) tf.dirty = true;
 	ImGui::PopStyleColor(3);
+	ImGui::SameLine();
+	if (ImGui::Button("0##Button0", ImVec2(ImGui::GetFrameHeight(), ImGui::GetFrameHeight())))
+	{
+		tf.translation = glm::vec3(0.0f);
+		tf.dirty = true;
+	}
+	ImGui::SameLine();
+	ImGui::Text("Translation");
+
 	ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(50, 150, 50, 255));
 	ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(70, 180, 70, 255));
 	ImGui::PushStyleColor(ImGuiCol_FrameBgActive, IM_COL32(90, 200, 90, 255));
-	if (ImGui::DragFloat4("Orientation", &tf.rotation.x, 0.01f)) tf.dirty = true;
+	if (ImGui::DragFloat4("##Orientation", &tf.orientation.x, 0.01f)) tf.dirty = true;
 	ImGui::PopStyleColor(3);
+	ImGui::SameLine();
+	if (ImGui::Button("0##Button1", ImVec2(ImGui::GetFrameHeight(), ImGui::GetFrameHeight())))
+	{
+		tf.orientation = glm::quat();
+		tf.dirty = true;
+	}
+	ImGui::SameLine();
+	ImGui::Text("Orientation");
+
 	ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(50, 50, 150, 255));
 	ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(70, 70, 180, 255));
 	ImGui::PushStyleColor(ImGuiCol_FrameBgActive, IM_COL32(90, 90, 200, 255));
-	if (ImGui::DragFloat3("Scale", glm::value_ptr(tf.scale), 0.01f)) tf.dirty = true;
+	if (ImGui::DragFloat3("##Scale", glm::value_ptr(tf.scale), 0.01f)) tf.dirty = true;
 	ImGui::PopStyleColor(3);
+	ImGui::SameLine();
+	if (ImGui::Button("1", ImVec2(ImGui::GetFrameHeight(), ImGui::GetFrameHeight())))
+	{
+		tf.scale = glm::vec3(1.0f);
+		tf.dirty = true;
+	}
+	ImGui::SameLine();
+	ImGui::Text("Scale");
 };
 
 void RenderSettingsWindow::Update()

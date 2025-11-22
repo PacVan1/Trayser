@@ -32,8 +32,8 @@ void Scene::Update(float dt)
 
         if (cLocalTf.dirty)
         {   // If dirty, update the local matrix
-            glm::mat4 T = glm::translate(glm::mat4(1.0f), cLocalTf.position);
-            glm::mat4 R = glm::toMat4(cLocalTf.rotation);
+            glm::mat4 T = glm::translate(glm::mat4(1.0f), cLocalTf.translation);
+            glm::mat4 R = glm::toMat4(cLocalTf.orientation);
             glm::mat4 S = glm::scale(glm::mat4(1.0f), cLocalTf.scale);
             cLocalTf.matrix = T * R * S;
 
