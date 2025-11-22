@@ -117,7 +117,7 @@ void InspectorWindow::Update()
 	if (ImGui::DragFloat3("##Translation", glm::value_ptr(tf.translation), 0.01f)) tf.dirty = true;
 	ImGui::PopStyleColor(3);
 	ImGui::SameLine();
-	if (ImGui::Button("0##Button0", ImVec2(ImGui::GetFrameHeight(), ImGui::GetFrameHeight())))
+	if (ImGui::Button("-##Button0", ImVec2(ImGui::GetFrameHeight(), ImGui::GetFrameHeight())))
 	{
 		tf.translation = glm::vec3(0.0f);
 		tf.dirty = true;
@@ -131,7 +131,7 @@ void InspectorWindow::Update()
 	if (ImGui::DragFloat4("##Orientation", &tf.orientation.x, 0.01f)) tf.dirty = true;
 	ImGui::PopStyleColor(3);
 	ImGui::SameLine();
-	if (ImGui::Button("0##Button1", ImVec2(ImGui::GetFrameHeight(), ImGui::GetFrameHeight())))
+	if (ImGui::Button("-##Button1", ImVec2(ImGui::GetFrameHeight(), ImGui::GetFrameHeight())))
 	{
 		tf.orientation = glm::quat();
 		tf.dirty = true;
@@ -145,7 +145,7 @@ void InspectorWindow::Update()
 	if (ImGui::DragFloat3("##Scale", glm::value_ptr(tf.scale), 0.01f)) tf.dirty = true;
 	ImGui::PopStyleColor(3);
 	ImGui::SameLine();
-	if (ImGui::Button("1", ImVec2(ImGui::GetFrameHeight(), ImGui::GetFrameHeight())))
+	if (ImGui::Button("-##Button2", ImVec2(ImGui::GetFrameHeight(), ImGui::GetFrameHeight())))
 	{
 		tf.scale = glm::vec3(1.0f);
 		tf.dirty = true;
