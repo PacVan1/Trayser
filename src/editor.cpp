@@ -114,17 +114,17 @@ void InspectorWindow::Update()
 	ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(150, 50, 50, 255));
 	ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(180, 70, 70, 255));
 	ImGui::PushStyleColor(ImGuiCol_FrameBgActive, IM_COL32(200, 90, 90, 255));
-	if (ImGui::DragFloat3("Translation", glm::value_ptr(tf.position))) tf.dirty = true;
+	if (ImGui::DragFloat3("Translation", glm::value_ptr(tf.position), 0.01f)) tf.dirty = true;
 	ImGui::PopStyleColor(3);
 	ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(50, 150, 50, 255));
 	ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(70, 180, 70, 255));
 	ImGui::PushStyleColor(ImGuiCol_FrameBgActive, IM_COL32(90, 200, 90, 255));
-	if (ImGui::DragFloat3("Orientation", glm::value_ptr(tf.position))) tf.dirty = true;
+	if (ImGui::DragFloat4("Orientation", &tf.rotation.x, 0.01f)) tf.dirty = true;
 	ImGui::PopStyleColor(3);
 	ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(50, 50, 150, 255));
 	ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(70, 70, 180, 255));
 	ImGui::PushStyleColor(ImGuiCol_FrameBgActive, IM_COL32(90, 90, 200, 255));
-	if (ImGui::DragFloat3("Scale", glm::value_ptr(tf.position))) tf.dirty = true;
+	if (ImGui::DragFloat3("Scale", glm::value_ptr(tf.scale), 0.01f)) tf.dirty = true;
 	ImGui::PopStyleColor(3);
 };
 
