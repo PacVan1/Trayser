@@ -8,6 +8,7 @@
 #include "initializers.h"
 #include "types.h"
 #include <glm/gtx/quaternion.hpp>
+#include <glm/gtx/matrix_decompose.hpp>
 
 #include <fastgltf/glm_element_traits.hpp>
 #include <fastgltf/parser.hpp>
@@ -131,4 +132,71 @@ std::optional<std::vector<std::shared_ptr<MeshAsset>>> LoadglTF(VulkanEngine* en
     }
 
     return meshes;
+}
+
+std::shared_ptr<Model> LoadModel(VulkanEngine* engine, std::string_view filePath)
+{
+    return std::shared_ptr<Model>();
+}
+
+std::shared_ptr<Mesh> LoadMesh(const std::string& name, tinygltf::Model& loaded, const tinygltf::Mesh& loadedMesh, const std::string& folder)
+{
+    return std::shared_ptr<Mesh>();
+}
+
+void Model::TraverseNode(tinygltf::Model& loaded, const tinygltf::Node& loadedNode, Node* parent, const std::string& folder)
+{
+    auto& node = nodes.emplace_back();
+    if (loadedNode.matrix.empty())
+    {
+        // If there is no local matrix, use any combination of 
+        // translation, rotation and scale to compute the local matrix
+        node.position = loadedNode.translation.empty() ? glm::vec3(0.0f) : glm::vec3(glm::make_vec3(loadedNode.translation.data()));
+        node.scale = loadedNode.scale.empty() ? glm::vec3(1.0f) : glm::vec3(glm::make_vec3(loadedNode.scale.data()));
+
+        if (loadedNode.rotation.empty())
+            node.rotation = glm::quat();
+        else
+            node.rotation = glm::quat(loadedNode.rotation[3], loadedNode.rotation[0], loadedNode.rotation[1], loadedNode.rotation[2]);
+
+        glm::mat4 T = glm::translate(glm::mat4(1.0f), node.position);
+        glm::mat4 R = glm::toMat4(node.rotation);
+        glm::mat4 S = glm::scale(glm::mat4(1.0f), node.scale);
+        node.matrix = T * R * S;
+    }
+    else
+    {
+        // If there is a local matrix, use it
+        node.matrix = glm::make_mat4(loadedNode.matrix.data());
+
+        glm::vec3 skew;
+        glm::vec4 perspective;
+        glm::decompose(node.matrix, node.scale, node.rotation, node.position, skew, perspective);
+    }
+
+    if (parent)
+    {
+        // If the node has a parent,
+        // then register it as one of the parent's childs
+        parent->children.push_back(nodes.size() - 1);
+    }
+    else
+    {
+        // If the node has no parent (so is a root node), 
+        // then register as one of the root nodes
+        rootNodes.push_back(nodes.size() - 1);
+    }
+
+    if (loadedNode.mesh >= 0)
+    {   // Does the node have a mesh
+        std::string name = folder + "_mesh" + std::to_string(loadedNode.mesh);
+
+        auto& loadedMesh = loaded.meshes[loadedNode.mesh];
+        //node.mesh = Engine.Resources().Load<IndirectMesh>(FileIO::Directory::None, name, loaded, loadedMesh, folder);
+    }
+
+    for (int nodeIdx : loadedNode.children)
+    {
+        TraverseNode(loaded, loaded.nodes[nodeIdx], &node, folder);
+    }
 }

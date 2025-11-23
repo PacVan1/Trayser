@@ -96,7 +96,12 @@ void InspectorWindow::Update()
 	float totalHeight = ImGui::GetContentRegionAvail().y - 3 * ImGui::GetFrameHeightWithSpacing() - 2 * ImGui::GetFrameHeight() - 2;
 
 	ImGui::BeginChild("Hierarchy", ImVec2(ImGui::GetContentRegionAvail().x, totalHeight));
-	EditNode(VulkanEngine::Get().m_scene.GetRootEntity());
+	auto& scene = VulkanEngine::Get().m_scene;
+	auto& node = scene.m_registry.get<SGNode>(scene.GetRootEntity());
+	for (int i = 0; i < node.children.size(); i++)
+	{
+		EditNode(node.children[i]);
+	}
 	ImGui::EndChild();
 
 	if (selected == entt::null)
@@ -108,7 +113,6 @@ void InspectorWindow::Update()
 
 	ImGui::SeparatorText("Transform");
 
-	auto& scene = VulkanEngine::Get().m_scene;
 	auto& tf = scene.m_registry.get<LocalTransform>(selected);
 
 	ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(150, 50, 50, 255));
@@ -156,5 +160,5 @@ void InspectorWindow::Update()
 
 void RenderSettingsWindow::Update()
 {
-	ImGui::Combo("Render Mode", &VulkanEngine::Get().m_renderMode, "Poop\0Pee\0Shit\0FecaleMatter\0Excrement\0Dump\0Diarhea\0Anal Abombination\0Precise Shits\0Poop Bits\0");
+	ImGui::Combo("Render Mode", &VulkanEngine::Get().m_renderMode, kRenderModeStr.c_str());
 }

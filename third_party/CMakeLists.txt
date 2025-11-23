@@ -14,6 +14,14 @@ add_subdirectory(SDL EXCLUDE_FROM_ALL)
 add_library(entt INTERFACE)
 target_include_directories(entt INTERFACE entt/src)
 
+# Magic enum header-only library
+add_library(magic_enum INTERFACE)
+target_include_directories(magic_enum INTERFACE magic_enum/include)
+
+# Tinygltf header-only library
+add_library(tinygltf INTERFACE)
+target_include_directories(tinygltf INTERFACE tinygltf)
+
 target_sources(vkbootstrap PRIVATE 
   vkbootstrap/VkBootstrap.h
   vkbootstrap/VkBootstrap.cpp

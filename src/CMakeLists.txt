@@ -35,7 +35,19 @@ target_compile_definitions(engine PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE)
 target_include_directories(engine PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_precompile_headers(engine PRIVATE pch.h)
 
-target_link_libraries(engine PUBLIC vma glm Vulkan::Vulkan fmt::fmt stb_image SDL2::SDL2 vkbootstrap imgui fastgltf::fastgltf entt)
+target_link_libraries(engine PUBLIC 
+  vma 
+  glm 
+  Vulkan::Vulkan 
+  fmt::fmt 
+  stb_image 
+  SDL2::SDL2 
+  vkbootstrap 
+  imgui 
+  fastgltf::fastgltf 
+  entt 
+  magic_enum 
+  tinygltf)
 
 # Warnings as errors
 #if (MSVC)
