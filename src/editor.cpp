@@ -93,10 +93,19 @@ void InspectorWindow::EditNode(Entity ent)
 
 void InspectorWindow::Update()
 {
+	auto& scene = VulkanEngine::Get().m_scene;
+
+	if (ImGui::Button("Create"))
+	{
+		auto model = VulkanEngine::Get().m_resources.Create<Model>(kModelPaths[selectedModel], kModelPaths[selectedModel], &VulkanEngine::Get());
+		scene.CreateModel(model);
+	}
+	ImGui::SameLine();
+	ImGui::Combo("Model", &selectedModel, kModelResourceStr.c_str());
+
 	float totalHeight = ImGui::GetContentRegionAvail().y - 3 * ImGui::GetFrameHeightWithSpacing() - 2 * ImGui::GetFrameHeight() - 2;
 
 	ImGui::BeginChild("Hierarchy", ImVec2(ImGui::GetContentRegionAvail().x, totalHeight));
-	auto& scene = VulkanEngine::Get().m_scene;
 	auto& node = scene.m_registry.get<SGNode>(scene.GetRootEntity());
 	for (int i = 0; i < node.children.size(); i++)
 	{

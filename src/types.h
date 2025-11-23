@@ -69,6 +69,48 @@ using RenderMode = int;
 
 const std::string kRenderModeStr = GetNullSeparated<RenderMode_>();
 
+enum ModelResource_
+{
+    ModelResource_CompareAmbientOcclusion,
+    ModelResource_CompareBaseColor,
+    ModelResource_CompareMetallic,
+    ModelResource_CompareRoughness,
+    ModelResource_DamagedHelmet,
+    ModelResource_FlightHelmet,
+    ModelResource_Lantern,
+    ModelResource_MetalRoughSpheres,
+    ModelResource_NormalTangentMirrorTest,
+    ModelResource_NormalTangentTest,
+    ModelResource_OrientationTest,
+    ModelResource_SciFiHelmet,
+    ModelResource_Sponza,
+    ModelResource_TextureEncodingTest,
+    ModelResource_TextureLinearInterpolationTest,
+    kModelResourceCount
+};
+using ModelResource = int;
+
+const std::string kModelResourceStr = GetNullSeparated<ModelResource_>();
+
+const std::string kModelPaths[kModelResourceCount] =
+{
+    "../../assets/Khronos/CompareAmbientOcclusion/glTF-Binary/CompareAmbientOcclusion.glb",
+    "../../assets/Khronos/CompareBaseColor/glTF-Binary/CompareBaseColor.glb",
+    "../../assets/Khronos/CompareMetallic/glTF-Binary/CompareMetallic.glb",
+    "../../assets/Khronos/CompareRoughness/glTF-Binary/CompareRoughness.glb",
+    "../../assets/Khronos/DamagedHelmet/glTF-Binary/DamagedHelmet.glb",
+    "../../assets/Khronos/FlightHelmet/glTF/FlightHelmet.gltf",
+    "../../assets/Khronos/Lantern/glTF-Binary/Lantern.glb",
+    "../../assets/Khronos/MetalRoughSpheres/glTF-Binary/MetalRoughSpheres.glb",
+    "../../assets/Khronos/NormalTangentMirrorTest/glTF-Binary/NormalTangentMirrorTest.glb",
+    "../../assets/Khronos/NormalTangentTest/glTF-Binary/NormalTangentTest.glb",
+    "../../assets/Khronos/OrientationTest/glTF-Binary/OrientationTest.glb",
+    "../../assets/Khronos/SciFiHelmet/glTF/SciFiHelmet.gltf",
+    "../../assets/Khronos/Sponza/glTF/Sponza.gltf",
+    "../../assets/Khronos/TextureLinearInterpolationTest/glTF-Binary/TextureLinearInterpolationTest.glb",
+    "../../assets/Khronos/TextureEncodingTest/glTF-Binary/TextureEncodingTest.glb"
+};
+
 struct AllocatedImage 
 {
     VkImage         image;
@@ -107,7 +149,8 @@ struct MeshBuffers {
 
 // push constants for our mesh object draws
 struct RenderPushConstants {
-    glm::mat4 worldMatrix;
+    glm::mat4 viewProj;
+    glm::mat4 model;
     VkDeviceAddress vertexBuffer;
 };
 struct RenderPushConstantsFrag {

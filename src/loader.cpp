@@ -416,10 +416,14 @@ Mesh::Mesh(VulkanEngine* engine, tinygltf::Model& loaded, const tinygltf::Mesh& 
         //}
     }
 
-    //if (missesTangents)
-    //{
-    //    IndirectModel::MikkTSpaceCalc(this);
-    //}
+    LoadingMesh loadingMesh{};
+    loadingMesh.vertexCount = meshVertexCount;
+    loadingMesh.vertices = vertices;
+    
+    if (missesTangents)
+    {
+        Model::MikkTSpaceCalc(&loadingMesh);
+    }
 
     // NEW ///////////////////////////////////////////////////////
     engine->ImmediateSubmit([&](VkCommandBuffer cmd) 
@@ -441,6 +445,100 @@ Mesh::Mesh(VulkanEngine* engine, tinygltf::Model& loaded, const tinygltf::Mesh& 
 
     engine->DestroyBuffer(staging);
     //////////////////////////////////////////////////////////////
+}
+
+void Model::MikkTSpaceCalc(LoadingMesh* mesh)
+{
+    Model::g_mikkTSpaceCtx.m_pUserData = mesh;
+    genTangSpaceDefault(&Model::g_mikkTSpaceCtx);
+}
+
+int Model::MikkTSpaceGetNumFaces(const SMikkTSpaceContext* context)
+{
+    LoadingMesh* mesh = static_cast<LoadingMesh*>(context->m_pUserData);
+    float fSize = (float)mesh->vertexCount / 3.f;
+    int iSize = (int)mesh->vertexCount / 3;
+    assert((fSize - (float)iSize) == 0.f);
+    return iSize;
+}
+
+int Model::MikkTSpaceGetNumVerticesOfFace(const SMikkTSpaceContext* context, const int iFace)
+{
+    return 3;
+}
+
+void Model::MikkTSpaceGetPosition(const SMikkTSpaceContext* context,
+    float* outPos,
+    const int iFace,
+    const int iVert)
+{
+    auto mesh = (LoadingMesh*)context->m_pUserData;
+    auto index = MikkTSpaceGetVertexIndex(context, iFace, iVert);
+    auto vertices = mesh->vertices;
+
+    outPos[0] = vertices[index].position.x;
+    outPos[1] = vertices[index].position.y;
+    outPos[2] = vertices[index].position.z;
+}
+
+void Model::MikkTSpaceGetNormal(const SMikkTSpaceContext* context,
+    float* outNormal,
+    const int iFace,
+    const int iVert)
+{
+    auto mesh = (LoadingMesh*)context->m_pUserData;
+    auto index = MikkTSpaceGetVertexIndex(context, iFace, iVert);
+    auto vertices = mesh->vertices;
+
+    outNormal[0] = vertices[index].normal.x;
+    outNormal[1] = vertices[index].normal.y;
+    outNormal[2] = vertices[index].normal.z;
+}
+
+void Model::MikkTSpaceGetTexCoords(const SMikkTSpaceContext* context,
+    float* outUv,
+    const int iFace,
+    const int iVert)
+{
+    auto mesh = (LoadingMesh*)context->m_pUserData;
+    auto index = MikkTSpaceGetVertexIndex(context, iFace, iVert);
+    auto vertices = mesh->vertices;
+
+    outUv[0] = vertices[index].uvX;
+    outUv[1] = vertices[index].uvY;
+}
+
+void Model::MikkTSpaceSetTSpaceBasic(
+    const SMikkTSpaceContext* context,
+    const float* tangentu,
+    const float fSign,
+    const int iFace,
+    const int iVert)
+{
+    auto mesh = (LoadingMesh*)context->m_pUserData;
+    auto index = MikkTSpaceGetVertexIndex(context, iFace, iVert);
+    auto vertices = mesh->vertices;
+
+    vertices[index].tangent.x = tangentu[0];
+    vertices[index].tangent.y = tangentu[1];
+    vertices[index].tangent.z = tangentu[2];
+    vertices[index].tangent.w = fSign;
+}
+
+int Model::MikkTSpaceGetVertexIndex(const SMikkTSpaceContext* context, int iFace, int iVert)
+{
+    return iFace * MikkTSpaceGetNumVerticesOfFace(context, iFace) + iVert;
+}
+
+void Model::MikkTSpaceInit()
+{
+    g_mikkTSpaceIface.m_getNumFaces = MikkTSpaceGetNumFaces;
+    g_mikkTSpaceIface.m_getNumVerticesOfFace = MikkTSpaceGetNumVerticesOfFace;
+    g_mikkTSpaceIface.m_getNormal = MikkTSpaceGetNormal;
+    g_mikkTSpaceIface.m_getPosition = MikkTSpaceGetPosition;
+    g_mikkTSpaceIface.m_getTexCoord = MikkTSpaceGetTexCoords;
+    g_mikkTSpaceIface.m_setTSpaceBasic = MikkTSpaceSetTSpaceBasic;
+    g_mikkTSpaceCtx.m_pInterface = &g_mikkTSpaceIface;
 }
 
 static bool LoadImageCallback(

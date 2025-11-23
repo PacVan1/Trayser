@@ -2,6 +2,8 @@
 # Add source to this project's executable.
 add_executable (engine 
   main.cpp
+  mikktspace.h
+  mikktspace.cpp
   tinygltf/tiny_gltf.cc
   vk_mem_alloc.cpp
   types.h

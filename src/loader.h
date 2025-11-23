@@ -3,6 +3,7 @@
 #include <types.h>
 #include <unordered_map>
 #include <filesystem>
+#include <mikktspace.h>
 
 class VulkanEngine;
 
@@ -22,6 +23,12 @@ struct Primitive
 {
     u32 baseVertex;
     u32 vertexCount;
+};
+
+struct LoadingMesh
+{
+    Vertex* vertices;
+    u32     vertexCount;
 };
 
 struct Mesh
@@ -48,10 +55,27 @@ struct Node
 };
 
 public:
+    inline static SMikkTSpaceInterface g_mikkTSpaceIface;
+    inline static SMikkTSpaceContext   g_mikkTSpaceCtx;
+
+public:
     std::vector<Node>   nodes;
     std::vector<int>    rootNodes;
 
 public:
+    static void MikkTSpaceInit();
+    static void MikkTSpaceCalc(LoadingMesh* mesh);
+    static int  MikkTSpaceGetNumFaces(const SMikkTSpaceContext* context);
+    static int  MikkTSpaceGetNumVerticesOfFace(const SMikkTSpaceContext* context, const int iFace);
+    static void MikkTSpaceGetPosition(const SMikkTSpaceContext* context, float* outPos, const int iFace, const int iVert);
+    static void MikkTSpaceGetNormal(const SMikkTSpaceContext* context, float* outNormal, const int iFace, const int iVert);
+    static void MikkTSpaceGetTexCoords(const SMikkTSpaceContext* context, float* outUv, const int iFace, const int iVert);
+    static void MikkTSpaceSetTSpaceBasic(const SMikkTSpaceContext* context,
+        const float* tangentu,
+        const float fSign,
+        const int iFace,
+        const int iVert);
+    static int  MikkTSpaceGetVertexIndex(const SMikkTSpaceContext* context, int iFace, int iVert);
     static int TotalIndexCountInMesh(const tinygltf::Model& loaded, const tinygltf::Mesh& loadedMesh)
     {
         int indexCount = 0;

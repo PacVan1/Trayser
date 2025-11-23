@@ -44,17 +44,13 @@ void VulkanEngine::Init()
     InitVulkan();
     InitSwapchain();
     InitCommands();
-    InitSyncStructures();
+    InitSyncStructures();   
     InitDescriptors();
     InitPipelines();
     InitImGui();
     InitDefaultData();
 
-    auto model = m_resources.Create<Model>(
-        "../../assets/Khronos/DamagedHelmet/glTF-Binary/DamagedHelmet.glb",
-        "../../assets/Khronos/DamagedHelmet/glTF-Binary/DamagedHelmet.glb",
-        this);
-    m_scene.CreateModel(model);
+    Model::MikkTSpaceInit();
 
     m_isInitialized = true;
 }
@@ -1171,27 +1167,26 @@ void VulkanEngine::RenderTriangle(VkCommandBuffer cmd)
     auto view = m_scene.m_registry.view<WorldTransform, RenderComponent>();
     for (const auto& [ent, tf, render] : view.each())
     {
-        gpu::RenderPushConstants vertPushConstants;
-        glm::mat4 view = m_camera.m_view;
-        // camera projection
-        glm::mat4 projection = m_camera.m_proj;
+        for (auto& prim : render.mesh->primitives)
+        {
+            gpu::RenderPushConstants vertPushConstants;
+            glm::mat4 projection = m_camera.m_proj;
+            projection[1][1] *= -1;
 
-        gpu::RenderPushConstantsFrag fragPushConstants;
-        fragPushConstants.renderMode = m_renderMode;
+            gpu::RenderPushConstantsFrag fragPushConstants;
+            fragPushConstants.renderMode = m_renderMode;
 
-        // invert the Y direction on projection matrix so that we are more similar
-        // to opengl and gltf axis
-        projection[1][1] *= -1;
+            vertPushConstants.viewProj = projection * m_camera.m_view;
+            vertPushConstants.model = tf.matrix;
+            vertPushConstants.vertexBuffer = render.mesh->vertexBufferAddr;
 
-        vertPushConstants.worldMatrix = projection * view * tf.matrix;
-        vertPushConstants.vertexBuffer = render.mesh->vertexBufferAddr;
+            vkCmdPushConstants(cmd, m_meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(gpu::RenderPushConstants), &vertPushConstants);
+            vkCmdPushConstants(cmd, m_meshPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(gpu::RenderPushConstants), sizeof(gpu::RenderPushConstantsFrag), &fragPushConstants);
+            //vkCmdBindIndexBuffer(cmd, render.mesh->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
 
-        vkCmdPushConstants(cmd, m_meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(gpu::RenderPushConstants), &vertPushConstants);
-        vkCmdPushConstants(cmd, m_meshPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(gpu::RenderPushConstants), sizeof(gpu::RenderPushConstantsFrag), &fragPushConstants);
-        //vkCmdBindIndexBuffer(cmd, render.mesh->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-
-        //vkCmdDrawIndexed(cmd, render.mesh->surfaces[0].count, 1, render.mesh->surfaces[0].startIndex, 0, 0);
-        vkCmdDraw(cmd, render.mesh->primitives[0].vertexCount, 1, 0, 0);
+            //vkCmdDrawIndexed(cmd, render.mesh->surfaces[0].count, 1, render.mesh->surfaces[0].startIndex, 0, 0);
+            vkCmdDraw(cmd, prim.vertexCount, 1, 0, 0);
+        }
     }
 
     vkCmdEndRendering(cmd);

@@ -30,6 +30,7 @@
 #include <entt/entt.hpp>
 #include <magic_enum/magic_enum.hpp>
 #include <tiny_gltf.h>
+#include <mikktspace.h>
 
 // Engine
 #include <types.h>

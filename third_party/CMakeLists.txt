@@ -22,6 +22,10 @@ target_include_directories(magic_enum INTERFACE magic_enum/include)
 add_library(tinygltf INTERFACE)
 target_include_directories(tinygltf INTERFACE tinygltf)
 
+# Mikktspace header-only library
+#add_library(mikktspace INTERFACE)
+#target_include_directories(mikktspace INTERFACE mikktspace)
+
 target_sources(vkbootstrap PRIVATE 
   vkbootstrap/VkBootstrap.h
   vkbootstrap/VkBootstrap.cpp

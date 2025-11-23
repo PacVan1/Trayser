@@ -12,14 +12,6 @@
 
 constexpr unsigned int kFrameCount{ 2 };
 
-constexpr u32 kModelCount = 2;
-constexpr u32 kInitModel = 1;
-const std::string kModelPaths[kModelCount] =
-{
-	"../../assets/basicmesh.glb",
-	"../../assets/Khronos/DamagedHelmet/glTF-Binary/DamagedHelmet.glb"
-};
-
 struct ComputePushConstants 
 {
 	glm::vec4 data1;
