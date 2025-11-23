@@ -4,6 +4,7 @@
 #include <types.h>
 #include <components.h>
 #include <loader.h>
+#include <memory>
 
 class Scene
 {
@@ -12,7 +13,9 @@ public:
     void    Update(float dt);
     Entity  CreateNode();
     Entity  CreateNode(Entity parent);
-    void    CreateMesh(std::shared_ptr<MeshAsset> mesh);
+    Entity  CreateModel(std::shared_ptr<Model> model);
+    Entity  CreateModel(std::shared_ptr<Model> model, Entity parent);
+    Entity  TraverseModel(std::shared_ptr<Model> model, int modelNodeIdx, SGNode* parent);
     void    AddNode(Entity child);
     void    AddNode(Entity parent, Entity child);
     void    Clear();

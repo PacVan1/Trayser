@@ -2,7 +2,11 @@
 # Add source to this project's executable.
 add_executable (engine 
   main.cpp
+  tinygltf/tiny_gltf.cc
+  vk_mem_alloc.cpp
   types.h
+  resources.h
+  resources.cpp
   scene.h
   scene.cpp
   components.h

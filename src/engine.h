@@ -8,11 +8,12 @@
 #include <input.h>
 #include <camera.h>
 #include <scene.h>
+#include <resources.h>
 
 constexpr unsigned int kFrameCount{ 2 };
 
 constexpr u32 kModelCount = 2;
-constexpr u32 kInitModel = 0;
+constexpr u32 kInitModel = 1;
 const std::string kModelPaths[kModelCount] =
 {
 	"../../assets/basicmesh.glb",
@@ -50,6 +51,11 @@ public:
 	void Run();
 	void ImmediateSubmit(std::function<void(VkCommandBuffer cmd)>&& function);
 	gpu::MeshBuffers UploadMesh(std::span<uint32_t> indices, std::span<Vertex> vertices);
+	AllocatedBuffer CreateBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
+	AllocatedImage CreateImage(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
+	AllocatedImage CreateImage(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
+	void DestroyImage(const AllocatedImage& img);
+	void DestroyBuffer(const AllocatedBuffer& buffer);
 
 	[[nodiscard]] FrameData& GetCurrentFrame() { return m_frames[m_frameIdx]; }
 
@@ -67,11 +73,6 @@ private:
 	void InitDefaultData();
 	void CreateSwapchain(u32 width, u32 height);
 	void CreateSwapchainImageView();
-	AllocatedBuffer CreateBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
-	AllocatedImage CreateImage(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
-	AllocatedImage CreateImage(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
-	void DestroyImage(const AllocatedImage& img);
-	void DestroyBuffer(const AllocatedBuffer& buffer);
 	void DestroySwapchain();
 	void BeginRecording(VkCommandBuffer cmd);
 	void RenderBackground(VkCommandBuffer cmd);
@@ -80,6 +81,7 @@ private:
 	void ResizeSwapchain();
 
 public:
+	Resources					m_resources;
 	Editor						m_editor;
 	Input						m_input;
 	Scene						m_scene;

@@ -3,6 +3,8 @@
 
 #include "stb_image.h"
 #include <iostream>
+#include <assert.h>
+#include <fstream>
 
 #include "engine.h"
 #include "initializers.h"
@@ -13,6 +15,40 @@
 #include <fastgltf/glm_element_traits.hpp>
 #include <fastgltf/parser.hpp>
 #include <fastgltf/tools.hpp>
+
+#include <vk_mem_alloc.h>
+
+std::string ReadTextFile(const std::string& path)
+{
+    std::ifstream file(path);
+    if (!file.is_open())
+    {
+        printf("Path doesn't exist");
+        return std::string();
+    }
+    file.seekg(0, std::ios::end);
+    const size_t size = file.tellg();
+    std::string buffer(size, '\0');
+    file.seekg(0);
+    file.read(buffer.data(), size);
+    return buffer;
+}
+
+std::vector<char> ReadBinaryFile(const std::string& path)
+{
+    std::ifstream file(path, std::ios::binary | std::ios::ate);
+    if (!file.is_open())
+    {
+        printf("Path doesn't exist");
+        return  std::vector<char>();
+    }
+    const std::streamsize size = file.tellg();
+    file.seekg(0, std::ios::beg);
+    std::vector<char> buffer(size);
+    if (file.read(buffer.data(), size)) return buffer;
+    assert(false);
+    return std::vector<char>();
+}
 
 std::optional<std::vector<std::shared_ptr<MeshAsset>>> LoadglTF(VulkanEngine* engine, std::filesystem::path filePath)
 {
@@ -80,8 +116,8 @@ std::optional<std::vector<std::shared_ptr<MeshAsset>>> LoadglTF(VulkanEngine* en
                         newvtx.position = v;
                         newvtx.normal = { 1, 0, 0 };
                         newvtx.color = glm::vec4{ 1.f };
-                        newvtx.uv_x = 0;
-                        newvtx.uv_y = 0;
+                        newvtx.uvX = 0;
+                        newvtx.uvY = 0;
                         vertices[initial_vtx + index] = newvtx;
                     });
             }
@@ -102,8 +138,8 @@ std::optional<std::vector<std::shared_ptr<MeshAsset>>> LoadglTF(VulkanEngine* en
 
                 fastgltf::iterateAccessorWithIndex<glm::vec2>(gltf, gltf.accessors[(*uv).second],
                     [&](glm::vec2 v, size_t index) {
-                        vertices[initial_vtx + index].uv_x = v.x;
-                        vertices[initial_vtx + index].uv_y = v.y;
+                        vertices[initial_vtx + index].uvX = v.x;
+                        vertices[initial_vtx + index].uvY = v.y;
                     });
             }
 
@@ -134,16 +170,6 @@ std::optional<std::vector<std::shared_ptr<MeshAsset>>> LoadglTF(VulkanEngine* en
     return meshes;
 }
 
-std::shared_ptr<Model> LoadModel(VulkanEngine* engine, std::string_view filePath)
-{
-    return std::shared_ptr<Model>();
-}
-
-std::shared_ptr<Mesh> LoadMesh(const std::string& name, tinygltf::Model& loaded, const tinygltf::Mesh& loadedMesh, const std::string& folder)
-{
-    return std::shared_ptr<Mesh>();
-}
-
 void Model::TraverseNode(tinygltf::Model& loaded, const tinygltf::Node& loadedNode, Node* parent, const std::string& folder)
 {
     auto& node = nodes.emplace_back();
@@ -151,16 +177,16 @@ void Model::TraverseNode(tinygltf::Model& loaded, const tinygltf::Node& loadedNo
     {
         // If there is no local matrix, use any combination of 
         // translation, rotation and scale to compute the local matrix
-        node.position = loadedNode.translation.empty() ? glm::vec3(0.0f) : glm::vec3(glm::make_vec3(loadedNode.translation.data()));
+        node.translation = loadedNode.translation.empty() ? glm::vec3(0.0f) : glm::vec3(glm::make_vec3(loadedNode.translation.data()));
         node.scale = loadedNode.scale.empty() ? glm::vec3(1.0f) : glm::vec3(glm::make_vec3(loadedNode.scale.data()));
 
         if (loadedNode.rotation.empty())
-            node.rotation = glm::quat();
+            node.orientation = glm::quat();
         else
-            node.rotation = glm::quat(loadedNode.rotation[3], loadedNode.rotation[0], loadedNode.rotation[1], loadedNode.rotation[2]);
+            node.orientation = glm::quat(loadedNode.rotation[3], loadedNode.rotation[0], loadedNode.rotation[1], loadedNode.rotation[2]);
 
-        glm::mat4 T = glm::translate(glm::mat4(1.0f), node.position);
-        glm::mat4 R = glm::toMat4(node.rotation);
+        glm::mat4 T = glm::translate(glm::mat4(1.0f), node.translation);
+        glm::mat4 R = glm::toMat4(node.orientation);
         glm::mat4 S = glm::scale(glm::mat4(1.0f), node.scale);
         node.matrix = T * R * S;
     }
@@ -171,7 +197,7 @@ void Model::TraverseNode(tinygltf::Model& loaded, const tinygltf::Node& loadedNo
 
         glm::vec3 skew;
         glm::vec4 perspective;
-        glm::decompose(node.matrix, node.scale, node.rotation, node.position, skew, perspective);
+        glm::decompose(node.matrix, node.scale, node.orientation, node.translation, skew, perspective);
     }
 
     if (parent)
@@ -192,11 +218,294 @@ void Model::TraverseNode(tinygltf::Model& loaded, const tinygltf::Node& loadedNo
         std::string name = folder + "_mesh" + std::to_string(loadedNode.mesh);
 
         auto& loadedMesh = loaded.meshes[loadedNode.mesh];
-        //node.mesh = Engine.Resources().Load<IndirectMesh>(FileIO::Directory::None, name, loaded, loadedMesh, folder);
+        auto& engine = VulkanEngine::Get();
+        node.mesh = engine.m_resources.Create<Mesh>(name, &engine, loaded, loadedMesh, folder);
     }
 
     for (int nodeIdx : loadedNode.children)
     {
         TraverseNode(loaded, loaded.nodes[nodeIdx], &node, folder);
+    }
+}
+
+Mesh::Mesh(VulkanEngine* engine, tinygltf::Model& loaded, const tinygltf::Mesh& loadedMesh, const std::string& folder)
+{
+    // Indexing is already being processed during loading,
+    // so the amount of indices equals the amount of vertices
+    int meshVertexCount = Model::TotalIndexCountInMesh(loaded, loadedMesh);
+    if (meshVertexCount == 0)
+    {
+        printf("Model loader: mesh misses indices");
+        return;
+    }
+
+    // NEW /////////////////////////////////////////////////////////
+    const size_t vertexBufferSize = meshVertexCount * sizeof(Vertex);
+    const size_t indexBufferSize = 16 * sizeof(u32);
+
+    //create vertex buffer
+    vertexBuffer = engine->CreateBuffer(vertexBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+        VMA_MEMORY_USAGE_GPU_ONLY);
+
+    //find the adress of the vertex buffer
+    VkBufferDeviceAddressInfo deviceAdressInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,.buffer = vertexBuffer.buffer };
+    vertexBufferAddr = vkGetBufferDeviceAddress(engine->m_device, &deviceAdressInfo);
+
+    //create index buffer
+    indexBuffer = engine->CreateBuffer(indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VMA_MEMORY_USAGE_GPU_ONLY);
+
+    AllocatedBuffer staging = engine->CreateBuffer(vertexBufferSize + indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+
+    VmaAllocationInfo info;
+    vmaGetAllocationInfo(engine->m_allocator, staging.allocation, &info);
+    Vertex* vertices = (Vertex*)info.pMappedData;
+    ////////////////////////////////////////////////////////////////
+
+    bool missesTangents = false;
+    int verticesProcessed = 0;
+
+    for (const auto& prim : loadedMesh.primitives)
+    {
+        // Create pointers up front so they can be reused
+        const auto& attribs = prim.attributes;
+        const tinygltf::Accessor* accessor = nullptr;
+        const tinygltf::BufferView* view = nullptr;
+        const tinygltf::Buffer* buffer = nullptr;
+        int accessorIdx = 0;
+
+        // Indices ---------------------------------------------------------------------
+        accessor = &loaded.accessors[prim.indices];
+        view = &loaded.bufferViews[accessor->bufferView];
+        buffer = &loaded.buffers[view->buffer];
+        const uint8_t* indexData = buffer->data.data() + view->byteOffset + accessor->byteOffset;
+        uint32_t indexCount = accessor->count, vertexCount = accessor->count;
+
+        // Temporarily convert all the indices to uint32_t
+        std::vector<uint32_t> indices(indexCount);
+        for (size_t i = 0; i < vertexCount; i++)
+        {
+            switch (accessor->componentType)
+            {
+            case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
+                indices[i] = static_cast<uint32_t>(*(uint8_t*)(indexData + i * sizeof(uint8_t)));
+                break;
+            case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
+                indices[i] = static_cast<uint32_t>(*(uint16_t*)(indexData + i * sizeof(uint16_t)));
+                break;
+            case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
+                indices[i] = static_cast<uint32_t>(*(uint32_t*)(indexData + i * sizeof(uint32_t)));
+                break;
+            default:
+                printf("Unsupported index component type\n");
+                break;
+            }
+        }
+
+        // Create new primitive
+        Primitive& newPrim = primitives.emplace_back();
+        newPrim.baseVertex = verticesProcessed;
+        newPrim.vertexCount = vertexCount;
+
+        // Positions -------------------------------------------------------------------
+        accessorIdx = attribs.at("POSITION");
+        accessor = &loaded.accessors[accessorIdx];
+        view = &loaded.bufferViews[accessor->bufferView];
+        buffer = &loaded.buffers[view->buffer];
+        const uint8_t* positionData = buffer->data.data() + view->byteOffset + accessor->byteOffset;
+        assert(accessor->type == TINYGLTF_TYPE_VEC3);
+
+        // Convert positionData to my format
+        for (size_t i = 0; i < indexCount; i++)
+        {
+            float* pos = (float*)(positionData + indices[i] * sizeof(float) * 3);
+            vertices[verticesProcessed + i].position = glm::vec3(pos[0], pos[1], pos[2]);
+        }
+
+        // Normals ---------------------------------------------------------------------
+        auto it = attribs.find("NORMAL");
+        if (it != attribs.end())
+        {
+            accessorIdx = it->second;
+            accessor = &loaded.accessors[accessorIdx];
+            view = &loaded.bufferViews[accessor->bufferView];
+            buffer = &loaded.buffers[view->buffer];
+            const uint8_t* normalData = buffer->data.data() + view->byteOffset + accessor->byteOffset;
+            assert(accessor->type == TINYGLTF_TYPE_VEC3);
+
+            // Convert normalData to my format
+            for (size_t i = 0; i < indexCount; i++)
+            {
+                float* normal = (float*)(normalData + indices[i] * sizeof(float) * 3);
+                vertices[verticesProcessed + i].normal = glm::vec3(normal[0], normal[1], normal[2]);
+            }
+        }
+        else
+        {
+            // If normals are not provided, they must be flat
+            for (int i = 0; i < vertexCount; i += 3)
+            {
+                auto& v0 = vertices[i + 0];
+                auto& v1 = vertices[i + 1];
+                auto& v2 = vertices[i + 2];
+                glm::vec3 edge0 = v1.position - v0.position;
+                glm::vec3 edge1 = v2.position - v0.position;
+                glm::vec4 normal = glm::vec4(glm::normalize(glm::cross(edge0, edge1)), 0.0f);
+                v0.normal = normal;
+                v1.normal = normal;
+                v2.normal = normal;
+            }
+        }
+
+        // Texture coordinates -------------------------------------------------------
+        it = attribs.find("TEXCOORD_0");
+        if (it != attribs.end())
+        {
+            accessorIdx = it->second;
+            accessor = &loaded.accessors[accessorIdx];
+            view = &loaded.bufferViews[accessor->bufferView];
+            buffer = &loaded.buffers[view->buffer];
+            const uint8_t* texCoordData = buffer->data.data() + view->byteOffset + accessor->byteOffset;
+            assert(accessor->type == TINYGLTF_TYPE_VEC2);
+
+            // Convert texCoordData to my format
+            for (size_t i = 0; i < indexCount; i++)
+            {
+                float* texCoord = (float*)(texCoordData + indices[i] * sizeof(float) * 2);
+                vertices[verticesProcessed + i].uvX = texCoord[0];
+                vertices[verticesProcessed + i].uvY = texCoord[1];
+            }
+        }
+
+        // Tangents ------------------------------------------------------------------
+        it = attribs.find("TANGENT");
+        if (it != attribs.end())
+        {
+            accessorIdx = it->second;
+            accessor = &loaded.accessors[accessorIdx];
+            view = &loaded.bufferViews[accessor->bufferView];
+            buffer = &loaded.buffers[view->buffer];
+            const uint8_t* tangentData = buffer->data.data() + view->byteOffset + accessor->byteOffset;
+            assert(accessor->type == TINYGLTF_TYPE_VEC4);
+
+            for (size_t i = 0; i < indexCount; i++)
+            {
+                float* tangent = (float*)(tangentData + indices[i] * sizeof(float) * 4);
+                vertices[verticesProcessed + i].tangent = glm::vec4(tangent[0], tangent[1], tangent[2], tangent[3]);
+            }
+        }
+        else
+        {
+            // When tangents are not provided, SHOULD compute using MikkTSpace
+            missesTangents = true;
+        }
+
+        // Copying all indexed positions to the large position buffer,
+        // so we have to keep track of how many vertices are already
+        // processed for correct indexing
+        verticesProcessed += vertexCount;
+
+        // Materials -----------------------------------------------------------------
+        int matIdx = prim.material;
+        //if (matIdx >= 0)
+        //{
+        //    newPrim.materialIdx = materials.size();
+        //    auto& newMaterial = materials.emplace_back();
+        //    auto& material = loaded.materials[matIdx];
+        //    LoadMaterial(loaded, material, folder, newMaterial);
+        //}
+    }
+
+    //if (missesTangents)
+    //{
+    //    IndirectModel::MikkTSpaceCalc(this);
+    //}
+
+    // NEW ///////////////////////////////////////////////////////
+    engine->ImmediateSubmit([&](VkCommandBuffer cmd) 
+    {
+        VkBufferCopy vertexCopy{ 0 };
+        vertexCopy.dstOffset = 0;
+        vertexCopy.srcOffset = 0;
+        vertexCopy.size = vertexBufferSize;
+
+        vkCmdCopyBuffer(cmd, staging.buffer, vertexBuffer.buffer, 1, &vertexCopy);
+
+        VkBufferCopy indexCopy{ 0 };
+        indexCopy.dstOffset = 0;
+        indexCopy.srcOffset = vertexBufferSize;
+        indexCopy.size = indexBufferSize;
+
+        vkCmdCopyBuffer(cmd, staging.buffer, indexBuffer.buffer, 1, &indexCopy);
+    });
+
+    engine->DestroyBuffer(staging);
+    //////////////////////////////////////////////////////////////
+}
+
+static bool LoadImageCallback(
+    tinygltf::Image* img,
+    const int imgIdx,
+    std::string* rootDir,
+    std::string* fileName,
+    int reqWidth,
+    int reqHeight,
+    const unsigned char* bytes,
+    int size,
+    void* userData)
+{
+    // Do nothing. Logic resides in the model loader
+    return true;
+}
+
+Model::Model(std::string_view path, VulkanEngine* engine)
+{
+    tinygltf::TinyGLTF loader;
+    loader.SetImageLoader(LoadImageCallback, nullptr);
+
+    tinygltf::Model loaded;
+    std::string error;
+    std::string warning;
+
+    std::string folder = std::filesystem::path(path).parent_path().string() + "/";
+    std::filesystem::path fsPath = { path };
+
+    bool ret = false;
+    if (fsPath.extension() == ".gltf")
+    {
+        std::string file = ReadTextFile(std::string(path));
+        ret = loader.LoadASCIIFromString(&loaded, &error, &warning, file.c_str(), file.length(), folder);
+    }
+    else if (fsPath.extension() == ".glb")
+    {
+        std::vector<char> contents = ReadBinaryFile(std::string(path));
+        const unsigned char* ptrContents = reinterpret_cast<const unsigned char*>(contents.data());
+        ret = loader.LoadBinaryFromMemory(&loaded, &error, &warning, ptrContents, contents.size());
+    }
+    else
+    {
+        printf("Error: engine does not support this file format");
+        return;
+    }
+
+    if (!warning.empty()) printf("Warning: %s\n", warning.c_str());
+    if (!error.empty()) printf("Error: %s\n", error.c_str());
+    if (!ret)
+    {
+        printf("Failed to parse glTF\n");
+        return;
+    }
+
+    printf("File loaded!");
+
+    // Pre allocate the right amount of nodes
+    const auto& scene = loaded.scenes[loaded.defaultScene];
+    nodes.reserve(loaded.nodes.size());
+
+    // Recurse through model nodes
+    for (const auto& nodeIdx : scene.nodes)
+    {
+        const auto& loadedNode = loaded.nodes[nodeIdx];
+        TraverseNode(loaded, loadedNode, nullptr, folder);
     }
 }

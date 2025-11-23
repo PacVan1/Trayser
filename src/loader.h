@@ -4,6 +4,8 @@
 #include <unordered_map>
 #include <filesystem>
 
+class VulkanEngine;
+
 struct GeoSurface {
     uint32_t startIndex;
     uint32_t count;
@@ -28,16 +30,19 @@ struct Mesh
     AllocatedBuffer         indexBuffer;
     AllocatedBuffer         vertexBuffer;
     VkDeviceAddress         vertexBufferAddr;
+
+    Mesh(VulkanEngine* engine, tinygltf::Model& loaded, const tinygltf::Mesh& loadedMesh, const std::string& folder);
 };
 
 struct Model
 {
+public:
 struct Node
 {
     std::shared_ptr<Mesh> mesh;
     std::vector<int> children;
-    glm::vec3 position = glm::vec3(0.0f);
-    glm::quat rotation;
+    glm::vec3 translation = glm::vec3(0.0f);
+    glm::quat orientation;
     glm::vec3 scale = glm::vec3(1.0f);
     glm::mat4 matrix = glm::mat4(1.0f);
 };
@@ -46,14 +51,32 @@ public:
     std::vector<Node>   nodes;
     std::vector<int>    rootNodes;
 
-private:
-    void TraverseNode(tinygltf::Model&, const tinygltf::Node&, Node*, const std::string&);
+public:
+    static int TotalIndexCountInMesh(const tinygltf::Model& loaded, const tinygltf::Mesh& loadedMesh)
+    {
+        int indexCount = 0;
 
+        for (const auto& prim : loadedMesh.primitives)
+        {
+            if (prim.indices >= 0)
+            {   // Has indices
+                const tinygltf::Accessor& accessor = loaded.accessors[prim.indices];
+                indexCount += accessor.count;
+            }
+        }
+
+        return indexCount;
+    }
+
+public:
+    Model(std::string_view path, VulkanEngine* engine);
+    void TraverseNode(tinygltf::Model&, const tinygltf::Node&, Node*, const std::string&);
 };
 
 //forward declaration
 class VulkanEngine;
 
+std::string ReadTextFile(const std::string& path);
+std::vector<char> ReadBinaryFile(const std::string& path);
+
 std::optional<std::vector<std::shared_ptr<MeshAsset>>> LoadglTF(VulkanEngine* engine, std::filesystem::path filePath);
-std::shared_ptr<Model>  LoadModel(VulkanEngine* engine, std::string_view filePath);
-std::shared_ptr<Mesh>   LoadMesh(const std::string& name, tinygltf::Model& loaded, const tinygltf::Mesh& loadedMesh, const std::string& folder);

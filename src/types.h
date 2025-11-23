@@ -88,10 +88,11 @@ struct AllocatedBuffer
 struct Vertex
 {
     glm::vec3 position;
-    float uv_x;
+    float uvX;
     glm::vec3 normal;
-    float uv_y;
+    float uvY;
     glm::vec4 color;
+    glm::vec4 tangent;
 };
 
 namespace gpu

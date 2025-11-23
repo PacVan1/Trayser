@@ -15,7 +15,6 @@
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_vulkan.h"
 
-#define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
 
 #include <chrono>
@@ -51,19 +50,11 @@ void VulkanEngine::Init()
     InitImGui();
     InitDefaultData();
 
-    auto meshes = LoadglTF(this, kModelPaths[kInitModel]).value();
-    m_scene.CreateMesh(meshes[0]);
-    m_scene.CreateMesh(meshes[1]);
-    m_scene.CreateMesh(meshes[2]);
-    m_scene.CreateMesh(meshes[0]);
-    m_scene.CreateMesh(meshes[1]);
-    m_scene.CreateMesh(meshes[2]);
-    m_scene.CreateMesh(meshes[0]);
-    m_scene.CreateMesh(meshes[1]);
-    m_scene.CreateMesh(meshes[2]);
-    m_scene.CreateMesh(meshes[0]);
-    m_scene.CreateMesh(meshes[1]);
-    m_scene.CreateMesh(meshes[2]);
+    auto model = m_resources.Create<Model>(
+        "../../assets/Khronos/DamagedHelmet/glTF-Binary/DamagedHelmet.glb",
+        "../../assets/Khronos/DamagedHelmet/glTF-Binary/DamagedHelmet.glb",
+        this);
+    m_scene.CreateModel(model);
 
     m_isInitialized = true;
 }
@@ -1068,7 +1059,9 @@ gpu::MeshBuffers VulkanEngine::UploadMesh(std::span<uint32_t> indices, std::span
 
     AllocatedBuffer staging = CreateBuffer(vertexBufferSize + indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
 
-    void* data = staging.allocation->GetMappedData();
+    VmaAllocationInfo info;
+    vmaGetAllocationInfo(m_allocator, staging.allocation, &info);
+    void* data = info.pMappedData; // safe to use
 
     // copy vertex buffer
     memcpy(data, vertices.data(), vertexBufferSize);
@@ -1191,13 +1184,14 @@ void VulkanEngine::RenderTriangle(VkCommandBuffer cmd)
         projection[1][1] *= -1;
 
         vertPushConstants.worldMatrix = projection * view * tf.matrix;
-        vertPushConstants.vertexBuffer = render.mesh->meshBuffers.vertexBufferAddress;
+        vertPushConstants.vertexBuffer = render.mesh->vertexBufferAddr;
 
         vkCmdPushConstants(cmd, m_meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(gpu::RenderPushConstants), &vertPushConstants);
         vkCmdPushConstants(cmd, m_meshPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(gpu::RenderPushConstants), sizeof(gpu::RenderPushConstantsFrag), &fragPushConstants);
-        vkCmdBindIndexBuffer(cmd, render.mesh->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+        //vkCmdBindIndexBuffer(cmd, render.mesh->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
 
-        vkCmdDrawIndexed(cmd, render.mesh->surfaces[0].count, 1, render.mesh->surfaces[0].startIndex, 0, 0);
+        //vkCmdDrawIndexed(cmd, render.mesh->surfaces[0].count, 1, render.mesh->surfaces[0].startIndex, 0, 0);
+        vkCmdDraw(cmd, render.mesh->primitives[0].vertexCount, 1, 0, 0);
     }
 
     vkCmdEndRendering(cmd);

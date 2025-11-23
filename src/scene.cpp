@@ -72,11 +72,59 @@ Entity Scene::CreateNode(Entity parent)
     return child;
 }
 
-void Scene::CreateMesh(std::shared_ptr<MeshAsset> mesh)
+Entity Scene::TraverseModel(std::shared_ptr<Model> model, int modelNodeIdx, SGNode* parent)
 {
-    Entity node = CreateNode();
-    auto& comp = m_registry.emplace<RenderComponent>(node);
-    comp.mesh = mesh; 
+    Model::Node* modelNode = &model->nodes[modelNodeIdx];
+
+    // Create child and components
+    Entity child = m_registry.create();
+    auto& tf = m_registry.emplace<LocalTransform>(child);
+    auto& sgNode = m_registry.emplace<SGNode>(child);
+    m_registry.emplace<WorldTransform>(child);
+
+    // If the node has a mesh, add the render component
+    if (modelNode->mesh)
+    {
+        m_registry.emplace<RenderComponent>(child, modelNode->mesh);
+    }
+
+    // Add new child to parent
+    if (parent)
+    {
+        parent->children.emplace_back(child);
+    }
+
+    // Set the local transform
+    tf.matrix = modelNode->matrix;
+    tf.translation = modelNode->translation;
+    tf.orientation = modelNode->orientation;
+    tf.scale = modelNode->scale;
+    tf.dirty = false;
+
+    // Recursively call children
+    for (int childIdx : modelNode->children)
+    {
+        TraverseModel(model, childIdx, &sgNode);
+    }
+
+    return child;
+}
+
+Entity Scene::CreateModel(std::shared_ptr<Model> model)
+{
+    return CreateModel(model, m_root);
+}
+
+Entity Scene::CreateModel(std::shared_ptr<Model> model, Entity parent)
+{
+    Entity node = entt::null;
+    for (auto rootNode : model->rootNodes)
+    {
+        node = TraverseModel(model, rootNode, &m_registry.get<SGNode>(parent));
+    }
+    m_dirty = true;
+
+    return node;
 }
 
 void Scene::AddNode(Entity child)

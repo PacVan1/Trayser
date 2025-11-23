@@ -13,6 +13,8 @@
 #include <deque>
 #include <bitset>
 #include <stack>
+#include <assert.h>
+#include <fstream>
 
 // Third-party
 #include <vulkan/vulkan.h>
