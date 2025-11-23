@@ -62,6 +62,7 @@ enum RenderMode_
     RenderMode_AmbientOcclusion,
     RenderMode_Emission,
     RenderMode_Wireframe,
+    RenderMode_Depth,
     kRenderModeCount
 };
 using RenderMode = int;

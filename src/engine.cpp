@@ -128,6 +128,7 @@ void VulkanEngine::Render()
     RenderBackground(cmd);
 
     vkutil::TransitionImage(cmd, m_renderImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    vkutil::TransitionImage(cmd, m_depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 
     RenderTriangle(cmd);
 
@@ -357,8 +358,8 @@ void VulkanEngine::InitSwapchain()
     // Add to deletion queues
     m_deletionQueue.Push([=]() 
     {
-        vkDestroyImageView(m_device, m_renderImage.imageView, nullptr);
-        vmaDestroyImage(m_allocator, m_renderImage.image, m_renderImage.allocation);
+        DestroyImage(m_depthImage);
+        DestroyImage(m_renderImage);
     });
 }
 
@@ -659,11 +660,11 @@ void VulkanEngine::InitMeshPipelines()
     //no blending
     pipelineBuilder.DisableBlending();
 
-    pipelineBuilder.DisableDepthTest();
+    pipelineBuilder.EnableDepthTest(true, VK_COMPARE_OP_GREATER_OR_EQUAL);
 
     //connect the image format we will draw into, from draw image
     pipelineBuilder.SetColorAttachmentFormat(m_renderImage.imageFormat);
-    pipelineBuilder.SetDepthFormat(VK_FORMAT_UNDEFINED);
+    pipelineBuilder.SetDepthFormat(m_depthImage.imageFormat);
 
     //finally build the pipeline
     m_meshPipeline = pipelineBuilder.Build(m_device);
@@ -935,6 +936,17 @@ void VulkanEngine::CreateSwapchainImageView()
     VkImageViewCreateInfo rview_info = vkinit::imageview_create_info(m_renderImage.imageFormat, m_renderImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
 
     VK_CHECK(vkCreateImageView(m_device, &rview_info, nullptr, &m_renderImage.imageView));
+    
+    // Depth image
+    m_depthImage.imageFormat = VK_FORMAT_D32_SFLOAT;
+    m_renderImage.imageExtent = drawImageExtent;
+
+    VkImageUsageFlags depthImageUsages{};
+    depthImageUsages |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    VkImageCreateInfo dimg_info = vkinit::image_create_info(m_depthImage.imageFormat, depthImageUsages, drawImageExtent);
+    vmaCreateImage(m_allocator, &dimg_info, &rimg_allocinfo, &m_depthImage.image, &m_depthImage.allocation, nullptr);
+    VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(m_depthImage.imageFormat, m_depthImage.image, VK_IMAGE_ASPECT_DEPTH_BIT);
+    VK_CHECK(vkCreateImageView(m_device, &dview_info, nullptr, &m_depthImage.imageView));
 }
 
 AllocatedBuffer VulkanEngine::CreateBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage)
@@ -1126,8 +1138,9 @@ void VulkanEngine::RenderBackground(VkCommandBuffer cmd)
 void VulkanEngine::RenderTriangle(VkCommandBuffer cmd)
 {
     VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(m_renderImage.imageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    VkRenderingAttachmentInfo depthAttachment = vkinit::depth_attachment_info(m_depthImage.imageView, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 
-    VkRenderingInfo renderInfo = vkinit::rendering_info(m_renderExtent, &colorAttachment, nullptr);
+    VkRenderingInfo renderInfo = vkinit::rendering_info(m_renderExtent, &colorAttachment, &depthAttachment);
     vkCmdBeginRendering(cmd, &renderInfo);
 
     //set dynamic viewport and scissor

@@ -102,6 +102,7 @@ public:
 	VkDescriptorSetLayout		m_renderImageDescriptorLayout;
 
 	AllocatedImage				m_renderImage;
+	AllocatedImage				m_depthImage;
 	VkExtent2D					m_renderExtent;
 
 	VmaAllocator				m_allocator;
