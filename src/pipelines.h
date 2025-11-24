@@ -14,6 +14,7 @@ public:
 
     void Clear();
     VkPipeline Build(VkDevice device);
+    void SetVertexInputInfo(VkPipelineVertexInputStateCreateInfo* info);
     void SetShaders(VkShaderModule vertexShader, VkShaderModule fragmentShader);
     void SetInputTopology(VkPrimitiveTopology topology);
     void SetPolygonMode(VkPolygonMode mode);
@@ -27,6 +28,7 @@ public:
 
 public:
     std::vector<VkPipelineShaderStageCreateInfo>    m_shaderStages;
+    VkPipelineVertexInputStateCreateInfo*           m_vertexInputInfo = nullptr;
     VkPipelineInputAssemblyStateCreateInfo          m_inputAssembly;
     VkPipelineRasterizationStateCreateInfo          m_rasterizer;
     VkPipelineColorBlendAttachmentState             m_colorBlendAttachment;

@@ -73,3 +73,51 @@ if(WIN32)
     COMMAND_EXPAND_LISTS
     )
 endif()
+
+# Find slangc
+find_program(SLANG_COMPILER slangc
+    HINTS /usr/bin /usr/local/bin $ENV{VULKAN_SDK}/Bin/ $ENV{VULKAN_SDK}/Bin32/
+)
+
+# Collect Slang shaders (stage-specific suffixes)
+file(GLOB_RECURSE SLANG_VERTEX_SHADERS "${PROJECT_SOURCE_DIR}/shaders/*.vert.slang")
+file(GLOB_RECURSE SLANG_FRAGMENT_SHADERS "${PROJECT_SOURCE_DIR}/shaders/*.frag.slang")
+file(GLOB_RECURSE SLANG_COMPUTE_SHADERS "${PROJECT_SOURCE_DIR}/shaders/*.comp.slang")
+
+# Attach post-build commands to 'engine'
+add_custom_command(TARGET engine POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E echo "Compiling Slang shaders to SPIR-V..."
+)
+
+# Slang vertex loop
+foreach(SLANG ${SLANG_VERTEX_SHADERS})
+    get_filename_component(FILE_NAME ${SLANG} NAME_WE)
+    set(SPIRV "${CMAKE_BINARY_DIR}/shaders/${FILE_NAME}.spv")
+
+    add_custom_command(TARGET engine POST_BUILD
+        COMMAND ${SLANG_COMPILER} ${SLANG} -profile vs_5_0 -target spirv -o ${SPIRV}
+        COMMENT "Compiling Slang vertex ${FILE_NAME}"
+    )
+endforeach()
+
+# Slang fragment loop
+foreach(SLANG ${SLANG_FRAGMENT_SHADERS})
+    get_filename_component(FILE_NAME ${SLANG} NAME_WE)
+    set(SPIRV "${CMAKE_BINARY_DIR}/shaders/${FILE_NAME}.spv")
+
+    add_custom_command(TARGET engine POST_BUILD
+        COMMAND ${SLANG_COMPILER} ${SLANG} -profile ps_5_0 -target spirv -o ${SPIRV}
+        COMMENT "Compiling Slang fragment ${FILE_NAME}"
+    )
+endforeach()
+
+# Slang compute loop
+foreach(SLANG ${SLANG_COMPUTE_SHADERS})
+    get_filename_component(FILE_NAME ${SLANG} NAME_WE)
+    set(SPIRV "${CMAKE_BINARY_DIR}/shaders/${FILE_NAME}.spv")
+
+    add_custom_command(TARGET engine POST_BUILD
+        COMMAND ${SLANG_COMPILER} ${SLANG} -profile cs_5_0 -target spirv -o ${SPIRV}
+        COMMENT "Compiling Slang compute ${FILE_NAME}"
+    )
+endforeach()

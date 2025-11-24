@@ -498,7 +498,7 @@ void VulkanEngine::InitBackgroundPipelines()
 
     // Layout code
     VkShaderModule computeDrawShader;
-    if (!vkutil::LoadShaderModule("../../shaders/sky.comp.spv", m_device, &computeDrawShader))
+    if (!vkutil::LoadShaderModule("../shaders/sky.comp.spv", m_device, &computeDrawShader))
     {
         fmt::print("Error when building the compute shader \n");
     }
@@ -530,7 +530,7 @@ void VulkanEngine::InitBackgroundPipelines()
 void VulkanEngine::InitTrianglePipelines()
 {
     VkShaderModule triangleFragShader;
-    if (!vkutil::LoadShaderModule("../../shaders/colored_triangle.frag.spv", m_device, &triangleFragShader))
+    if (!vkutil::LoadShaderModule("../shaders/colored_triangle.frag.spv", m_device, &triangleFragShader))
     {
         fmt::print("Error when building the triangle fragment shader module");
     }
@@ -539,7 +539,7 @@ void VulkanEngine::InitTrianglePipelines()
     }
 
     VkShaderModule triangleVertexShader;
-    if (!vkutil::LoadShaderModule("../../shaders/colored_triangle.vert.spv", m_device, &triangleVertexShader)) 
+    if (!vkutil::LoadShaderModule("../shaders/colored_triangle.vert.spv", m_device, &triangleVertexShader)) 
     {
         fmt::print("Error when building the triangle vertex shader module");
     }
@@ -603,7 +603,7 @@ void VulkanEngine::InitTrianglePipelines()
 void VulkanEngine::InitMeshPipelines()
 {
     VkShaderModule triangleFragShader;
-    if (!vkutil::LoadShaderModule("../../shaders/tex_image.frag.spv", m_device, &triangleFragShader)) {
+    if (!vkutil::LoadShaderModule("../shaders/tex_image.frag.spv", m_device, &triangleFragShader)) {
         fmt::print("Error when building the triangle fragment shader module");
     }
     else {
@@ -611,7 +611,7 @@ void VulkanEngine::InitMeshPipelines()
     }
 
     VkShaderModule triangleVertexShader;
-    if (!vkutil::LoadShaderModule("../../shaders/colored_triangle_mesh.vert.spv", m_device, &triangleVertexShader)) {
+    if (!vkutil::LoadShaderModule("../shaders/colored_triangle_mesh.vert.spv", m_device, &triangleVertexShader)) {
         fmt::print("Error when building the triangle vertex shader module");
     }
     else {
@@ -637,6 +637,15 @@ void VulkanEngine::InitMeshPipelines()
     pipeline_layout_info.setLayoutCount = 1;
     VK_CHECK(vkCreatePipelineLayout(m_device, &pipeline_layout_info, nullptr, &m_meshPipelineLayout));
 
+    VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+    auto bindingDescription = Vertex::GetBindingDescription();
+    auto attributeDescriptions = Vertex::GetAttributeDescriptions();
+    vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vertexInputInfo.vertexBindingDescriptionCount = 1;
+    vertexInputInfo.pVertexBindingDescriptions = &bindingDescription; // Optional
+    vertexInputInfo.vertexAttributeDescriptionCount = attributeDescriptions.size();
+    vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data(); // Optional
+
     vkutil::PipelineBuilder pipelineBuilder;
 
     //use the triangle layout we created
@@ -645,6 +654,8 @@ void VulkanEngine::InitMeshPipelines()
     pipelineBuilder.SetShaders(triangleVertexShader, triangleFragShader);
     //it will draw triangles
     pipelineBuilder.SetInputTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+    //vertex input info
+    pipelineBuilder.SetVertexInputInfo(&vertexInputInfo);
     //filled triangles
     pipelineBuilder.SetPolygonMode(VK_POLYGON_MODE_FILL);
     //no backface culling
@@ -1200,6 +1211,10 @@ void VulkanEngine::RenderTriangle(VkCommandBuffer cmd)
             vertPushConstants.viewProj = projection * m_camera.m_view;
             vertPushConstants.model = tf.matrix;
             vertPushConstants.vertexBuffer = render.mesh->vertexBufferAddr;
+
+            VkBuffer vertexBuffers[] = { render.mesh->vertexBuffer.buffer };
+            VkDeviceSize offsets[] = { 0 };
+            vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
 
             vkCmdPushConstants(cmd, m_meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(gpu::RenderPushConstants), &vertPushConstants);
             vkCmdPushConstants(cmd, m_meshPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(gpu::RenderPushConstants), sizeof(gpu::RenderPushConstantsFrag), &fragPushConstants);

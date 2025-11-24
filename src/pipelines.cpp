@@ -61,6 +61,7 @@ void vkutil::PipelineBuilder::Clear()
     m_pipelineLayout = {};
     m_depthStencil = { .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO };
     m_renderInfo = { .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO };
+    m_vertexInputInfo = nullptr;
     m_shaderStages.clear();
 }
 
@@ -87,7 +88,7 @@ VkPipeline vkutil::PipelineBuilder::Build(VkDevice device)
     colorBlending.pAttachments = &m_colorBlendAttachment;
 
     // completely clear VertexInputStateCreateInfo, as we have no need for it
-    VkPipelineVertexInputStateCreateInfo _vertexInputInfo = { .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
+    VkPipelineVertexInputStateCreateInfo vertexInputInfo = { .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
 
     // build the actual pipeline
     // 
@@ -99,7 +100,7 @@ VkPipeline vkutil::PipelineBuilder::Build(VkDevice device)
 
     pipelineInfo.stageCount = (uint32_t)m_shaderStages.size();
     pipelineInfo.pStages = m_shaderStages.data();
-    pipelineInfo.pVertexInputState = &_vertexInputInfo;
+    pipelineInfo.pVertexInputState = m_vertexInputInfo ? m_vertexInputInfo : &vertexInputInfo;
     pipelineInfo.pInputAssemblyState = &m_inputAssembly;
     pipelineInfo.pViewportState = &viewportState;
     pipelineInfo.pRasterizationState = &m_rasterizer;
@@ -119,15 +120,20 @@ VkPipeline vkutil::PipelineBuilder::Build(VkDevice device)
     // its easy to error out on create graphics pipeline, so we handle it a bit
     // better than the common VK_CHECK case
     VkPipeline newPipeline;
-    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo,
-        nullptr, &newPipeline)
-        != VK_SUCCESS) {
+    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &newPipeline) != VK_SUCCESS) 
+    {
         fmt::println("failed to create pipeline");
         return VK_NULL_HANDLE; // failed to create graphics pipeline
     }
-    else {
+    else 
+    {
         return newPipeline;
     }
+}
+
+void vkutil::PipelineBuilder::SetVertexInputInfo(VkPipelineVertexInputStateCreateInfo* info)
+{
+    m_vertexInputInfo = info;
 }
 
 void vkutil::PipelineBuilder::SetShaders(VkShaderModule vertexShader, VkShaderModule fragmentShader)
