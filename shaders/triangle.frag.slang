@@ -2,9 +2,9 @@
 struct FSInput
 {
     float4 position : SV_Position;
-    float3 color : TEXCOORD0;
-    float2 uv : TEXCOORD1;
-    float3x3 tbn : TEXCOORD2;
+    float3 color    : TEXCOORD0;
+    float2 uv       : TEXCOORD1;
+    float3x3 tbn    : TEXCOORD2;
 };
 
 // Fragment shader output

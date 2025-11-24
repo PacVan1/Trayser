@@ -8,9 +8,6 @@ struct Vertex
     float4 tangent;
 };
 
-// Buffer reference style: StructuredBuffer of Vertex
-StructuredBuffer<Vertex> vertexBuffer;
-
 [[vk::push_constant]]
 cbuffer PushConstants
 {
@@ -38,12 +35,9 @@ float3x3 inverse(float3x3 m)
     )) / det;
 }
 
-VSOutput main(uint vertexId : SV_VertexID)
+VSOutput main(Vertex v)
 {
     VSOutput o;
-
-    // Load vertex
-    Vertex v = vertexBuffer[vertexId];
 
     // Transform
     float4x4 mvp = mul(viewProj, model);

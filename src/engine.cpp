@@ -603,7 +603,7 @@ void VulkanEngine::InitTrianglePipelines()
 void VulkanEngine::InitMeshPipelines()
 {
     VkShaderModule triangleFragShader;
-    if (!vkutil::LoadShaderModule("../shaders/tex_image.frag.spv", m_device, &triangleFragShader)) {
+    if (!vkutil::LoadShaderModule("../shaders/triangle.frag.spv", m_device, &triangleFragShader)) {
         fmt::print("Error when building the triangle fragment shader module");
     }
     else {
@@ -611,7 +611,7 @@ void VulkanEngine::InitMeshPipelines()
     }
 
     VkShaderModule triangleVertexShader;
-    if (!vkutil::LoadShaderModule("../shaders/colored_triangle_mesh.vert.spv", m_device, &triangleVertexShader)) {
+    if (!vkutil::LoadShaderModule("../shaders/triangle.vert.spv", m_device, &triangleVertexShader)) {
         fmt::print("Error when building the triangle vertex shader module");
     }
     else {

@@ -29,12 +29,9 @@ struct VSOutput
     float3x3 tbn    : TEXCOORD2;
 };
 
-VSOutput main(uint vertexId : SV_VertexID)
+VSOutput main(Vertex v)
 {
     VSOutput o;
-
-    // Load vertex
-    Vertex v = vertexBuffer[vertexId];
 
     // Transform
     float4x4 mvp = mul(viewProj, model);
