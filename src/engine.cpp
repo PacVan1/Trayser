@@ -17,6 +17,9 @@
 
 #include "vk_mem_alloc.h"
 
+//#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
 #include <chrono>
 #include <thread>
 
@@ -423,6 +426,10 @@ void VulkanEngine::InitDescriptors()
     {
     DescriptorLayoutBuilder builder;
     builder.AddBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    builder.AddBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    builder.AddBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    builder.AddBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    builder.AddBinding(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
     m_singleImageDescriptorLayout = builder.Build(m_device, VK_SHADER_STAGE_FRAGMENT_BIT);
     }
     // Allocate a descriptor set for our draw image
@@ -834,22 +841,12 @@ void VulkanEngine::InitDefaultData()
     m_blackImage = CreateImage((void*)&black, VkExtent3D{ 1, 1, 1 }, VK_FORMAT_R8G8B8A8_UNORM,
         VK_IMAGE_USAGE_SAMPLED_BIT);
 
-    //checkerboard image
-    uint32_t magenta = glm::packUnorm4x8(glm::vec4(1, 0, 1, 1));
-    std::array<uint32_t, 16 * 16 > pixels; //for 16x16 checkerboard texture
-    for (int x = 0; x < 16; x++) {
-        for (int y = 0; y < 16; y++) {
-            pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
-        }
-    }
-    m_errorCheckerboardImage = CreateImage(pixels.data(), VkExtent3D{ 16, 16, 1 }, VK_FORMAT_R8G8B8A8_UNORM,
-        VK_IMAGE_USAGE_SAMPLED_BIT);
+    InitDefaultMaterial();
 
     VkSamplerCreateInfo sampl = { .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
 
-    sampl.magFilter = VK_FILTER_NEAREST;
-    sampl.minFilter = VK_FILTER_NEAREST;
-
+    sampl.magFilter = VK_FILTER_LINEAR;
+    sampl.minFilter = VK_FILTER_LINEAR;
     vkCreateSampler(m_device, &sampl, nullptr, &m_defaultSamplerNearest);
 
     sampl.magFilter = VK_FILTER_LINEAR;
@@ -864,8 +861,28 @@ void VulkanEngine::InitDefaultData()
         DestroyImage(m_whiteImage);
         DestroyImage(m_greyImage);
         DestroyImage(m_blackImage);
-        DestroyImage(m_errorCheckerboardImage);
     });
+}
+
+void VulkanEngine::InitDefaultMaterial()
+{
+    //checkerboard image
+    uint32_t magenta = glm::packUnorm4x8(glm::vec4(1, 0, 1, 1));
+    uint32_t black = glm::packUnorm4x8(glm::vec4(0, 0, 0, 0));
+    std::array<uint32_t, 16 * 16 > pixels; //for 16x16 checkerboard texture
+    for (int x = 0; x < 16; x++) 
+    {
+        for (int y = 0; y < 16; y++) 
+        {
+            pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
+        }
+    }
+
+    m_defaultMaterial.baseColor         = m_resources.Create<Image>("default_base_color_image", pixels.data(), 16, 16, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_SAMPLED_BIT);
+    m_defaultMaterial.metallicRoughness = m_resources.Create<Image>("default_metallic_roughness_image", pixels.data(), 16, 16, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT);
+    m_defaultMaterial.emissive          = m_resources.Create<Image>("default_emissive_image", pixels.data(), 16, 16, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_SAMPLED_BIT);
+    m_defaultMaterial.occlusion         = m_resources.Create<Image>("default_ambient_occlusion_image", pixels.data(), 16, 16, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT);
+    m_defaultMaterial.normalMap         = m_resources.Create<Image>("default_normal_map_image", pixels.data(), 16, 16, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT);
 }
 
 void VulkanEngine::CreateSwapchain(u32 width, u32 height)
@@ -1153,22 +1170,26 @@ void VulkanEngine::RenderTriangle(VkCommandBuffer cmd)
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_meshPipeline);
 
-    //bind a texture
-    VkDescriptorSet imageSet = GetCurrentFrame().descriptors.Allocate(m_device, m_singleImageDescriptorLayout);
-    {
-        DescriptorWriter writer;
-        writer.WriteImage(0, m_errorCheckerboardImage.imageView, m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-
-        writer.UpdateSet(m_device, imageSet);
-    }
-
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_meshPipelineLayout, 0, 1, &imageSet, 0, nullptr);
-
     auto view = m_scene.m_registry.view<WorldTransform, RenderComponent>();
     for (const auto& [ent, tf, render] : view.each())
     {
         for (auto& prim : render.mesh->primitives)
         {
+            //bind a texture
+            VkDescriptorSet imageSet = GetCurrentFrame().descriptors.Allocate(m_device, m_singleImageDescriptorLayout);
+            {
+                DescriptorWriter writer;
+                writer.WriteImage(0, render.mesh->materials[prim.materialId].baseColor ? render.mesh->materials[prim.materialId].baseColor->imageView : m_defaultMaterial.baseColor->imageView, m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+                writer.WriteImage(1, render.mesh->materials[prim.materialId].normalMap ? render.mesh->materials[prim.materialId].normalMap->imageView : m_defaultMaterial.normalMap->imageView, m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+                writer.WriteImage(2, render.mesh->materials[prim.materialId].metallicRoughness ? render.mesh->materials[prim.materialId].metallicRoughness->imageView : m_defaultMaterial.metallicRoughness->imageView, m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+                writer.WriteImage(3, render.mesh->materials[prim.materialId].occlusion ? render.mesh->materials[prim.materialId].occlusion->imageView : m_defaultMaterial.occlusion->imageView, m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+                writer.WriteImage(4, render.mesh->materials[prim.materialId].emissive ? render.mesh->materials[prim.materialId].emissive->imageView : m_defaultMaterial.emissive->imageView, m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+
+                writer.UpdateSet(m_device, imageSet);
+            }
+
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_meshPipelineLayout, 0, 1, &imageSet, 0, nullptr);
+
             gpu::RenderPushConstants vertPushConstants;
             glm::mat4 projection = m_camera.m_proj;
             projection[1][1] *= -1;

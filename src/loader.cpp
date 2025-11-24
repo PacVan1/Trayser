@@ -9,6 +9,7 @@
 #include "engine.h"
 #include "initializers.h"
 #include "types.h"
+#include <images.h>
 #include <glm/gtx/quaternion.hpp>
 #include <glm/gtx/matrix_decompose.hpp>
 
@@ -407,13 +408,13 @@ Mesh::Mesh(VulkanEngine* engine, tinygltf::Model& loaded, const tinygltf::Mesh& 
 
         // Materials -----------------------------------------------------------------
         int matIdx = prim.material;
-        //if (matIdx >= 0)
-        //{
-        //    newPrim.materialIdx = materials.size();
-        //    auto& newMaterial = materials.emplace_back();
-        //    auto& material = loaded.materials[matIdx];
-        //    LoadMaterial(loaded, material, folder, newMaterial);
-        //}
+        if (matIdx >= 0)
+        {
+            newPrim.materialId = materials.size();
+            auto& newMaterial = materials.emplace_back();
+            auto& material = loaded.materials[matIdx];
+            LoadMaterial(loaded, material, folder, newMaterial);
+        }
     }
 
     LoadingMesh loadingMesh{};
@@ -445,6 +446,110 @@ Mesh::Mesh(VulkanEngine* engine, tinygltf::Model& loaded, const tinygltf::Mesh& 
 
     engine->DestroyBuffer(staging);
     //////////////////////////////////////////////////////////////
+}
+
+void Mesh::LoadMaterial(const tinygltf::Model& model, const tinygltf::Material& material, const std::string& folder, Material& newMaterial)
+{
+    auto GetImagePath = [&](const tinygltf::Image& image, const tinygltf::Texture& texture)
+        { return folder + (image.uri.empty() ? "_texture" + std::to_string(texture.source) : image.uri); };
+
+    auto& engine = VulkanEngine::Get();
+
+    // Base color -------------------------------------------------------------------
+    int texIdx = material.pbrMetallicRoughness.baseColorTexture.index;
+    if (texIdx >= 0)
+    {
+        auto& texture = model.textures[texIdx];
+        if (texture.source >= 0)
+        {
+            auto& image = model.images[texture.source];
+            std::string path = GetImagePath(image, texture);
+            newMaterial.baseColor = engine.m_resources.Create<Image>(
+                path,
+                path,
+                model,
+                image,
+                VK_FORMAT_R8G8B8A8_SRGB,
+                VK_IMAGE_USAGE_SAMPLED_BIT);
+            newMaterial.baseColorFactor = glm::make_vec4(material.pbrMetallicRoughness.baseColorFactor.data());
+        }
+    }
+    // Normal map -------------------------------------------------------------------
+    texIdx = material.normalTexture.index;
+    if (texIdx >= 0)
+    {
+        auto& texture = model.textures[texIdx];
+        if (texture.source >= 0)
+        {
+            auto& image = model.images[texture.source];
+            std::string path = GetImagePath(image, texture);
+            newMaterial.normalMap = engine.m_resources.Create<Image>(
+                path,
+                path,
+                model,
+                image,
+                VK_FORMAT_R8G8B8A8_UNORM,
+                VK_IMAGE_USAGE_SAMPLED_BIT);
+        }
+    }
+    // Metallic roughness -------------------------------------------------------------------
+    texIdx = material.pbrMetallicRoughness.metallicRoughnessTexture.index;
+    if (texIdx >= 0)
+    {
+        auto& texture = model.textures[texIdx];
+        if (texture.source >= 0)
+        {
+            auto& image = model.images[texture.source];
+            std::string path = GetImagePath(image, texture);
+            newMaterial.metallicRoughness = engine.m_resources.Create<Image>(
+                path,
+                path,
+                model,
+                image,
+                VK_FORMAT_R8G8B8A8_UNORM,
+                VK_IMAGE_USAGE_SAMPLED_BIT);
+            newMaterial.metallicRoughnessAoFactor.r = material.pbrMetallicRoughness.metallicFactor;
+            newMaterial.metallicRoughnessAoFactor.g = material.pbrMetallicRoughness.roughnessFactor;
+        }
+    }
+    // Ambient occlusion -------------------------------------------------------------------
+    texIdx = material.occlusionTexture.index;
+    if (texIdx >= 0)
+    {
+        auto& texture = model.textures[texIdx];
+        if (texture.source >= 0)
+        {
+            auto& image = model.images[texture.source];
+            std::string path = GetImagePath(image, texture);
+            newMaterial.occlusion = engine.m_resources.Create<Image>(
+                path,
+                path,
+                model,
+                image,
+                VK_FORMAT_R8G8B8A8_UNORM,
+                VK_IMAGE_USAGE_SAMPLED_BIT);
+            newMaterial.metallicRoughnessAoFactor.b = material.occlusionTexture.strength;
+        }
+    }
+    // Emissive ---------------------------------------------------------------------------
+    texIdx = material.emissiveTexture.index;
+    if (texIdx >= 0)
+    {
+        auto& texture = model.textures[texIdx];
+        if (texture.source >= 0)
+        {
+            auto& image = model.images[texture.source];
+            std::string path = GetImagePath(image, texture);
+            newMaterial.emissive = engine.m_resources.Create<Image>(
+                path,
+                path,
+                model,
+                image,
+                VK_FORMAT_R8G8B8A8_SRGB,
+                VK_IMAGE_USAGE_SAMPLED_BIT);
+            newMaterial.emissiveFactor = glm::make_vec3(material.emissiveFactor.data());
+        }
+    }
 }
 
 void Model::MikkTSpaceCalc(LoadingMesh* mesh)
@@ -571,14 +676,11 @@ Model::Model(std::string_view path, VulkanEngine* engine)
     bool ret = false;
     if (fsPath.extension() == ".gltf")
     {
-        std::string file = ReadTextFile(std::string(path));
-        ret = loader.LoadASCIIFromString(&loaded, &error, &warning, file.c_str(), file.length(), folder);
+        ret = loader.LoadASCIIFromFile(&loaded, &error, &warning, std::string(path));
     }
     else if (fsPath.extension() == ".glb")
     {
-        std::vector<char> contents = ReadBinaryFile(std::string(path));
-        const unsigned char* ptrContents = reinterpret_cast<const unsigned char*>(contents.data());
-        ret = loader.LoadBinaryFromMemory(&loaded, &error, &warning, ptrContents, contents.size());
+        ret = loader.LoadBinaryFromFile(&loaded, &error, &warning, std::string(path));
     }
     else
     {
@@ -606,4 +708,114 @@ Model::Model(std::string_view path, VulkanEngine* engine)
         const auto& loadedNode = loaded.nodes[nodeIdx];
         TraverseNode(loaded, loadedNode, nullptr, folder);
     }
+}
+
+Image::Image(const std::string& path, const tinygltf::Model& model, const tinygltf::Image& inImage, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
+{
+    auto& engine = VulkanEngine::Get();
+
+    int width, height, channels;
+    uint8_t* data = nullptr;
+
+    if (inImage.bufferView > -1)
+    {   // Is embedded
+        const tinygltf::BufferView& view = model.bufferViews[inImage.bufferView];
+        const tinygltf::Buffer& buffer = model.buffers[view.buffer];
+        const unsigned char* file = buffer.data.data() + view.byteOffset;
+        data = stbi_load_from_memory(file, view.byteLength, &width, &height, &channels, 4);
+    }
+    else
+    {   // Is external, use the path
+        data = stbi_load(path.c_str(), &width, &height, &channels, 4);
+    }
+
+    if (!data)
+    {
+        printf("Warning: Failed to load image\n");
+        return;
+    }
+
+    size_t data_size = width * height * 4;
+    AllocatedBuffer uploadbuffer = engine.CreateBuffer(data_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+
+    memcpy(uploadbuffer.info.pMappedData, data, data_size);
+
+    VkExtent3D extent = { width, height, 1 };
+
+    AllocatedImage new_image = engine.CreateImage(extent, format, usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, mipmapped);
+
+    engine.ImmediateSubmit([&](VkCommandBuffer cmd) {
+        vkutil::TransitionImage(cmd, new_image.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+        VkBufferImageCopy copyRegion = {};
+        copyRegion.bufferOffset = 0;
+        copyRegion.bufferRowLength = 0;
+        copyRegion.bufferImageHeight = 0;
+
+        copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        copyRegion.imageSubresource.mipLevel = 0;
+        copyRegion.imageSubresource.baseArrayLayer = 0;
+        copyRegion.imageSubresource.layerCount = 1;
+        copyRegion.imageExtent = extent;
+
+        // copy the buffer into the image
+        vkCmdCopyBufferToImage(cmd, uploadbuffer.buffer, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+            &copyRegion);
+
+        vkutil::TransitionImage(cmd, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        });
+
+    engine.DestroyBuffer(uploadbuffer);
+    stbi_image_free(data);
+
+    image = new_image.image;
+    imageView = new_image.imageView;
+    allocation = new_image.allocation;
+    imageExtent = new_image.imageExtent;
+    imageFormat = new_image.imageFormat;
+}
+
+Image::Image(u32* data, u32 width, u32 height, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
+{
+    auto& engine = VulkanEngine::Get();
+
+    size_t data_size = width * height * 4;
+    AllocatedBuffer uploadbuffer = engine.CreateBuffer(data_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+
+    memcpy(uploadbuffer.info.pMappedData, data, data_size);
+
+    VkExtent3D extent = { width, height, 1 };
+
+    AllocatedImage new_image = engine.CreateImage(extent, format, usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, mipmapped);
+
+    engine.ImmediateSubmit([&](VkCommandBuffer cmd) {
+        vkutil::TransitionImage(cmd, new_image.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+        VkBufferImageCopy copyRegion = {};
+        copyRegion.bufferOffset = 0;
+        copyRegion.bufferRowLength = 0;
+        copyRegion.bufferImageHeight = 0;
+
+        copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        copyRegion.imageSubresource.mipLevel = 0;
+        copyRegion.imageSubresource.baseArrayLayer = 0;
+        copyRegion.imageSubresource.layerCount = 1;
+        copyRegion.imageExtent = extent;
+
+        // copy the buffer into the image
+        vkCmdCopyBufferToImage(cmd, uploadbuffer.buffer, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+            &copyRegion);
+
+        vkutil::TransitionImage(cmd, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        });
+
+    engine.DestroyBuffer(uploadbuffer);
+
+    image = new_image.image;
+    imageView = new_image.imageView;
+    allocation = new_image.allocation;
+    imageExtent = new_image.imageExtent;
+    imageFormat = new_image.imageFormat;
 }

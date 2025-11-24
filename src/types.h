@@ -50,6 +50,7 @@ using Entity = entt::entity;
 
 enum RenderMode_
 {
+    RenderMode_FinalColor,
     RenderMode_TexCoord0,
     RenderMode_Tangent,
     RenderMode_Bitangent,

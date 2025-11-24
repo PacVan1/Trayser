@@ -3,10 +3,8 @@
 #extension GL_EXT_buffer_reference : require
 
 layout (location = 0) out vec3 outColor;
-layout (location = 1) out vec3 outNormal;
-layout (location = 2) out vec2 outUV;
-layout (location = 3) out vec3 outTangent;
-layout (location = 4) out vec3 outBitangent;
+layout (location = 1) out vec2 outUV;
+layout (location = 2) out mat3 outTBN;
 
 struct Vertex {
 
@@ -45,8 +43,6 @@ void main()
 	vec3 tangent	= normalize(mat3(PushConstants.model) * v.tangent.xyz);
 	tangent			= normalize(tangent - normal * dot(normal, tangent));
 	vec3 bitangent	= cross(normal, tangent) * v.tangent.w;
-	outNormal = normal;
-	outTangent = tangent;
-	outBitangent = bitangent;
+	outTBN = mat3(tangent, bitangent, normal);
 }
 //< all

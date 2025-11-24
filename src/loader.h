@@ -19,10 +19,35 @@ struct MeshAsset {
     gpu::MeshBuffers meshBuffers;
 };
 
+struct Image
+{
+    VkImage         image;
+    VkImageView     imageView;
+    VmaAllocation   allocation;
+    VkExtent3D      imageExtent;
+    VkFormat        imageFormat;
+
+    Image(const std::string& path, const tinygltf::Model& model, const tinygltf::Image& image, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
+    Image(u32* data, u32 width, u32 height, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
+};
+
+struct Material
+{
+    std::shared_ptr<Image> baseColor;
+    std::shared_ptr<Image> normalMap;
+    std::shared_ptr<Image> metallicRoughness;
+    std::shared_ptr<Image> occlusion;
+    std::shared_ptr<Image> emissive;
+    glm::vec4 baseColorFactor = glm::vec4(1.0);
+    glm::vec3 metallicRoughnessAoFactor = glm::vec3(1.0);
+    glm::vec3 emissiveFactor = glm::vec3(1.0);
+};
+
 struct Primitive
 {
     u32 baseVertex;
     u32 vertexCount;
+    u32 materialId;
 };
 
 struct LoadingMesh
@@ -34,11 +59,13 @@ struct LoadingMesh
 struct Mesh
 {
     std::vector<Primitive>  primitives;
+    std::vector<Material>   materials;
     AllocatedBuffer         indexBuffer;
     AllocatedBuffer         vertexBuffer;
     VkDeviceAddress         vertexBufferAddr;
 
     Mesh(VulkanEngine* engine, tinygltf::Model& loaded, const tinygltf::Mesh& loadedMesh, const std::string& folder);
+    void LoadMaterial(const tinygltf::Model&, const tinygltf::Material&, const std::string& folder, Material&);
 };
 
 struct Model

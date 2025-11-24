@@ -63,6 +63,7 @@ private:
 	void InitMeshPipelines();	
 	void InitImGui();
 	void InitDefaultData();
+	void InitDefaultMaterial();
 	void CreateSwapchain(u32 width, u32 height);
 	void CreateSwapchainImageView();
 	void DestroySwapchain();
@@ -124,7 +125,7 @@ public:
 	struct SDL_Window*			m_window{nullptr};
 	bool						m_resizeRequested = false;
 
-	RenderMode					m_renderMode = 0;
+	RenderMode					m_renderMode = RenderMode_FinalColor;
 
 private:
 	FrameData					m_frames[kFrameCount];
@@ -140,8 +141,10 @@ private:
 	AllocatedImage m_whiteImage;
 	AllocatedImage m_blackImage;
 	AllocatedImage m_greyImage;
-	AllocatedImage m_errorCheckerboardImage;
 
 	VkSampler m_defaultSamplerLinear;
 	VkSampler m_defaultSamplerNearest;
+
+
+	Material m_defaultMaterial;
 };
