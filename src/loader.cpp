@@ -627,7 +627,7 @@ void Model::MikkTSpaceSetTSpaceBasic(
     vertices[index].tangent.x = tangentu[0];
     vertices[index].tangent.y = tangentu[1];
     vertices[index].tangent.z = tangentu[2];
-    vertices[index].tangent.w = fSign;
+    vertices[index].tangent.w = -fSign;
 }
 
 int Model::MikkTSpaceGetVertexIndex(const SMikkTSpaceContext* context, int iFace, int iVert)

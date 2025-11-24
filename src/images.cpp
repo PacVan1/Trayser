@@ -63,3 +63,4 @@ void vkutil::CopyImageToImage(VkCommandBuffer cmd, VkImage source, VkImage desti
 
 	vkCmdBlitImage2(cmd, &blitInfo);
 }
+ 
