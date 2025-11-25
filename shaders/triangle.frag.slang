@@ -15,10 +15,10 @@ struct FSOutput
 
 // Textures with explicit Vulkan bindings
 [[vk::binding(0, 0)]] Sampler2D baseColor;
-[[vk::binding(0, 1)]] Sampler2D normalMap;
-[[vk::binding(0, 2)]] Sampler2D metallicRoughness;
-[[vk::binding(0, 3)]] Sampler2D occlusion;
-[[vk::binding(0, 4)]] Sampler2D emissive;
+[[vk::binding(1, 0)]] Sampler2D normalMap;
+[[vk::binding(2, 0)]] Sampler2D metallicRoughness;
+[[vk::binding(3, 0)]] Sampler2D occlusion;
+[[vk::binding(4, 0)]] Sampler2D emissive;
 
 // Push constants block
 [[vk::push_constant]]
@@ -101,8 +101,6 @@ FSOutput main(FSInput input)
     {
         o.fragColor = emissive.Sample(input.uv);
     }
-
-    o.fragColor = float4((float)renderMode.x / 20.0, 0.0, 0.0, 1.0);
 
     return o;
 }
