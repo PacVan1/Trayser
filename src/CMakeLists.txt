@@ -84,10 +84,18 @@ file(GLOB_RECURSE SLANG_VERTEX_SHADERS "${PROJECT_SOURCE_DIR}/shaders/*.vert.sla
 file(GLOB_RECURSE SLANG_FRAGMENT_SHADERS "${PROJECT_SOURCE_DIR}/shaders/*.frag.slang")
 file(GLOB_RECURSE SLANG_COMPUTE_SHADERS "${PROJECT_SOURCE_DIR}/shaders/*.comp.slang")
 
-# Create a filter group in Visual Studio
-source_group("Shaders" FILES ${SLANG_VERTEX_SHADERS} ${SLANG_FRAGMENT_SHADERS} ${SLANG_COMPUTE_SHADERS})
+# Add them to the project but not to compilation
 set_source_files_properties(${SLANG_VERTEX_SHADERS} ${SLANG_FRAGMENT_SHADERS} ${SLANG_COMPUTE_SHADERS} PROPERTIES HEADER_FILE_ONLY TRUE)
-target_sources(engine PRIVATE ${SLANG_VERTEX_SHADERS} ${SLANG_FRAGMENT_SHADERS} ${SLANG_COMPUTE_SHADERS})
+
+# Attach them to your target (important!)
+target_sources(engine PRIVATE
+    ${SLANG_VERTEX_SHADERS}
+    ${SLANG_FRAGMENT_SHADERS}
+    ${SLANG_COMPUTE_SHADERS}
+)
+
+# Organize them in a filter called "Shaders"
+source_group("Shaders" FILES ${SLANG_VERTEX_SHADERS} ${SLANG_FRAGMENT_SHADERS} ${SLANG_COMPUTE_SHADERS})
 
 # Attach post-build commands to 'engine'
 add_custom_command(TARGET engine POST_BUILD

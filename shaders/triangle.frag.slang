@@ -24,66 +24,85 @@ struct FSOutput
 [[vk::push_constant]]
 cbuffer PushConstants
 {
-    int   renderMode;
-    float3 padding; // matches GLSL layout
+    int4 renderMode;
 };
+
+enum RenderMode
+{
+    FinalColor,
+    TexCoord0,
+    Tangent,
+    Bitangent,
+    GeometryNormal,
+    ShadingNormal,
+    BaseColor,
+    NormalMap,
+    Metallic,
+    Roughness,
+    AmbientOcclusion,
+    Emission,
+    Wireframe,
+    Depth,
+}
 
 FSOutput main(FSInput input)
 {
     FSOutput o;
 
-    if (renderMode == 0)
+    if (renderMode.x == 0)
     {
         o.fragColor = float4(0.5, 0.5, 0.5, 1.0);
     }
-    else if (renderMode == 1)
+    else if (renderMode.x == RenderMode.TexCoord0)
     {
         o.fragColor = float4(input.uv, 0.0, 1.0);
     }
-    else if (renderMode == 2)
+    else if (renderMode.x == RenderMode.Tangent)
     {
         o.fragColor = float4((input.tbn[0] + 1.0) * 0.5, 1.0);
     }
-    else if (renderMode == 3)
+    else if (renderMode.x == RenderMode.Bitangent)
     {
         o.fragColor = float4((input.tbn[1] + 1.0) * 0.5, 1.0);
     }
-    else if (renderMode == 4)
+    else if (renderMode.x == RenderMode.GeometryNormal)
     {
         o.fragColor = float4((input.tbn[2] + 1.0) * 0.5, 1.0);
     }
-    else if (renderMode == 5)
+    else if (renderMode.x == RenderMode.ShadingNormal)
     {
         float3 mapNormal = normalMap.Sample(input.uv).xyz * 2.0 - 1.0;
         float3 normal    = mul(input.tbn, mapNormal);
         o.fragColor      = float4((normal + 1.0) * 0.5, 1.0);
     }
-    else if (renderMode == 6)
+    else if (renderMode.x == RenderMode.BaseColor)
     {
         o.fragColor = baseColor.Sample(input.uv);
     }
-    else if (renderMode == 7)
+    else if (renderMode.x == RenderMode.NormalMap)
     {
         o.fragColor = normalMap.Sample(input.uv);
     }
-    else if (renderMode == 8)
+    else if (renderMode.x == RenderMode.Metallic)
     {
         float metallic = metallicRoughness.Sample(input.uv).b;
         o.fragColor    = float4(metallic, metallic, metallic, 1.0);
     }
-    else if (renderMode == 9)
+    else if (renderMode.x == RenderMode.Roughness)
     {
         float roughness = metallicRoughness.Sample(input.uv).g;
         o.fragColor     = float4(roughness, roughness, roughness, 1.0);
     }
-    else if (renderMode == 10)
+    else if (renderMode.x == RenderMode.AmbientOcclusion)
     {
         o.fragColor = occlusion.Sample(input.uv);
     }
-    else if (renderMode == 11)
+    else if (renderMode.x == RenderMode.Emission)
     {
         o.fragColor = emissive.Sample(input.uv);
     }
+
+    o.fragColor = float4((float)renderMode.x / 20.0, 0.0, 0.0, 1.0);
 
     return o;
 }

@@ -198,11 +198,9 @@ struct MeshBuffers {
 struct RenderPushConstants {
     glm::mat4 viewProj;
     glm::mat4 model;
-    VkDeviceAddress vertexBuffer;
 };
 struct RenderPushConstantsFrag {
-    int renderMode;
-    glm::vec3 padding;
+    glm::ivec4 renderMode;
 };
 struct SceneData {
     glm::mat4 view;

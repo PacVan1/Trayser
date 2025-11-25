@@ -1206,11 +1206,10 @@ void VulkanEngine::RenderTriangle(VkCommandBuffer cmd)
             projection[1][1] *= -1;
 
             gpu::RenderPushConstantsFrag fragPushConstants;
-            fragPushConstants.renderMode = m_renderMode;
+            fragPushConstants.renderMode = glm::ivec4(m_renderMode, 0, 0, 0);
 
             vertPushConstants.viewProj = projection * m_camera.m_view;
             vertPushConstants.model = tf.matrix;
-            vertPushConstants.vertexBuffer = render.mesh->vertexBufferAddr;
 
             VkBuffer vertexBuffers[] = { render.mesh->vertexBuffer.buffer };
             VkDeviceSize offsets[] = { 0 };
