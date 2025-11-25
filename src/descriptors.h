@@ -63,6 +63,11 @@ struct DescriptorWriter
     std::deque<VkDescriptorBufferInfo> bufferInfos;
     std::vector<VkWriteDescriptorSet> writes;
 
+	// Bindless texturing test
+	static constexpr u32 kMaxImages = 10;
+    VkDescriptorImageInfo bindlessImageInfos[kMaxImages];
+
+    void WriteBindlessImage(int imageIdx, VkImageView image, VkSampler sampler, VkImageLayout layout, VkDescriptorType type);
     void WriteImage(int binding, VkImageView image, VkSampler sampler, VkImageLayout layout, VkDescriptorType type);
     void WriteBuffer(int binding, VkBuffer buffer, size_t size, size_t offset, VkDescriptorType type);
 

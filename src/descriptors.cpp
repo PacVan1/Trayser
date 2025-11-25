@@ -188,6 +188,24 @@ VkDescriptorSet DescriptorAllocatorGrowable::Allocate(VkDevice device, VkDescrip
     return ds;
 }
 
+void DescriptorWriter::WriteBindlessImage(int imageIdx, VkImageView image, VkSampler sampler, VkImageLayout layout, VkDescriptorType type)
+{
+	bindlessImageInfos[imageIdx] = VkDescriptorImageInfo{
+	.sampler = sampler,
+	.imageView = image,
+	.imageLayout = layout
+	};
+
+	VkWriteDescriptorSet write = { .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+	write.dstBinding = 0; //bindless binding is always 0
+	write.dstSet = VK_NULL_HANDLE; //left empty for now until we need to write it
+	//write.dstArrayElement = imageIdx;
+	write.descriptorCount = kMaxImages;
+	write.descriptorType = type;
+	write.pImageInfo = bindlessImageInfos;
+	writes.push_back(write);
+}
+
 void DescriptorWriter::WriteImage(int binding, VkImageView image, VkSampler sampler, VkImageLayout layout, VkDescriptorType type)
 {
     VkDescriptorImageInfo& info = imageInfos.emplace_back(VkDescriptorImageInfo{
