@@ -884,7 +884,8 @@ void VulkanEngine::InitDefaultMaterial()
     {
         for (int y = 0; y < 16; y++) 
         {
-            pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
+            //pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
+            pixels[y * 16 + x] = black;
         }
     }
 
