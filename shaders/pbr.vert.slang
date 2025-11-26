@@ -11,14 +11,15 @@ struct Vertex
 [[vk::push_constant]]
 cbuffer PushConstants
 {
-    float4x4 viewProj;
-    float4x4 model;
+    [[vk::offset(0)]]  float4x4 viewProj;
+    [[vk::offset(64)]] float4x4 model;
 };
 
 // Vertex shader output
 struct VSOutput
 {
     float4 position : SV_Position;
+    float4 worldPos;
     float3 color    : TEXCOORD0;
     float2 uv       : TEXCOORD1;
     float3x3 tbn    : TEXCOORD2;
@@ -42,6 +43,7 @@ VSOutput main(Vertex v)
     // Transform
     float4x4 mvp = mul(viewProj, model);
     o.position = mul(mvp, float4(v.position, 1.0f));
+    o.worldPos = mul(model, float4(v.position, 1.0f));
 
     // Outputs
     o.color = v.color.xyz;

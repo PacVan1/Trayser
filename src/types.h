@@ -62,6 +62,8 @@ enum RenderMode_
     RenderMode_Roughness,
     RenderMode_AmbientOcclusion,
     RenderMode_Emission,
+    RenderMode_WorldPos,
+    RenderMode_ViewDir,
     RenderMode_Wireframe,
     RenderMode_Depth,
     kRenderModeCount
@@ -200,6 +202,7 @@ struct RenderPushConstants {
     glm::mat4 model;
 };
 struct RenderPushConstantsFrag {
+    glm::vec4 camPos;
     glm::ivec4 renderMode;
 };
 struct SceneData {

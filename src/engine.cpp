@@ -474,7 +474,6 @@ void VulkanEngine::InitDescriptors()
 void VulkanEngine::InitPipelines()
 {
     InitBackgroundPipelines();
-    InitTrianglePipelines();
     InitMeshPipelines();
 }
 
@@ -603,7 +602,7 @@ void VulkanEngine::InitTrianglePipelines()
 void VulkanEngine::InitMeshPipelines()
 {
     VkShaderModule triangleFragShader;
-    if (!vkutil::LoadShaderModule("../shaders/triangle.frag.spv", m_device, &triangleFragShader)) {
+    if (!vkutil::LoadShaderModule("../shaders/pbr.frag.spv", m_device, &triangleFragShader)) {
         fmt::print("Error when building the triangle fragment shader module");
     }
     else {
@@ -611,7 +610,7 @@ void VulkanEngine::InitMeshPipelines()
     }
 
     VkShaderModule triangleVertexShader;
-    if (!vkutil::LoadShaderModule("../shaders/triangle.vert.spv", m_device, &triangleVertexShader)) {
+    if (!vkutil::LoadShaderModule("../shaders/pbr.vert.spv", m_device, &triangleVertexShader)) {
         fmt::print("Error when building the triangle vertex shader module");
     }
     else {
@@ -1207,6 +1206,7 @@ void VulkanEngine::RenderTriangle(VkCommandBuffer cmd)
 
             gpu::RenderPushConstantsFrag fragPushConstants;
             fragPushConstants.renderMode = glm::ivec4(m_renderMode, 0, 0, 0);
+			fragPushConstants.camPos = glm::vec4(m_camera.m_position, 1.0f);
 
             vertPushConstants.viewProj = projection * m_camera.m_view;
             vertPushConstants.model = tf.matrix;
