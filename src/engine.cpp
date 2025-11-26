@@ -876,24 +876,16 @@ void VulkanEngine::InitDefaultData()
 
 void VulkanEngine::InitDefaultMaterial()
 {
-    //checkerboard image
-    uint32_t magenta = glm::packUnorm4x8(glm::vec4(1, 0, 1, 1));
-    uint32_t black = glm::packUnorm4x8(glm::vec4(0, 0, 0, 0));
-    std::array<uint32_t, 16 * 16 > pixels; //for 16x16 checkerboard texture
-    for (int x = 0; x < 16; x++) 
-    {
-        for (int y = 0; y < 16; y++) 
-        {
-            //pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
-            pixels[y * 16 + x] = black;
-        }
-    }
+    uint32_t black  = glm::packUnorm4x8(glm::vec4(0.0, 0.0, 0.0, 1.0));
+    uint32_t gray   = glm::packUnorm4x8(glm::vec4(0.5, 0.5, 0.5, 1.0));
+    uint32_t normal = glm::packUnorm4x8(glm::vec4(0.5, 0.5, 1.0, 1.0));
+    uint32_t white  = glm::packUnorm4x8(glm::vec4(1.0, 1.0, 1.0, 1.0));
 
-    m_defaultMaterial.baseColor         = m_resources.Create<Image>("default_base_color_image", pixels.data(), 16, 16, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_SAMPLED_BIT);
-    m_defaultMaterial.metallicRoughness = m_resources.Create<Image>("default_metallic_roughness_image", pixels.data(), 16, 16, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT);
-    m_defaultMaterial.emissive          = m_resources.Create<Image>("default_emissive_image", pixels.data(), 16, 16, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_SAMPLED_BIT);
-    m_defaultMaterial.occlusion         = m_resources.Create<Image>("default_ambient_occlusion_image", pixels.data(), 16, 16, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT);
-    m_defaultMaterial.normalMap         = m_resources.Create<Image>("default_normal_map_image", pixels.data(), 16, 16, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT);
+    m_defaultMaterial.baseColor         = m_resources.Create<Image>("default_base_color_image", &black, 1, 1, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_SAMPLED_BIT);
+    m_defaultMaterial.metallicRoughness = m_resources.Create<Image>("default_metallic_roughness_image", &gray, 1, 1, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT);
+    m_defaultMaterial.emissive          = m_resources.Create<Image>("default_emissive_image", &black, 1, 1, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_SAMPLED_BIT);
+    m_defaultMaterial.occlusion         = m_resources.Create<Image>("default_ambient_occlusion_image", &white, 1, 1, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT);
+    m_defaultMaterial.normalMap         = m_resources.Create<Image>("default_normal_map_image", &normal, 1, 1, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT);
 }
 
 void VulkanEngine::CreateSwapchain(u32 width, u32 height)
