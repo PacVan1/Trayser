@@ -209,6 +209,7 @@ FSOutput main(FSInput input)
             intensity += CookTorranceBRDF(info, L1) * 2.0;
             intensity += CookTorranceBRDF(info, L2) * 2.0;
             o.fragColor = float4(intensity * info.ao + info.emissive, 1.0);
+            o.fragColor = float4(LinearToSrgb(o.fragColor.rgb), 1.0);
             break;
 
         case RenderMode.TexCoord0:
@@ -232,7 +233,7 @@ FSOutput main(FSInput input)
             break;
 
         case RenderMode.BaseColor:
-            o.fragColor = info.baseColor;
+            o.fragColor = float4(LinearToSrgb(info.baseColor.rgb), 1.0);
             break;
 
         case RenderMode.NormalMap:
@@ -252,7 +253,7 @@ FSOutput main(FSInput input)
             break;
 
         case RenderMode.Emission:
-            o.fragColor = textures[TextureType.Emission].Sample(input.uv);
+            o.fragColor = float4(LinearToSrgb(info.emissive), 1.0);
             break;
 
         case RenderMode.WorldPos:
