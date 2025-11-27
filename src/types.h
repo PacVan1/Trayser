@@ -197,14 +197,23 @@ struct MeshBuffers {
 };
 
 // push constants for our mesh object draws
-struct RenderPushConstants {
-    glm::mat4 viewProj;
-    glm::mat4 model;
+//struct RenderPushConstants {
+//    glm::mat4 viewProj;
+//    glm::mat4 model;
+//};
+//struct RenderPushConstantsFrag {
+//    glm::vec4 camPos;
+//    glm::ivec4 renderMode;
+//};
+
+struct alignas(16) PushConstants
+{
+    glm::mat4   viewProj;
+    glm::mat4   model;
+    glm::vec4   camPos;
+    glm::ivec4  renderMode;
 };
-struct RenderPushConstantsFrag {
-    glm::vec4 camPos;
-    glm::ivec4 renderMode;
-};
+
 struct SceneData {
     glm::mat4 view;
     glm::mat4 proj;

@@ -74,6 +74,23 @@ if(WIN32)
     )
 endif()
 
+set(SLANG_INCLUDE_DIR "$ENV{VULKAN_SDK}/Include")
+set(SLANG_LIB_DIR "$ENV{VULKAN_SDK}/Lib")
+set(SLANG_BIN_DIR "$ENV{VULKAN_SDK}/Bin")
+target_include_directories(engine PRIVATE ${SLANG_INCLUDE_DIR})
+target_link_libraries(engine PRIVATE
+    $<$<CONFIG:Debug>:${SLANG_LIB_DIR}/slangd.lib> # Windows (.lib)
+    $<$<CONFIG:Release>:${SLANG_LIB_DIR}/slang.lib>
+)
+
+add_custom_command(TARGET engine POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${SLANG_BIN_DIR}/slang.dll"
+    $<TARGET_FILE_DIR:engine>)
+
+# Make sure the shaders output directory exists
+file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/shaders)
+
 # Find slangc
 find_program(SLANG_COMPILER slangc
     HINTS /usr/bin /usr/local/bin $ENV{VULKAN_SDK}/Bin/ $ENV{VULKAN_SDK}/Bin32/

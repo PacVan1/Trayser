@@ -15,22 +15,30 @@
 #include <stack>
 #include <assert.h>
 #include <fstream>
+// temp
+#include <list>
 
 // Third-party
 #include <vulkan/vulkan.h>
 #include <vulkan/vk_enum_string_helper.h>
 #include <vk_mem_alloc.h>
-#include <fmt/core.h>
+
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/glm.hpp>
 #include <glm/mat4x4.hpp>
 #include <glm/vec4.hpp>
 #include <glm/packing.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/quaternion.hpp>
 #include <glm/gtc/type_ptr.hpp>
+
+#include <fmt/core.h>
 #include <entt/entt.hpp>
 #include <magic_enum/magic_enum.hpp>
 #include <tiny_gltf.h>
 #include <mikktspace.h>
+#include <slang/slang.h>
+#include <slang/slang-com-ptr.h>
 
 // Engine
 #include <types.h>

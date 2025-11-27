@@ -28,6 +28,90 @@ static constexpr bool kUseValidationLayers = true;
 
 VulkanEngine& VulkanEngine::Get() { return *g_loadedEngine; }
 
+using Slang::ComPtr;
+
+inline bool CompileSlangShader()
+{
+    SlangResult result{};
+
+    Slang::ComPtr<slang::IGlobalSession> slangGlobalSession;
+    result = slang::createGlobalSession(slangGlobalSession.writeRef());
+
+    slang::TargetDesc targetDesc = {};
+    targetDesc.format = SLANG_SPIRV;
+    targetDesc.profile = slangGlobalSession->findProfile("spirv_1_5");
+    targetDesc.flags = 0;
+    slang::SessionDesc sessionDesc = {};
+    sessionDesc.targets = &targetDesc;
+    sessionDesc.targetCount = 1;
+    sessionDesc.compilerOptionEntryCount = 0;
+
+    const char* searchPaths[] = 
+    {
+        "C:/Projects/BUas/Y2B/Trayser/shaders"
+    };
+
+    sessionDesc.searchPaths = searchPaths;
+    sessionDesc.searchPathCount = 1;
+    Slang::ComPtr<slang::ISession> session;
+    slangGlobalSession->createSession(sessionDesc, session.writeRef());
+
+    slang::IModule* slangModule = nullptr;
+    {
+        Slang::ComPtr<slang::IBlob> diagnosticBlob;
+        slangModule = session->loadModule("hello-world", diagnosticBlob.writeRef());
+        //diagnoseIfNeeded(diagnosticBlob);
+        if (!slangModule)
+            return -1;
+    }
+
+    Slang::ComPtr<slang::IEntryPoint> entryPoint;
+    slangModule->findEntryPointByName("computeMain", entryPoint.writeRef());
+
+    std::vector<slang::IComponentType*> componentTypes;
+    componentTypes.push_back(slangModule);
+    componentTypes.push_back(entryPoint);
+
+    ComPtr<slang::IComponentType> composedProgram;
+    {
+        ComPtr<slang::IBlob> diagnosticsBlob;
+        SlangResult result = session->createCompositeComponentType(
+            componentTypes.data(),
+            componentTypes.size(),
+            composedProgram.writeRef(),
+            diagnosticsBlob.writeRef());
+        //diagnoseIfNeeded(diagnosticsBlob);
+        if (result == SLANG_FAIL)
+        {
+            return false;
+        }
+    }
+
+    ComPtr<slang::IBlob> spirvCode;
+    {
+        ComPtr<slang::IBlob> diagnosticsBlob;
+        SlangResult result = composedProgram->getEntryPointCode(
+            0,
+            0,
+            spirvCode.writeRef(),
+            diagnosticsBlob.writeRef());
+        //diagnoseIfNeeded(diagnosticsBlob);
+        //RETURN_ON_FAIL(result);
+
+        if (result == SLANG_FAIL)
+        {
+            return false;
+        }
+
+        //if (isTestMode())
+        //{
+        //	printEntrypointHashes(1, 1, composedProgram);
+        //}
+    }
+
+    return false;
+}
+
 void VulkanEngine::Init()
 {
     assert(g_loadedEngine == nullptr);
@@ -43,6 +127,8 @@ void VulkanEngine::Init()
         SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
     SDL_ShowCursor(SDL_DISABLE);
     SDL_SetRelativeMouseMode(SDL_FALSE);
+
+    //CompileSlangShader();
 
     InitVulkan();
     InitSwapchain();
@@ -474,7 +560,7 @@ void VulkanEngine::InitDescriptors()
 void VulkanEngine::InitPipelines()
 {
     InitBackgroundPipelines();
-    InitMeshPipelines();
+    InitMeshPipelines2();
 }
 
 void VulkanEngine::InitBackgroundPipelines()
@@ -526,79 +612,6 @@ void VulkanEngine::InitBackgroundPipelines()
     });
 }
 
-void VulkanEngine::InitTrianglePipelines()
-{
-    VkShaderModule triangleFragShader;
-    if (!vkutil::LoadShaderModule("../shaders/colored_triangle.frag.spv", m_device, &triangleFragShader))
-    {
-        fmt::print("Error when building the triangle fragment shader module");
-    }
-    else {
-        fmt::print("Triangle fragment shader succesfully loaded");
-    }
-
-    VkShaderModule triangleVertexShader;
-    if (!vkutil::LoadShaderModule("../shaders/colored_triangle.vert.spv", m_device, &triangleVertexShader)) 
-    {
-        fmt::print("Error when building the triangle vertex shader module");
-    }
-    else {
-        fmt::print("Triangle vertex shader succesfully loaded");
-    }
-
-    VkPushConstantRange bufferRange{};
-    bufferRange.offset = 0;
-    bufferRange.size = sizeof(gpu::RenderPushConstants);
-    bufferRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-
-    VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
-    pipeline_layout_info.pPushConstantRanges = &bufferRange;
-    pipeline_layout_info.pushConstantRangeCount = 1;
-    pipeline_layout_info.pSetLayouts = &m_singleImageDescriptorLayout;
-    pipeline_layout_info.setLayoutCount = 1;
-    VK_CHECK(vkCreatePipelineLayout(m_device, &pipeline_layout_info, nullptr, &m_meshPipelineLayout));
-
-    //build the pipeline layout that controls the inputs/outputs of the shader
-    //we are not using descriptor sets or other systems yet, so no need to use anything other than empty default
-    VK_CHECK(vkCreatePipelineLayout(m_device, &pipeline_layout_info, nullptr, &m_triPipelineLayout));
-
-    vkutil::PipelineBuilder pipelineBuilder;
-
-    //use the triangle layout we created
-    pipelineBuilder.m_pipelineLayout = m_triPipelineLayout;
-    //connecting the vertex and pixel shaders to the pipeline
-    pipelineBuilder.SetShaders(triangleVertexShader, triangleFragShader);
-    //it will draw triangles
-    pipelineBuilder.SetInputTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-    //filled triangles
-    pipelineBuilder.SetPolygonMode(VK_POLYGON_MODE_FILL);
-    //no backface culling
-    pipelineBuilder.SetCullMode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
-    //no multisampling
-    pipelineBuilder.SetMultisamplingNone();
-    //no blending
-    pipelineBuilder.DisableBlending();
-    //no depth testing
-    pipelineBuilder.DisableDepthTest();
-
-    //connect the image format we will draw into, from draw image
-    pipelineBuilder.SetColorAttachmentFormat(m_renderImage.imageFormat);
-    pipelineBuilder.SetDepthFormat(VK_FORMAT_UNDEFINED);
-
-    //finally build the pipeline
-    m_triPipeline = pipelineBuilder.Build(m_device);
-
-    //clean structures
-    vkDestroyShaderModule(m_device, triangleFragShader, nullptr);
-    vkDestroyShaderModule(m_device, triangleVertexShader, nullptr);
-
-    m_deletionQueue.Push([&]() 
-    {
-        vkDestroyPipelineLayout(m_device, m_triPipelineLayout, nullptr);
-        vkDestroyPipeline(m_device, m_triPipeline, nullptr);
-    });
-}
-
 void VulkanEngine::InitMeshPipelines()
 {
     VkShaderModule triangleFragShader;
@@ -617,20 +630,13 @@ void VulkanEngine::InitMeshPipelines()
         fmt::print("Triangle vertex shader succesfully loaded");
     }
 
-    VkPushConstantRange bufferRange{};
-    bufferRange.offset = 0;
-    bufferRange.size = sizeof(gpu::RenderPushConstants);
-    bufferRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-
-    VkPushConstantRange fragPushConst{};
-    fragPushConst.offset = sizeof(gpu::RenderPushConstants);
-    fragPushConst.size = sizeof(gpu::RenderPushConstantsFrag);
-    fragPushConst.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-    VkPushConstantRange pushConsts[2] = { bufferRange, fragPushConst };
+    VkPushConstantRange pushConst{};
+    pushConst.offset = 0;
+    pushConst.size = sizeof(gpu::PushConstants);
+    pushConst.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
     VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
-    pipeline_layout_info.pPushConstantRanges = pushConsts;
+    pipeline_layout_info.pPushConstantRanges = &pushConst;
     pipeline_layout_info.pushConstantRangeCount = 2;
     pipeline_layout_info.pSetLayouts = &m_singleImageDescriptorLayout;
     pipeline_layout_info.setLayoutCount = 1;
@@ -676,6 +682,172 @@ void VulkanEngine::InitMeshPipelines()
     //clean structures
     vkDestroyShaderModule(m_device, triangleFragShader, nullptr);
     vkDestroyShaderModule(m_device, triangleVertexShader, nullptr);
+
+    m_deletionQueue.Push([&]()
+    {
+        vkDestroyPipelineLayout(m_device, m_meshPipelineLayout, nullptr);
+        vkDestroyPipeline(m_device, m_meshPipeline, nullptr);
+    });
+}
+
+VkShaderModule createShaderModule(VkDevice device, const ComPtr<slang::IBlob>& blob)
+{
+    VkShaderModuleCreateInfo ci{ VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
+    ci.codeSize = blob->getBufferSize();
+    ci.pCode = reinterpret_cast<const uint32_t*>(blob->getBufferPointer());
+
+    VkShaderModule module = VK_NULL_HANDLE;
+    VkResult vr = vkCreateShaderModule(device, &ci, nullptr, &module);
+    if (vr != VK_SUCCESS) { printf("Failed to create shader module"); }
+    return module;
+}
+
+void diagnoseIfNeeded(slang::IBlob* diagnosticsBlob)
+{
+    if (diagnosticsBlob != nullptr)
+    {
+        printf("%s", (const char*)diagnosticsBlob->getBufferPointer());
+    }
+}
+
+void VulkanEngine::InitMeshPipelines2()
+{
+    SlangResult result{};
+
+    Slang::ComPtr<slang::IGlobalSession> slangGlobalSession;
+    result = slang::createGlobalSession(slangGlobalSession.writeRef());
+
+    slang::TargetDesc targetDesc = {};
+    targetDesc.format = SLANG_SPIRV;
+    targetDesc.profile = slangGlobalSession->findProfile("spirv_1_3");
+    targetDesc.flags = 0;
+    slang::SessionDesc sessionDesc = {};
+    sessionDesc.targets = &targetDesc;
+    sessionDesc.targetCount = 1;
+    sessionDesc.compilerOptionEntryCount = 0;
+
+    const char* searchPaths[] =
+    {
+        "C:/Projects/BUas/Y2B/Trayser/shaders"
+    };
+
+    sessionDesc.searchPaths = searchPaths;
+    sessionDesc.searchPathCount = 1;
+    Slang::ComPtr<slang::ISession> session;
+    slangGlobalSession->createSession(sessionDesc, session.writeRef());
+
+    slang::IModule* slangModule = nullptr;
+    {
+        Slang::ComPtr<slang::IBlob> diagnosticBlob;
+        slangModule = session->loadModule("pbr", diagnosticBlob.writeRef());
+        if (!slangModule)
+            return;
+    }
+
+    Slang::ComPtr<slang::IEntryPoint> vsEntryPoint;
+    slangModule->findEntryPointByName("vsMain", vsEntryPoint.writeRef());
+    Slang::ComPtr<slang::IEntryPoint> fsEntryPoint;
+    slangModule->findEntryPointByName("fsMain", fsEntryPoint.writeRef());
+
+    std::vector<slang::IComponentType*> componentTypes;
+    componentTypes.push_back(slangModule);
+    componentTypes.push_back(vsEntryPoint);
+    componentTypes.push_back(fsEntryPoint);
+
+    ComPtr<slang::IComponentType> composedProgram;
+    {
+        ComPtr<slang::IBlob> diagnosticsBlob;
+        SlangResult result = session->createCompositeComponentType(
+            componentTypes.data(),
+            componentTypes.size(),
+            composedProgram.writeRef(),
+            diagnosticsBlob.writeRef());
+        if (result == SLANG_FAIL)
+        {
+            return;
+        }
+    }
+
+    // Retrieve SPIR-V for vertex (index 0) and fragment (index 1)
+    ComPtr<slang::IBlob> vsSpirv, fsSpirv;
+    {
+        ComPtr<slang::IBlob> diag;
+        composedProgram->getEntryPointCode(0, 0, vsSpirv.writeRef(), diag.writeRef());
+        diagnoseIfNeeded(diag);
+
+        diag = nullptr;
+        composedProgram->getEntryPointCode(1, 0, fsSpirv.writeRef(), diag.writeRef());
+        diagnoseIfNeeded(diag);
+    }
+
+    VkShaderModule vsModule = createShaderModule(m_device, vsSpirv);
+    VkShaderModule fsModule = createShaderModule(m_device, fsSpirv);
+
+    VkPushConstantRange pushConst{};
+    pushConst.offset = 0;
+    pushConst.size = sizeof(gpu::PushConstants);
+    pushConst.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
+    pipeline_layout_info.pPushConstantRanges = &pushConst;
+    pipeline_layout_info.pushConstantRangeCount = 2;
+    pipeline_layout_info.pSetLayouts = &m_singleImageDescriptorLayout;
+    pipeline_layout_info.setLayoutCount = 1;
+    VK_CHECK(vkCreatePipelineLayout(m_device, &pipeline_layout_info, nullptr, &m_meshPipelineLayout));
+
+    VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+    auto bindingDescription = Vertex::GetBindingDescription();
+    auto attributeDescriptions = Vertex::GetAttributeDescriptions();
+    vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vertexInputInfo.vertexBindingDescriptionCount = 1;
+    vertexInputInfo.pVertexBindingDescriptions = &bindingDescription; // Optional
+    vertexInputInfo.vertexAttributeDescriptionCount = attributeDescriptions.size();
+    vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data(); // Optional
+
+    vkutil::PipelineBuilder pipelineBuilder;
+
+    //use the triangle layout we created
+    pipelineBuilder.m_pipelineLayout = m_meshPipelineLayout;
+
+    VkPipelineShaderStageCreateInfo vsStage{};
+    vsStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    vsStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    vsStage.module = vsModule;
+    vsStage.pName = "main";
+
+    VkPipelineShaderStageCreateInfo fsStage{};
+    fsStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    fsStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    fsStage.module = fsModule;
+    fsStage.pName = "main";
+
+    pipelineBuilder.m_shaderStages = { vsStage, fsStage };
+
+    //it will draw triangles
+    pipelineBuilder.SetInputTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+    //vertex input info
+    pipelineBuilder.SetVertexInputInfo(&vertexInputInfo);
+    //filled triangles
+    pipelineBuilder.SetPolygonMode(VK_POLYGON_MODE_FILL);
+    //no backface culling
+    pipelineBuilder.SetCullMode(VK_CULL_MODE_FRONT_BIT, VK_FRONT_FACE_CLOCKWISE);
+    //no multisampling
+    pipelineBuilder.SetMultisamplingNone();
+    //no blending
+    pipelineBuilder.DisableBlending();
+
+    pipelineBuilder.EnableDepthTest(true, VK_COMPARE_OP_GREATER_OR_EQUAL);
+
+    //connect the image format we will draw into, from draw image
+    pipelineBuilder.SetColorAttachmentFormat(m_renderImage.imageFormat);
+    pipelineBuilder.SetDepthFormat(m_depthImage.imageFormat);
+
+    //finally build the pipeline
+    m_meshPipeline = pipelineBuilder.Build(m_device);
+
+    //clean structures
+    vkDestroyShaderModule(m_device, vsModule, nullptr);
+    vkDestroyShaderModule(m_device, fsModule, nullptr);
 
     m_deletionQueue.Push([&]()
     {
@@ -920,7 +1092,7 @@ void VulkanEngine::CreateSwapchainImageView()
     };
 
     // Hardcoding the render format to 32 bit float
-    m_renderImage.imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+    m_renderImage.imageFormat = VK_FORMAT_R8G8B8A8_UNORM;
     m_renderImage.imageExtent = drawImageExtent;
 
     VkImageUsageFlags drawImageUsages{};
@@ -1182,34 +1354,31 @@ void VulkanEngine::RenderTriangle(VkCommandBuffer cmd)
             VkDescriptorSet imageSet = GetCurrentFrame().descriptors.Allocate(m_device, m_singleImageDescriptorLayout);
             {
                 DescriptorWriter writer;
-                writer.WriteBindlessImage(0, render.mesh->materials[prim.materialId].baseColor ? render.mesh->materials[prim.materialId].baseColor->imageView : m_defaultMaterial.baseColor->imageView, m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-                writer.WriteBindlessImage(1, render.mesh->materials[prim.materialId].normalMap ? render.mesh->materials[prim.materialId].normalMap->imageView : m_defaultMaterial.normalMap->imageView, m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-                writer.WriteBindlessImage(2, render.mesh->materials[prim.materialId].metallicRoughness ? render.mesh->materials[prim.materialId].metallicRoughness->imageView : m_defaultMaterial.metallicRoughness->imageView, m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-                writer.WriteBindlessImage(3, render.mesh->materials[prim.materialId].occlusion ? render.mesh->materials[prim.materialId].occlusion->imageView : m_defaultMaterial.occlusion->imageView, m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-                writer.WriteBindlessImage(4, render.mesh->materials[prim.materialId].emissive ? render.mesh->materials[prim.materialId].emissive->imageView : m_defaultMaterial.emissive->imageView, m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+                writer.WriteImage(0, render.mesh->materials[prim.materialId].baseColor ? render.mesh->materials[prim.materialId].baseColor->imageView : m_defaultMaterial.baseColor->imageView, m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+                writer.WriteImage(1, render.mesh->materials[prim.materialId].normalMap ? render.mesh->materials[prim.materialId].normalMap->imageView : m_defaultMaterial.normalMap->imageView, m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+                writer.WriteImage(2, render.mesh->materials[prim.materialId].metallicRoughness ? render.mesh->materials[prim.materialId].metallicRoughness->imageView : m_defaultMaterial.metallicRoughness->imageView, m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+                writer.WriteImage(3, render.mesh->materials[prim.materialId].occlusion ? render.mesh->materials[prim.materialId].occlusion->imageView : m_defaultMaterial.occlusion->imageView, m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+                writer.WriteImage(4, render.mesh->materials[prim.materialId].emissive ? render.mesh->materials[prim.materialId].emissive->imageView : m_defaultMaterial.emissive->imageView, m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
 
                 writer.UpdateSet(m_device, imageSet);
             }
 
             vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_meshPipelineLayout, 0, 1, &imageSet, 0, nullptr);
 
-            gpu::RenderPushConstants vertPushConstants;
+            gpu::PushConstants pushConst{};
             glm::mat4 projection = m_camera.m_proj;
             projection[1][1] *= -1;
+            pushConst.renderMode = glm::ivec4(m_renderMode, 0, 0, 0);
+            pushConst.camPos = glm::vec4(m_camera.m_position, 1.0f);
 
-            gpu::RenderPushConstantsFrag fragPushConstants;
-            fragPushConstants.renderMode = glm::ivec4(m_renderMode, 0, 0, 0);
-			fragPushConstants.camPos = glm::vec4(m_camera.m_position, 1.0f);
-
-            vertPushConstants.viewProj = projection * m_camera.m_view;
-            vertPushConstants.model = tf.matrix;
+            pushConst.viewProj = projection * m_camera.m_view;
+            pushConst.model = tf.matrix;
 
             VkBuffer vertexBuffers[] = { render.mesh->vertexBuffer.buffer };
             VkDeviceSize offsets[] = { 0 };
             vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
 
-            vkCmdPushConstants(cmd, m_meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(gpu::RenderPushConstants), &vertPushConstants);
-            vkCmdPushConstants(cmd, m_meshPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(gpu::RenderPushConstants), sizeof(gpu::RenderPushConstantsFrag), &fragPushConstants);
+            vkCmdPushConstants(cmd, m_meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(gpu::PushConstants), &pushConst);
             //vkCmdBindIndexBuffer(cmd, render.mesh->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
 
             //vkCmdDrawIndexed(cmd, render.mesh->surfaces[0].count, 1, render.mesh->surfaces[0].startIndex, 0, 0);

@@ -59,8 +59,8 @@ private:
 	void InitDescriptors();
 	void InitPipelines();
 	void InitBackgroundPipelines();
-	void InitTrianglePipelines();
 	void InitMeshPipelines();	
+	void InitMeshPipelines2();
 	void InitImGui();
 	void InitDefaultData();
 	void InitDefaultMaterial();
