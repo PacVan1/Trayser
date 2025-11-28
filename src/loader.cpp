@@ -51,7 +51,7 @@ std::vector<char> ReadBinaryFile(const std::string& path)
     return std::vector<char>();
 }
 
-std::optional<std::vector<std::shared_ptr<MeshAsset>>> LoadglTF(VulkanEngine* engine, std::filesystem::path filePath)
+std::optional<std::vector<std::shared_ptr<MeshAsset>>> LoadglTF(Engine* engine, std::filesystem::path filePath)
 {
     std::cout << "Loading GLTF: " << filePath << std::endl;
 
@@ -219,7 +219,7 @@ void Model::TraverseNode(tinygltf::Model& loaded, const tinygltf::Node& loadedNo
         std::string name = folder + "_mesh" + std::to_string(loadedNode.mesh);
 
         auto& loadedMesh = loaded.meshes[loadedNode.mesh];
-        auto& engine = VulkanEngine::Get();
+        auto& engine = g_engine;
         node.mesh = engine.m_resources.Create<Mesh>(name, &engine, loaded, loadedMesh, folder);
     }
 
@@ -229,7 +229,7 @@ void Model::TraverseNode(tinygltf::Model& loaded, const tinygltf::Node& loadedNo
     }
 }
 
-Mesh::Mesh(VulkanEngine* engine, tinygltf::Model& loaded, const tinygltf::Mesh& loadedMesh, const std::string& folder)
+Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mesh& loadedMesh, const std::string& folder)
 {
     // Indexing is already being processed during loading,
     // so the amount of indices equals the amount of vertices
@@ -453,7 +453,7 @@ void Mesh::LoadMaterial(const tinygltf::Model& model, const tinygltf::Material& 
     auto GetImagePath = [&](const tinygltf::Image& image, const tinygltf::Texture& texture)
         { return folder + (image.uri.empty() ? "_texture" + std::to_string(texture.source) : image.uri); };
 
-    auto& engine = VulkanEngine::Get();
+    auto& engine = g_engine;
 
     // Base color -------------------------------------------------------------------
     int texIdx = material.pbrMetallicRoughness.baseColorTexture.index;
@@ -661,7 +661,7 @@ static bool LoadImageCallback(
     return true;
 }
 
-Model::Model(std::string_view path, VulkanEngine* engine)
+Model::Model(std::string_view path, Engine* engine)
 {
     tinygltf::TinyGLTF loader;
     loader.SetImageLoader(LoadImageCallback, nullptr);
@@ -712,7 +712,7 @@ Model::Model(std::string_view path, VulkanEngine* engine)
 
 Image::Image(const std::string& path, const tinygltf::Model& model, const tinygltf::Image& inImage, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
 {
-    auto& engine = VulkanEngine::Get();
+    auto& engine = g_engine;
 
     int width, height, channels;
     uint8_t* data = nullptr;
@@ -778,7 +778,7 @@ Image::Image(const std::string& path, const tinygltf::Model& model, const tinygl
 
 Image::Image(u32* data, u32 width, u32 height, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
 {
-    auto& engine = VulkanEngine::Get();
+    auto& engine = g_engine;
 
     size_t data_size = width * height * 4;
     AllocatedBuffer uploadbuffer = engine.CreateBuffer(data_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);

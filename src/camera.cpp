@@ -5,7 +5,7 @@
 
 void Camera::Input()
 {
-	auto& engine = VulkanEngine::Get();
+	auto& engine = g_engine;
 	auto& input = engine.m_input;
 
 	float mod = input.IsKeyDown(KeyboardKey_LeftShift) ? 2.0f : 1.0f;

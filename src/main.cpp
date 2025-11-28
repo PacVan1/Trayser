@@ -3,11 +3,9 @@
 
 int main(int argc, char* argv[])
 {
-	VulkanEngine engine;
-
-	engine.Init();	
-	engine.Run();	
-	engine.Cleanup();	
+	g_engine.Init();	
+	g_engine.Run();	
+	g_engine.Cleanup();	
 
 	return 0;
 }

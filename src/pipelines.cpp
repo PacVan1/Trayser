@@ -29,7 +29,7 @@ void trayser::Pipeline::Init()
 {
     if (m_canHotReload)
     {
-        std::string filePath = VulkanEngine::Get().m_compiler.FindExistingFile((m_name + ".slang").c_str());
+        std::string filePath = g_engine.m_compiler.FindExistingFile((m_name + ".slang").c_str());
         if (filePath.empty())
             return;
 
@@ -41,8 +41,8 @@ void trayser::Pipeline::Init()
 
 void trayser::Pipeline::Destroy() const
 {
-	vkDestroyPipelineLayout(VulkanEngine::Get().m_device, m_layout, nullptr);
-	vkDestroyPipeline(VulkanEngine::Get().m_device, m_pipeline, nullptr);
+	vkDestroyPipelineLayout(g_engine.m_device, m_layout, nullptr);
+	vkDestroyPipeline(g_engine.m_device, m_pipeline, nullptr);
 }
 
 void trayser::Pipeline::ReloadIfChanged()
@@ -50,7 +50,7 @@ void trayser::Pipeline::ReloadIfChanged()
 	if (!m_canHotReload)
 		return;
 
-    std::string filePath = VulkanEngine::Get().m_compiler.FindExistingFile((m_name + ".slang").c_str());
+    std::string filePath = g_engine.m_compiler.FindExistingFile((m_name + ".slang").c_str());
 	if (filePath.empty())
 		return;
 
@@ -60,7 +60,7 @@ void trayser::Pipeline::ReloadIfChanged()
     {   
         m_lastWriteTime = currentLastWriteTime;
 
-        vkQueueWaitIdle(VulkanEngine::Get().m_graphicsQueue);
+        vkQueueWaitIdle(g_engine.m_graphicsQueue);
         Load();
     }
 }
@@ -74,7 +74,7 @@ trayser::PBRPipeline::PBRPipeline()
 void trayser::PBRPipeline::Load()
 {
     Slang::ComPtr<slang::IBlob> vsSpirv, fsSpirv;
-	VulkanEngine::Get().m_compiler.LoadVertexFragmentShader(m_name.c_str(), vsSpirv, fsSpirv);
+	g_engine.m_compiler.LoadVertexFragmentShader(m_name.c_str(), vsSpirv, fsSpirv);
 
 	if (!vsSpirv || !fsSpirv)
 	{
@@ -82,8 +82,8 @@ void trayser::PBRPipeline::Load()
 		return;
 	}
 
-    VkShaderModule vsModule = CreateShaderModule(VulkanEngine::Get().m_device, vsSpirv);
-    VkShaderModule fsModule = CreateShaderModule(VulkanEngine::Get().m_device, fsSpirv);
+    VkShaderModule vsModule = CreateShaderModule(g_engine.m_device, vsSpirv);
+    VkShaderModule fsModule = CreateShaderModule(g_engine.m_device, fsSpirv);
 
     VkPushConstantRange pushConst{};
     pushConst.offset = 0;
@@ -93,9 +93,9 @@ void trayser::PBRPipeline::Load()
     VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
     pipeline_layout_info.pPushConstantRanges = &pushConst;
     pipeline_layout_info.pushConstantRangeCount = 2;
-    pipeline_layout_info.pSetLayouts = &VulkanEngine::Get().m_singleImageDescriptorLayout;
+    pipeline_layout_info.pSetLayouts = &g_engine.m_singleImageDescriptorLayout;
     pipeline_layout_info.setLayoutCount = 1;
-    VK_CHECK(vkCreatePipelineLayout(VulkanEngine::Get().m_device, &pipeline_layout_info, nullptr, &m_layout));
+    VK_CHECK(vkCreatePipelineLayout(g_engine.m_device, &pipeline_layout_info, nullptr, &m_layout));
 
     VkPipelineVertexInputStateCreateInfo vertexInput{};
     auto bindingDescription = Vertex::GetBindingDescription();
@@ -146,8 +146,8 @@ void trayser::PBRPipeline::Load()
     VkPipelineRenderingCreateInfo rendering{};
     rendering.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     rendering.colorAttachmentCount = 1;
-    rendering.pColorAttachmentFormats = &VulkanEngine::Get().m_renderImage.imageFormat;
-    rendering.depthAttachmentFormat = VulkanEngine::Get().m_depthImage.imageFormat;
+    rendering.pColorAttachmentFormats = &g_engine.m_renderImage.imageFormat;
+    rendering.depthAttachmentFormat = g_engine.m_depthImage.imageFormat;
 
     VkPipelineShaderStageCreateInfo vsStage{};
     vsStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -199,32 +199,32 @@ void trayser::PBRPipeline::Load()
     pipelineInfo.pDynamicState = &dynamicStateCreateInfo;
     pipelineInfo.layout = m_layout;
 
-    if (vkCreateGraphicsPipelines(VulkanEngine::Get().m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_pipeline) != VK_SUCCESS)
+    if (vkCreateGraphicsPipelines(g_engine.m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_pipeline) != VK_SUCCESS)
     {
         fmt::println("Failed to create pipeline");
         return;
     }
 
-    vkDestroyShaderModule(VulkanEngine::Get().m_device, vsModule, nullptr);
-    vkDestroyShaderModule(VulkanEngine::Get().m_device, fsModule, nullptr);
+    vkDestroyShaderModule(g_engine.m_device, vsModule, nullptr);
+    vkDestroyShaderModule(g_engine.m_device, fsModule, nullptr);
 }
 
 void trayser::PBRPipeline::Update()
 {
-    auto& cmd = VulkanEngine::Get().GetCurrentFrame().commandBuffer;
+    auto& cmd = g_engine.GetCurrentFrame().commandBuffer;
 
-    VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(VulkanEngine::Get().m_renderImage.imageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-    VkRenderingAttachmentInfo depthAttachment = vkinit::depth_attachment_info(VulkanEngine::Get().m_depthImage.imageView, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+    VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(g_engine.m_renderImage.imageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    VkRenderingAttachmentInfo depthAttachment = vkinit::depth_attachment_info(g_engine.m_depthImage.imageView, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 
-    VkRenderingInfo renderInfo = vkinit::rendering_info(VulkanEngine::Get().m_renderExtent, &colorAttachment, &depthAttachment);
+    VkRenderingInfo renderInfo = vkinit::rendering_info(g_engine.m_renderExtent, &colorAttachment, &depthAttachment);
     vkCmdBeginRendering(cmd, &renderInfo);
 
     //set dynamic viewport and scissor
     VkViewport viewport = {};
     viewport.x = 0;
     viewport.y = 0;
-    viewport.width = VulkanEngine::Get().m_renderExtent.width;
-    viewport.height = VulkanEngine::Get().m_renderExtent.height;
+    viewport.width = g_engine.m_renderExtent.width;
+    viewport.height = g_engine.m_renderExtent.height;
     viewport.minDepth = 0.f;
     viewport.maxDepth = 1.f;
 
@@ -233,40 +233,40 @@ void trayser::PBRPipeline::Update()
     VkRect2D scissor = {};
     scissor.offset.x = 0;
     scissor.offset.y = 0;
-    scissor.extent.width = VulkanEngine::Get().m_renderExtent.width;
-    scissor.extent.height = VulkanEngine::Get().m_renderExtent.height;
+    scissor.extent.width = g_engine.m_renderExtent.width;
+    scissor.extent.height = g_engine.m_renderExtent.height;
 
     vkCmdSetScissor(cmd, 0, 1, &scissor);
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
 
-    auto view = VulkanEngine::Get().m_scene.m_registry.view<WorldTransform, RenderComponent>();
+    auto view = g_engine.m_scene.m_registry.view<WorldTransform, RenderComponent>();
     for (const auto& [ent, tf, render] : view.each())
     {
         for (auto& prim : render.mesh->primitives)
         {
             //bind a texture
-            VkDescriptorSet imageSet = VulkanEngine::Get().GetCurrentFrame().descriptors.Allocate(VulkanEngine::Get().m_device, VulkanEngine::Get().m_singleImageDescriptorLayout);
+            VkDescriptorSet imageSet = g_engine.GetCurrentFrame().descriptors.Allocate(g_engine.m_device, g_engine.m_singleImageDescriptorLayout);
             {
                 DescriptorWriter writer;
-                writer.WriteImage(0, render.mesh->materials[prim.materialId].baseColor ? render.mesh->materials[prim.materialId].baseColor->imageView : VulkanEngine::Get().m_defaultMaterial.baseColor->imageView, VulkanEngine::Get().m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-                writer.WriteImage(1, render.mesh->materials[prim.materialId].normalMap ? render.mesh->materials[prim.materialId].normalMap->imageView : VulkanEngine::Get().m_defaultMaterial.normalMap->imageView, VulkanEngine::Get().m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-                writer.WriteImage(2, render.mesh->materials[prim.materialId].metallicRoughness ? render.mesh->materials[prim.materialId].metallicRoughness->imageView : VulkanEngine::Get().m_defaultMaterial.metallicRoughness->imageView, VulkanEngine::Get().m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-                writer.WriteImage(3, render.mesh->materials[prim.materialId].occlusion ? render.mesh->materials[prim.materialId].occlusion->imageView : VulkanEngine::Get().m_defaultMaterial.occlusion->imageView, VulkanEngine::Get().m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-                writer.WriteImage(4, render.mesh->materials[prim.materialId].emissive ? render.mesh->materials[prim.materialId].emissive->imageView : VulkanEngine::Get().m_defaultMaterial.emissive->imageView, VulkanEngine::Get().m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+                writer.WriteImage(0, render.mesh->materials[prim.materialId].baseColor ? render.mesh->materials[prim.materialId].baseColor->imageView : g_engine.m_defaultMaterial.baseColor->imageView, g_engine.m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+                writer.WriteImage(1, render.mesh->materials[prim.materialId].normalMap ? render.mesh->materials[prim.materialId].normalMap->imageView : g_engine.m_defaultMaterial.normalMap->imageView, g_engine.m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+                writer.WriteImage(2, render.mesh->materials[prim.materialId].metallicRoughness ? render.mesh->materials[prim.materialId].metallicRoughness->imageView : g_engine.m_defaultMaterial.metallicRoughness->imageView, g_engine.m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+                writer.WriteImage(3, render.mesh->materials[prim.materialId].occlusion ? render.mesh->materials[prim.materialId].occlusion->imageView : g_engine.m_defaultMaterial.occlusion->imageView, g_engine.m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+                writer.WriteImage(4, render.mesh->materials[prim.materialId].emissive ? render.mesh->materials[prim.materialId].emissive->imageView : g_engine.m_defaultMaterial.emissive->imageView, g_engine.m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
 
-                writer.UpdateSet(VulkanEngine::Get().m_device, imageSet);
+                writer.UpdateSet(g_engine.m_device, imageSet);
             }
 
             vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_layout, 0, 1, &imageSet, 0, nullptr);
 
             gpu::PushConstants pushConst{};
-            glm::mat4 projection = VulkanEngine::Get().m_camera.m_proj;
+            glm::mat4 projection = g_engine.m_camera.m_proj;
             projection[1][1] *= -1;
-            pushConst.renderMode = glm::ivec4(VulkanEngine::Get().m_renderMode, 0, 0, 0);
-            pushConst.camPos = glm::vec4(VulkanEngine::Get().m_camera.m_position, 1.0f);
+            pushConst.renderMode = glm::ivec4(g_engine.m_renderMode, 0, 0, 0);
+            pushConst.camPos = glm::vec4(g_engine.m_camera.m_position, 1.0f);
 
-            pushConst.viewProj = projection * VulkanEngine::Get().m_camera.m_view;
+            pushConst.viewProj = projection * g_engine.m_camera.m_view;
             pushConst.model = tf.matrix;
 
             VkBuffer vertexBuffers[] = { render.mesh->vertexBuffer.buffer };
@@ -373,7 +373,7 @@ bool trayser::SlangCompiler::LoadShaderModule(const char* spirvFileName, VkShade
     createInfo.codeSize = buffer.size() * sizeof(u32);
     createInfo.pCode = buffer.data();
     VkShaderModule shaderModule;
-    if (vkCreateShaderModule(VulkanEngine::Get().m_device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
+    if (vkCreateShaderModule(g_engine.m_device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
     {
         return false;
     }
@@ -430,7 +430,7 @@ void trayser::BackgroundPipeline::Load()
     VkPipelineLayoutCreateInfo computeLayout{};
     computeLayout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     computeLayout.pNext = nullptr;
-    computeLayout.pSetLayouts = &VulkanEngine::Get().m_renderImageDescriptorLayout;
+    computeLayout.pSetLayouts = &g_engine.m_renderImageDescriptorLayout;
     computeLayout.setLayoutCount = 1;
 
     VkPushConstantRange pushConstant{};
@@ -441,11 +441,11 @@ void trayser::BackgroundPipeline::Load()
     computeLayout.pPushConstantRanges = &pushConstant;
     computeLayout.pushConstantRangeCount = 1;
 
-    VK_CHECK(vkCreatePipelineLayout(VulkanEngine::Get().m_device, &computeLayout, nullptr, &m_layout));
+    VK_CHECK(vkCreatePipelineLayout(g_engine.m_device, &computeLayout, nullptr, &m_layout));
 
     // Layout code
     VkShaderModule computeDrawShader;
-    if (!VulkanEngine::Get().m_compiler.LoadShaderModule(m_name.c_str(), computeDrawShader))
+    if (!g_engine.m_compiler.LoadShaderModule(m_name.c_str(), computeDrawShader))
     {
         fmt::print("Error when building the compute shader \n");
     }
@@ -463,20 +463,20 @@ void trayser::BackgroundPipeline::Load()
     computePipelineCreateInfo.layout = m_layout;
     computePipelineCreateInfo.stage = stageinfo;
 
-    VK_CHECK(vkCreateComputePipelines(VulkanEngine::Get().m_device, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &m_pipeline));
+    VK_CHECK(vkCreateComputePipelines(g_engine.m_device, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &m_pipeline));
 
-    vkDestroyShaderModule(VulkanEngine::Get().m_device, computeDrawShader, nullptr);
+    vkDestroyShaderModule(g_engine.m_device, computeDrawShader, nullptr);
 }
 
 void trayser::BackgroundPipeline::Update()
 {
-    auto& cmd = VulkanEngine::Get().GetCurrentFrame().commandBuffer;
+    auto& cmd = g_engine.GetCurrentFrame().commandBuffer;
 
     // bind the gradient drawing compute pipeline
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline);
 
     // bind the descriptor set containing the draw image for the compute pipeline
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_layout, 0, 1, &VulkanEngine::Get().m_renderImageDescriptors, 0, nullptr);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_layout, 0, 1, &g_engine.m_renderImageDescriptors, 0, nullptr);
 
     ComputePushConstants pc;
     pc.data1 = glm::vec4(0.1, 0.2, 0.4, 0.97);
@@ -484,5 +484,5 @@ void trayser::BackgroundPipeline::Update()
     vkCmdPushConstants(cmd, m_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ComputePushConstants), &pc);
 
     // execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
-    vkCmdDispatch(cmd, std::ceil(VulkanEngine::Get().m_renderExtent.width / 16.0), std::ceil(VulkanEngine::Get().m_renderExtent.height / 16.0), 1);
+    vkCmdDispatch(cmd, std::ceil(g_engine.m_renderExtent.width / 16.0), std::ceil(g_engine.m_renderExtent.height / 16.0), 1);
 }

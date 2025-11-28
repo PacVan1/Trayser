@@ -23,10 +23,9 @@
 #include <chrono>
 #include <thread>
 
-static VulkanEngine* g_loadedEngine = nullptr;
 static constexpr bool kUseValidationLayers = true;
 
-VulkanEngine& VulkanEngine::Get() { return *g_loadedEngine; }
+Engine g_engine;
 
 using Slang::ComPtr;
 
@@ -117,11 +116,8 @@ static void ReloadSlangShader()
 
 }
 
-void VulkanEngine::Init()
+void Engine::Init()
 {
-    assert(g_loadedEngine == nullptr);
-    g_loadedEngine = this;
-
     SDL_Init(SDL_INIT_VIDEO);
     m_window = SDL_CreateWindow(
         "Vulkan Engine",
@@ -151,7 +147,7 @@ void VulkanEngine::Init()
     m_isInitialized = true;
 }
 
-void VulkanEngine::Cleanup()
+void Engine::Cleanup()
 {
     if (m_isInitialized) 
     {    
@@ -178,12 +174,9 @@ void VulkanEngine::Cleanup()
         vkDestroyInstance(m_instance, nullptr);
         SDL_DestroyWindow(m_window);
     }
-
-    // Clear engine pointer
-    g_loadedEngine = nullptr;
 }
 
-void VulkanEngine::Render()
+void Engine::Render()
 {
     VK_CHECK(vkWaitForFences(m_device, 1, &GetCurrentFrame().renderFence, true, 1000000000));
     GetCurrentFrame().deletionQueue.Flush();
@@ -274,7 +267,7 @@ void VulkanEngine::Render()
     HotReloadPipelines();
 }
 
-void VulkanEngine::Run()
+void Engine::Run()
 {
     SDL_Event e;
     bool quit = false;
@@ -349,7 +342,7 @@ void VulkanEngine::Run()
     }
 }
 
-void VulkanEngine::ImmediateSubmit(std::function<void(VkCommandBuffer cmd)>&& function)
+void Engine::ImmediateSubmit(std::function<void(VkCommandBuffer cmd)>&& function)
 {
     VK_CHECK(vkResetFences(m_device, 1, &m_immFence));
     VK_CHECK(vkResetCommandBuffer(m_immCommandBuffer, 0));
@@ -374,7 +367,7 @@ void VulkanEngine::ImmediateSubmit(std::function<void(VkCommandBuffer cmd)>&& fu
     VK_CHECK(vkWaitForFences(m_device, 1, &m_immFence, true, 9999999999));
 }
 
-void VulkanEngine::InitVulkan()
+void Engine::InitVulkan()
 {
     vkb::InstanceBuilder builder;
 
@@ -435,7 +428,7 @@ void VulkanEngine::InitVulkan()
     m_deletionQueue.Push([&]() { vmaDestroyAllocator(m_allocator); });
 }
 
-void VulkanEngine::InitSwapchain()
+void Engine::InitSwapchain()
 {
     CreateSwapchain(m_windowExtent.width, m_windowExtent.height);
 
@@ -449,7 +442,7 @@ void VulkanEngine::InitSwapchain()
     });
 }
 
-void VulkanEngine::InitCommands()
+void Engine::InitCommands()
 {
     // Create a command pool for commands submitted to the graphics queue.
     // We also want the pool to allow for resetting of individual command buffers
@@ -478,7 +471,7 @@ void VulkanEngine::InitCommands()
     });
 }
 
-void VulkanEngine::InitSyncStructures()
+void Engine::InitSyncStructures()
 {
     // Create syncronization structures
     // One fence to control when the gpu has finished rendering the frame,
@@ -498,7 +491,7 @@ void VulkanEngine::InitSyncStructures()
     m_deletionQueue.Push([=]() { vkDestroyFence(m_device, m_immFence, nullptr); });
 }
 
-void VulkanEngine::InitDescriptors()
+void Engine::InitDescriptors()
 {
     // Create a descriptor pool that will hold 10 sets with 1 image each
     std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> sizes =
@@ -567,7 +560,7 @@ void VulkanEngine::InitDescriptors()
     }
 }
 
-void VulkanEngine::InitPipelines()
+void Engine::InitPipelines()
 {
 	m_pipelines.push_back(new trayser::BackgroundPipeline());
 	m_pipelines.push_back(new trayser::PBRPipeline());
@@ -590,7 +583,7 @@ VkShaderModule createShaderModule(VkDevice device, const ComPtr<slang::IBlob>& b
     return module;
 }
 
-void VulkanEngine::InitImGui()
+void Engine::InitImGui()
 {
     // 1: Create descriptor pool for IMGUI
     // The size of the pool is very oversize, but it's copied from imgui demo
@@ -711,7 +704,7 @@ void VulkanEngine::InitImGui()
     style->Colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.61f, 0.00f, 0.00f, 1.00f);
 }
 
-void VulkanEngine::InitDefaultData()
+void Engine::InitDefaultData()
 {
     //3 default textures, white, grey, black. 1 pixel each
     uint32_t white = glm::packUnorm4x8(glm::vec4(1, 1, 1, 1));
@@ -749,7 +742,7 @@ void VulkanEngine::InitDefaultData()
     });
 }
 
-void VulkanEngine::InitDefaultMaterial()
+void Engine::InitDefaultMaterial()
 {
     uint32_t black  = glm::packUnorm4x8(glm::vec4(0.0, 0.0, 0.0, 1.0));
     uint32_t gray   = glm::packUnorm4x8(glm::vec4(0.5, 0.5, 0.5, 1.0));
@@ -763,7 +756,7 @@ void VulkanEngine::InitDefaultMaterial()
     m_defaultMaterial.normalMap         = m_resources.Create<Image>("default_normal_map_image", &normal, 1, 1, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT);
 }
 
-void VulkanEngine::CreateSwapchain(u32 width, u32 height)
+void Engine::CreateSwapchain(u32 width, u32 height)
 {
     m_swapchainImageFormat = VK_FORMAT_B8G8R8A8_UNORM;
 
@@ -784,7 +777,7 @@ void VulkanEngine::CreateSwapchain(u32 width, u32 height)
     m_swapchainImageViews   = vkbSwapchain.get_image_views().value();
 }
 
-void VulkanEngine::CreateSwapchainImageView()
+void Engine::CreateSwapchainImageView()
 {
     // Draw image size will match the window
     VkExtent3D drawImageExtent =
@@ -831,7 +824,7 @@ void VulkanEngine::CreateSwapchainImageView()
     VK_CHECK(vkCreateImageView(m_device, &dview_info, nullptr, &m_depthImage.imageView));
 }
 
-AllocatedBuffer VulkanEngine::CreateBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage)
+AllocatedBuffer Engine::CreateBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage)
 {
     // allocate buffer
     VkBufferCreateInfo bufferInfo = { .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
@@ -852,7 +845,7 @@ AllocatedBuffer VulkanEngine::CreateBuffer(size_t allocSize, VkBufferUsageFlags 
     return newBuffer;
 }
 
-AllocatedImage VulkanEngine::CreateImage(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
+AllocatedImage Engine::CreateImage(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
 {
     AllocatedImage newImage;
     newImage.imageFormat = format;
@@ -887,7 +880,7 @@ AllocatedImage VulkanEngine::CreateImage(VkExtent3D size, VkFormat format, VkIma
     return newImage;
 }
 
-AllocatedImage VulkanEngine::CreateImage(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
+AllocatedImage Engine::CreateImage(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
 {
     size_t data_size = size.depth * size.width * size.height * 4;
     AllocatedBuffer uploadbuffer = CreateBuffer(data_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
@@ -923,13 +916,13 @@ AllocatedImage VulkanEngine::CreateImage(void* data, VkExtent3D size, VkFormat f
     return new_image;
 }
 
-void VulkanEngine::DestroyImage(const AllocatedImage& img)
+void Engine::DestroyImage(const AllocatedImage& img)
 {
     vkDestroyImageView(m_device, img.imageView, nullptr);
     vmaDestroyImage(m_allocator, img.image, img.allocation);
 }
 
-gpu::MeshBuffers VulkanEngine::UploadMesh(std::span<uint32_t> indices, std::span<Vertex> vertices)
+gpu::MeshBuffers Engine::UploadMesh(std::span<uint32_t> indices, std::span<Vertex> vertices)
 {
     const size_t vertexBufferSize = vertices.size() * sizeof(Vertex);
     const size_t indexBufferSize = indices.size() * sizeof(uint32_t);
@@ -980,12 +973,12 @@ gpu::MeshBuffers VulkanEngine::UploadMesh(std::span<uint32_t> indices, std::span
     return newSurface;
 }
 
-void VulkanEngine::DestroyBuffer(const AllocatedBuffer& buffer)
+void Engine::DestroyBuffer(const AllocatedBuffer& buffer)
 {
     vmaDestroyBuffer(m_allocator, buffer.buffer, buffer.allocation);
 }
 
-void VulkanEngine::HotReloadPipelines()
+void Engine::HotReloadPipelines()
 {
     for (int i = 0; i < m_pipelines.size(); i++)
     {
@@ -993,7 +986,7 @@ void VulkanEngine::HotReloadPipelines()
     }
 }
 
-void VulkanEngine::DestroySwapchain()
+void Engine::DestroySwapchain()
 {
     vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
 
@@ -1003,14 +996,14 @@ void VulkanEngine::DestroySwapchain()
     }
 }
 
-void VulkanEngine::BeginRecording(VkCommandBuffer cmd)
+void Engine::BeginRecording(VkCommandBuffer cmd)
 {
     VK_CHECK(vkResetCommandBuffer(cmd, 0));
     VkCommandBufferBeginInfo cmdBeginInfo = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
     VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
 }
 
-void VulkanEngine::RenderImGui(VkCommandBuffer cmd, VkImageView targetImageView)
+void Engine::RenderImGui(VkCommandBuffer cmd, VkImageView targetImageView)
 {
     VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(targetImageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     VkRenderingInfo renderInfo = vkinit::rendering_info(m_renderExtent, &colorAttachment, nullptr);
@@ -1022,7 +1015,7 @@ void VulkanEngine::RenderImGui(VkCommandBuffer cmd, VkImageView targetImageView)
     vkCmdEndRendering(cmd);
 }
 
-void VulkanEngine::ResizeSwapchain()
+void Engine::ResizeSwapchain()
 {
     vkDeviceWaitIdle(m_device);
 

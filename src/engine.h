@@ -39,11 +39,8 @@ struct FrameData
 	DescriptorAllocatorGrowable descriptors;
 };
 
-class VulkanEngine 
+class Engine 
 {
-public:
-	static VulkanEngine& Get();
-
 public:
 	void Init();
 	void Cleanup();
@@ -147,3 +144,5 @@ private:
 
 
 };
+
+extern Engine g_engine;

@@ -18,7 +18,7 @@ Editor::~Editor()
 
 void Editor::Update()
 {
-	if (VulkanEngine::Get().m_input.IsKeyReleased(KeyboardKey_Tab))
+	if (g_engine.m_input.IsKeyReleased(KeyboardKey_Tab))
 	{
 		m_update = !m_update;
 		SDL_SetRelativeMouseMode(SDL_bool(!m_update));
@@ -58,7 +58,7 @@ void Editor::AddWindow(int windowIdx, IWindow* window, const char* title, ImGuiW
 
 void CameraWindow::Update()
 {
-	Camera& cam = VulkanEngine::Get().m_camera;
+	Camera& cam = g_engine.m_camera;
 
 	ImGui::DragFloat("FOV", &cam.m_fov, 0.05f);
 	ImGui::DragFloat("Speed", &cam.m_speed, 0.01f);
@@ -67,7 +67,7 @@ void CameraWindow::Update()
 
 void InspectorWindow::EditNode(Entity ent)
 {
-	auto& scene = VulkanEngine::Get().m_scene;
+	auto& scene = g_engine.m_scene;
 
 	const auto& [node, tf] = scene.m_registry.get<SGNode, LocalTransform>(ent);
 	ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow;
@@ -93,11 +93,11 @@ void InspectorWindow::EditNode(Entity ent)
 
 void InspectorWindow::Update()
 {
-	auto& scene = VulkanEngine::Get().m_scene;
+	auto& scene = g_engine.m_scene;
 
 	if (ImGui::Button("Create"))
 	{
-		auto model = VulkanEngine::Get().m_resources.Create<Model>(kModelPaths[selectedModel], kModelPaths[selectedModel], &VulkanEngine::Get());
+		auto model = g_engine.m_resources.Create<Model>(kModelPaths[selectedModel], kModelPaths[selectedModel], &g_engine);
 		scene.CreateModel(model);
 	}
 	ImGui::SameLine();
@@ -169,7 +169,7 @@ void InspectorWindow::Update()
 
 void RenderSettingsWindow::Update()
 {
-	auto& engine = VulkanEngine::Get();
+	auto& engine = g_engine;
 
 	ImGui::Combo("Render Mode", &engine.m_renderMode, kRenderModeStr.c_str());
 	engine.m_hotReloadShaders = ImGui::Button("Hot Reload Shaders");
