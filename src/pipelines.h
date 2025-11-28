@@ -6,45 +6,6 @@
 #include <slang/slang-com-ptr.h>
 #include <vector>
 
-namespace vkutil 
-{
-
-bool LoadShaderModule(const char* filePath, VkDevice device, VkShaderModule* outShaderModule);
-
-class PipelineBuilder
-{
-public:
-    PipelineBuilder() { Clear(); }
-
-    void Clear();
-    VkPipeline Build(VkDevice device);
-    void SetVertexInputInfo(VkPipelineVertexInputStateCreateInfo* info);
-    void SetShaders(VkShaderModule vertexShader, VkShaderModule fragmentShader);
-    void SetInputTopology(VkPrimitiveTopology topology);
-    void SetPolygonMode(VkPolygonMode mode);
-    void SetCullMode(VkCullModeFlags cullMode, VkFrontFace frontFace);
-    void SetMultisamplingNone();
-    void DisableBlending();
-    void SetColorAttachmentFormat(VkFormat format);
-    void SetDepthFormat(VkFormat format);
-    void DisableDepthTest();
-    void EnableDepthTest(bool depthWriteEnable, VkCompareOp op);
-
-public:
-    std::vector<VkPipelineShaderStageCreateInfo>    m_shaderStages;
-    VkPipelineVertexInputStateCreateInfo*           m_vertexInputInfo = nullptr;
-    VkPipelineInputAssemblyStateCreateInfo          m_inputAssembly;
-    VkPipelineRasterizationStateCreateInfo          m_rasterizer;
-    VkPipelineColorBlendAttachmentState             m_colorBlendAttachment;
-    VkPipelineMultisampleStateCreateInfo            m_multisampling;
-    VkPipelineLayout                                m_pipelineLayout;
-    VkPipelineDepthStencilStateCreateInfo           m_depthStencil;
-    VkPipelineRenderingCreateInfo                   m_renderInfo;
-    VkFormat                                        m_colorAttachmentformat;
-};
-
-} // namespace vkutil
-
 namespace trayser
 {
 
@@ -53,6 +14,8 @@ class SlangCompiler
 public:
     void Init();
     void LoadVertexFragmentShader(const char* slangFileName, Slang::ComPtr<slang::IBlob>& vsSpirv, Slang::ComPtr<slang::IBlob>& fsSpirv);
+    bool LoadShaderModule(const char* spirvFileName, VkShaderModule& outModule);
+    std::string FindExistingFile(const char* fileName);
 
 private:
     void CreateSlangSession(Slang::ComPtr<slang::ISession>& session) const;
@@ -62,6 +25,7 @@ public:
 	Slang::ComPtr<slang::IGlobalSession> m_slangGlobalSession;
     slang::SessionDesc                   m_sessionDesc;
     slang::TargetDesc                    m_targetDesc;
+	std::vector<const char*>             m_searchPaths;
 };
 
 class Pipeline
@@ -74,26 +38,26 @@ public:
     bool                m_canHotReload = false;
 
 public:
+    void Init();
     void Destroy() const;
     void ReloadIfChanged();
 
-    virtual void Init() = 0;
     virtual void Load() = 0;
     virtual void Update() = 0;
 };
 
-class PBRPipeline : public Pipeline
+class PBRPipeline final : public Pipeline
 {
 public:
-    virtual void Init() override;
+    PBRPipeline();
     virtual void Load() override;
     virtual void Update() override;
 };
 
-class BackgroundPipeline : public Pipeline
+class BackgroundPipeline final : public Pipeline
 {
 public:
-    virtual void Init() override;
+    BackgroundPipeline();
     virtual void Load() override;
     virtual void Update() override;
 };

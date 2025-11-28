@@ -5,230 +5,6 @@
 #include <engine.h>
 #include <filesystem>
 
-bool vkutil::LoadShaderModule(const char* filePath, VkDevice device, VkShaderModule* outShaderModule)
-{
-    // open the file. With cursor at the end
-    std::ifstream file(filePath, std::ios::ate | std::ios::binary);
-
-    if (!file.is_open()) 
-    {
-        return false;
-    }
-
-    // find what the size of the file is by looking up the location of the cursor
-    // because the cursor is at the end, it gives the size directly in bytes
-    size_t fileSize = (size_t)file.tellg();
-
-    // spirv expects the buffer to be on uint32, so make sure to reserve a int
-    // vector big enough for the entire file
-    std::vector<u32> buffer(fileSize / sizeof(u32));
-
-    // put file cursor at beginning
-    file.seekg(0);
-
-    // load the entire file into the buffer
-    file.read((char*)buffer.data(), fileSize);
-
-    // now that the file is loaded into the buffer, we can close it
-    file.close();
-
-    // create a new shader module, using the buffer we loaded
-    VkShaderModuleCreateInfo createInfo = {};
-    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    createInfo.pNext = nullptr;
-
-    // codeSize has to be in bytes, so multply the ints in the buffer by size of
-    // int to know the real size of the buffer
-    createInfo.codeSize = buffer.size() * sizeof(u32);
-    createInfo.pCode = buffer.data();
-
-    // check that the creation goes well.
-    VkShaderModule shaderModule;
-    if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) 
-    {
-        return false;
-    }
-
-    *outShaderModule = shaderModule;
-    return true;
-}
-
-void vkutil::PipelineBuilder::Clear()
-{
-    // clear all of the structs we need back to 0 with their correct stype
-    m_inputAssembly = { .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO };
-    m_rasterizer = { .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO };
-    m_colorBlendAttachment = {};
-    m_multisampling = { .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO };
-    m_pipelineLayout = {};
-    m_depthStencil = { .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO };
-    m_renderInfo = { .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO };
-    m_vertexInputInfo = nullptr;
-    m_shaderStages.clear();
-}
-
-VkPipeline vkutil::PipelineBuilder::Build(VkDevice device)
-{
-    // make viewport state from our stored viewport and scissor.
-    // at the moment we wont support multiple viewports or scissors
-    VkPipelineViewportStateCreateInfo viewportState = {};
-    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-    viewportState.pNext = nullptr;
-
-    viewportState.viewportCount = 1;
-    viewportState.scissorCount = 1;
-
-    // setup dummy color blending. We arent using transparent objects yet
-    // the blending is just "no blend", but we do write to the color attachment
-    VkPipelineColorBlendStateCreateInfo colorBlending = {};
-    colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-    colorBlending.pNext = nullptr;
-
-    colorBlending.logicOpEnable = VK_FALSE;
-    colorBlending.logicOp = VK_LOGIC_OP_COPY;
-    colorBlending.attachmentCount = 1;
-    colorBlending.pAttachments = &m_colorBlendAttachment;
-
-    // completely clear VertexInputStateCreateInfo, as we have no need for it
-    VkPipelineVertexInputStateCreateInfo vertexInputInfo = { .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
-
-    // build the actual pipeline
-    // 
-    // we now use all of the info structs we have been writing into into this one
-    // to create the pipeline
-    VkGraphicsPipelineCreateInfo pipelineInfo = { .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
-    // connect the renderInfo to the pNext extension mechanism
-    pipelineInfo.pNext = &m_renderInfo;
-
-    pipelineInfo.stageCount = (uint32_t)m_shaderStages.size();
-    pipelineInfo.pStages = m_shaderStages.data();
-    pipelineInfo.pVertexInputState = m_vertexInputInfo ? m_vertexInputInfo : &vertexInputInfo;
-    pipelineInfo.pInputAssemblyState = &m_inputAssembly;
-    pipelineInfo.pViewportState = &viewportState;
-    pipelineInfo.pRasterizationState = &m_rasterizer;
-    pipelineInfo.pMultisampleState = &m_multisampling;
-    pipelineInfo.pColorBlendState = &colorBlending;
-    pipelineInfo.pDepthStencilState = &m_depthStencil;
-    pipelineInfo.layout = m_pipelineLayout;
-
-    VkDynamicState state[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-
-    VkPipelineDynamicStateCreateInfo dynamicInfo = { .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO };
-    dynamicInfo.pDynamicStates = &state[0];
-    dynamicInfo.dynamicStateCount = 2;
-
-    pipelineInfo.pDynamicState = &dynamicInfo;
-
-    // its easy to error out on create graphics pipeline, so we handle it a bit
-    // better than the common VK_CHECK case
-    VkPipeline newPipeline;
-    VkResult result = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &newPipeline);
-    if (result != VK_SUCCESS) 
-    {
-        fmt::println("failed to create pipeline");
-        return VK_NULL_HANDLE; // failed to create graphics pipeline
-    }
-    else 
-    {
-        return newPipeline;
-    }
-}
-
-void vkutil::PipelineBuilder::SetVertexInputInfo(VkPipelineVertexInputStateCreateInfo* info)
-{
-    m_vertexInputInfo = info;
-}
-
-void vkutil::PipelineBuilder::SetShaders(VkShaderModule vertexShader, VkShaderModule fragmentShader)
-{
-    m_shaderStages.clear();
-
-    m_shaderStages.push_back(
-        vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShader));
-
-    m_shaderStages.push_back(
-        vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShader));
-}
-
-void vkutil::PipelineBuilder::SetInputTopology(VkPrimitiveTopology topology)
-{
-    m_inputAssembly.topology = topology;
-    // we are not going to use primitive restart on the entire tutorial so leave
-    // it on false
-    m_inputAssembly.primitiveRestartEnable = VK_FALSE;
-}
-
-void vkutil::PipelineBuilder::SetPolygonMode(VkPolygonMode mode)
-{
-    m_rasterizer.polygonMode = mode;
-    m_rasterizer.lineWidth = 1.f;
-}
-
-void vkutil::PipelineBuilder::SetCullMode(VkCullModeFlags cullMode, VkFrontFace frontFace)
-{
-    m_rasterizer.cullMode = cullMode;
-    m_rasterizer.frontFace = frontFace;
-}
-
-void vkutil::PipelineBuilder::SetMultisamplingNone()
-{
-    m_multisampling.sampleShadingEnable = VK_FALSE;
-    // multisampling defaulted to no multisampling (1 sample per pixel)
-    m_multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-    m_multisampling.minSampleShading = 1.0f;
-    m_multisampling.pSampleMask = nullptr;
-    // no alpha to coverage either
-    m_multisampling.alphaToCoverageEnable = VK_FALSE;
-    m_multisampling.alphaToOneEnable = VK_FALSE;
-}
-
-void vkutil::PipelineBuilder::DisableBlending()
-{
-    // default write mask
-    m_colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    // no blending
-    m_colorBlendAttachment.blendEnable = VK_FALSE;
-}
-
-void vkutil::PipelineBuilder::SetColorAttachmentFormat(VkFormat format)
-{
-    m_colorAttachmentformat = format;
-    // connect the format to the renderInfo  structure
-    m_renderInfo.colorAttachmentCount = 1;
-    m_renderInfo.pColorAttachmentFormats = &m_colorAttachmentformat;
-}
-
-void vkutil::PipelineBuilder::SetDepthFormat(VkFormat format)
-{
-    m_renderInfo.depthAttachmentFormat = format;
-}
-
-void vkutil::PipelineBuilder::DisableDepthTest()
-{
-    m_depthStencil.depthTestEnable = VK_FALSE;
-    m_depthStencil.depthWriteEnable = VK_FALSE;
-    m_depthStencil.depthCompareOp = VK_COMPARE_OP_NEVER;
-    m_depthStencil.depthBoundsTestEnable = VK_FALSE;
-    m_depthStencil.stencilTestEnable = VK_FALSE;
-    m_depthStencil.front = {};
-    m_depthStencil.back = {};
-    m_depthStencil.minDepthBounds = 0.f;
-    m_depthStencil.maxDepthBounds = 1.f;
-}
-
-void vkutil::PipelineBuilder::EnableDepthTest(bool depthWriteEnable, VkCompareOp op)
-{
-    m_depthStencil.depthTestEnable = VK_TRUE;
-    m_depthStencil.depthWriteEnable = depthWriteEnable;
-    m_depthStencil.depthCompareOp = op;
-    m_depthStencil.depthBoundsTestEnable = VK_FALSE;
-    m_depthStencil.stencilTestEnable = VK_FALSE;
-    m_depthStencil.front = {};
-    m_depthStencil.back = {};
-    m_depthStencil.minDepthBounds = 0.f;
-    m_depthStencil.maxDepthBounds = 1.f;
-}
-
 static void Diagnose(Slang::ComPtr<slang::IBlob> blob)
 {
     if (blob != nullptr)
@@ -249,6 +25,20 @@ VkShaderModule CreateShaderModule(VkDevice device, const Slang::ComPtr<slang::IB
     return module;
 }
 
+void trayser::Pipeline::Init()
+{
+    if (m_canHotReload)
+    {
+        std::string filePath = VulkanEngine::Get().m_compiler.FindExistingFile((m_name + ".slang").c_str());
+        if (filePath.empty())
+            return;
+
+        m_lastWriteTime = std::filesystem::last_write_time(filePath);
+    }
+
+    Load();
+}
+
 void trayser::Pipeline::Destroy() const
 {
 	vkDestroyPipelineLayout(VulkanEngine::Get().m_device, m_layout, nullptr);
@@ -260,17 +50,11 @@ void trayser::Pipeline::ReloadIfChanged()
 	if (!m_canHotReload)
 		return;
 
-    const char* searchPaths[] =
-    {
-        "C:/Projects/BUas/Y2B/Trayser/shaders"
-    };
-
-    std::string fileName = std::string(searchPaths[0]) + "/" + m_name + ".slang";
-
-	if (!std::filesystem::exists(fileName))
+    std::string filePath = VulkanEngine::Get().m_compiler.FindExistingFile((m_name + ".slang").c_str());
+	if (filePath.empty())
 		return;
 
-    auto currentLastWriteTime = std::filesystem::last_write_time(fileName);
+    auto currentLastWriteTime = std::filesystem::last_write_time(filePath);
     // Shader source has changed
     if (m_lastWriteTime < currentLastWriteTime)
     {   
@@ -281,51 +65,10 @@ void trayser::Pipeline::ReloadIfChanged()
     }
 }
 
-static void LoadSpirv(const char* spirvFileName, VkShaderModule& outShaderModule)
+trayser::PBRPipeline::PBRPipeline()
 {
-    // open the file. With cursor at the end
-    std::ifstream file(spirvFileName, std::ios::ate | std::ios::binary);
-
-    if (!file.is_open())
-    {
-        return;
-    }
-
-    size_t fileSize = (size_t)file.tellg();
-    std::vector<u32> buffer(fileSize / sizeof(u32));
-    file.seekg(0);
-    file.read((char*)buffer.data(), fileSize);
-    file.close();
-
-    VkShaderModuleCreateInfo createInfo = {};
-    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    createInfo.pNext = nullptr;
-    createInfo.codeSize = buffer.size() * sizeof(u32);
-    createInfo.pCode = buffer.data();
-
-    VkShaderModule shaderModule;
-    if (vkCreateShaderModule(VulkanEngine::Get().m_device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
-    {
-        return;
-    }
-
-    outShaderModule = shaderModule;
-}
-
-void trayser::PBRPipeline::Init()
-{
-    const char* searchPaths[] =
-    {
-        "C:/Projects/BUas/Y2B/Trayser/shaders"
-    };
-
-    m_name = "pbr";
-    m_canHotReload = true;
-
-    std::string fileName = std::string(searchPaths[0]) + "/" + m_name + ".slang";
-
-    m_lastWriteTime = std::filesystem::last_write_time(fileName);
-    Load();
+	m_name = "pbr";
+	m_canHotReload = true;
 }
 
 void trayser::PBRPipeline::Load()
@@ -545,11 +288,19 @@ void trayser::SlangCompiler::Init()
 {
     SlangResult result{};
     result = slang::createGlobalSession(m_slangGlobalSession.writeRef());
-	if (SLANG_FAILED(result))
-	{
-		fmt::println("Failed to create Slang global session");
-		return;
-	}
+    if (SLANG_FAILED(result))
+    {
+        fmt::println("Failed to create Slang global session");
+        return;
+    }
+
+    m_searchPaths =
+    {
+        "shaders"
+        "../shaders",
+        "../../shaders",
+        "../../../shaders",
+    };
 }
 
 void trayser::SlangCompiler::LoadVertexFragmentShader(const char* slangFileName, Slang::ComPtr<slang::IBlob>& vsSpirv, Slang::ComPtr<slang::IBlob>& fsSpirv)
@@ -594,24 +345,57 @@ void trayser::SlangCompiler::LoadVertexFragmentShader(const char* slangFileName,
     Diagnose(diagnosticBlob);
 }
 
+bool trayser::SlangCompiler::LoadShaderModule(const char* spirvFileName, VkShaderModule& outModule)
+{
+    std::string filePath = FindExistingFile((std::string(spirvFileName) + ".spv").c_str());
+
+	if (filePath.empty())
+	{
+		return false;
+	}
+
+    // open the file. With cursor at the end
+    std::ifstream file(filePath, std::ios::ate | std::ios::binary);
+
+    if (!file.is_open())
+    {
+        return false;
+    }
+
+    size_t fileSize = (size_t)file.tellg();
+    std::vector<u32> buffer(fileSize / sizeof(u32));
+    file.seekg(0);
+    file.read((char*)buffer.data(), fileSize);
+    file.close();
+    VkShaderModuleCreateInfo createInfo = {};
+    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    createInfo.pNext = nullptr;
+    createInfo.codeSize = buffer.size() * sizeof(u32);
+    createInfo.pCode = buffer.data();
+    VkShaderModule shaderModule;
+    if (vkCreateShaderModule(VulkanEngine::Get().m_device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
+    {
+        return false;
+    }
+
+    outModule = shaderModule;
+    return true;
+}
+
 void trayser::SlangCompiler::CreateSlangSession(Slang::ComPtr<slang::ISession>& session) const
 {
     slang::TargetDesc targetDesc{};
     targetDesc.format                    = SLANG_SPIRV;
     targetDesc.profile                   = m_slangGlobalSession->findProfile("spirv_1_3");
     targetDesc.flags                     = 0;
+
     slang::SessionDesc sessionDesc{};
     sessionDesc.targets                  = &targetDesc;
     sessionDesc.targetCount              = 1;
     sessionDesc.compilerOptionEntryCount = 0;
+    sessionDesc.searchPaths              = m_searchPaths.data();
+    sessionDesc.searchPathCount          = m_searchPaths.size();
 
-    const char* searchPaths[] =
-    {
-        "C:/Projects/BUas/Y2B/Trayser/shaders"
-    };
-
-    sessionDesc.searchPaths = searchPaths;
-    sessionDesc.searchPathCount = 1;
     m_slangGlobalSession->createSession(sessionDesc, session.writeRef());
 }
 
@@ -624,21 +408,21 @@ slang::IModule* trayser::SlangCompiler::LoadModule(const char* slangFileName, Sl
     return module;
 }
 
-void trayser::BackgroundPipeline::Init()
+std::string trayser::SlangCompiler::FindExistingFile(const char* fileName)
 {
-    //const char* searchPaths[] =
-    //{
-    //    "C:/Projects/BUas/Y2B/Trayser/shaders"
-    //};
+    for (auto& path : m_searchPaths)
+    {
+		std::string fullPath = std::string(path) + "/" + fileName;
+		if (std::filesystem::exists(fullPath))
+			return fullPath;
+    }
+    return "";
+}
 
-    m_name = "sky";
-    m_canHotReload = false;
-
-
-    //std::string fileName = std::string(searchPaths[0]) + "/" + m_name + ".slang";
-    //m_lastWriteTime = std::filesystem::last_write_time(fileName);
-
-    Load();
+trayser::BackgroundPipeline::BackgroundPipeline()
+{
+	m_name = "sky.comp";
+	m_canHotReload = false;
 }
 
 void trayser::BackgroundPipeline::Load()
@@ -661,7 +445,7 @@ void trayser::BackgroundPipeline::Load()
 
     // Layout code
     VkShaderModule computeDrawShader;
-    if (!vkutil::LoadShaderModule("../shaders/sky.comp.spv", VulkanEngine::Get().m_device, &computeDrawShader))
+    if (!VulkanEngine::Get().m_compiler.LoadShaderModule(m_name.c_str(), computeDrawShader))
     {
         fmt::print("Error when building the compute shader \n");
     }
