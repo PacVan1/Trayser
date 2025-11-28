@@ -267,6 +267,9 @@ void trayser::Pipeline::ReloadIfChanged()
 
     std::string fileName = std::string(searchPaths[0]) + "/" + m_name + ".slang";
 
+	if (!std::filesystem::exists(fileName))
+		return;
+
     auto currentLastWriteTime = std::filesystem::last_write_time(fileName);
     // Shader source has changed
     if (m_lastWriteTime < currentLastWriteTime)

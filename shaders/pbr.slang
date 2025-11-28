@@ -273,7 +273,6 @@ FSOutput fsMain(VsFsInterface input)
         intensity += CookTorranceBRDF(info, L2) * 2.0;
         o.fragColor = float4(intensity * info.ao + info.emissive, 1.0);
         o.fragColor = float4(LinearToSrgb(o.fragColor.rgb), 1.0);
-        //o.fragColor = float4(1.0, 0.0, 0.0, 1.0);
         break;
 
     case RenderMode.TexCoord0:
