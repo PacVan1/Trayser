@@ -26,9 +26,9 @@ struct VsFsInterface
 {
     float4 position : SV_Position;
     float4 worldPos : WORLD_POS;
-    float3 color : TEXCOORD0;
-    float2 uv : TEXCOORD1;
-    float3x3 tbn : TEXCOORD2;
+    float3 color    : TEXCOORD0;
+    float2 uv       : TEXCOORD1;
+    float3x3 tbn    : TEXCOORD2;
 };
 
 [[vk::push_constant]]
@@ -273,6 +273,7 @@ FSOutput fsMain(VsFsInterface input)
         intensity += CookTorranceBRDF(info, L2) * 2.0;
         o.fragColor = float4(intensity * info.ao + info.emissive, 1.0);
         o.fragColor = float4(LinearToSrgb(o.fragColor.rgb), 1.0);
+        //o.fragColor = float4(1.0, 0.0, 0.0, 1.0);
         break;
 
     case RenderMode.TexCoord0:

@@ -169,5 +169,8 @@ void InspectorWindow::Update()
 
 void RenderSettingsWindow::Update()
 {
-	ImGui::Combo("Render Mode", &VulkanEngine::Get().m_renderMode, kRenderModeStr.c_str());
+	auto& engine = VulkanEngine::Get();
+
+	ImGui::Combo("Render Mode", &engine.m_renderMode, kRenderModeStr.c_str());
+	engine.m_hotReloadShaders = ImGui::Button("Hot Reload Shaders");
 }

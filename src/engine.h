@@ -9,8 +9,16 @@
 #include <camera.h>
 #include <scene.h>
 #include <resources.h>
+#include <pipelines.h>
 
 constexpr unsigned int kFrameCount{ 2 };
+
+enum PipelineType
+{
+	PipelineType_Background,
+	PipelineType_PBR,
+	kPipelineTypeCount,
+};
 
 struct ComputePushConstants 
 {
@@ -48,6 +56,7 @@ public:
 	AllocatedImage CreateImage(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
 	void DestroyImage(const AllocatedImage& img);
 	void DestroyBuffer(const AllocatedBuffer& buffer);
+	void HotReloadPipelines();
 
 	[[nodiscard]] FrameData& GetCurrentFrame() { return m_frames[m_frameIdx]; }
 
@@ -58,9 +67,6 @@ private:
 	void InitSyncStructures();
 	void InitDescriptors();
 	void InitPipelines();
-	void InitBackgroundPipelines();
-	void InitMeshPipelines();	
-	void InitMeshPipelines2();
 	void InitImGui();
 	void InitDefaultData();
 	void InitDefaultMaterial();
@@ -68,8 +74,6 @@ private:
 	void CreateSwapchainImageView();
 	void DestroySwapchain();
 	void BeginRecording(VkCommandBuffer cmd);
-	void RenderBackground(VkCommandBuffer cmd);
-	void RenderTriangle(VkCommandBuffer cmd);
 	void RenderImGui(VkCommandBuffer cmd, VkImageView targetImageView);
 	void ResizeSwapchain();
 
@@ -85,12 +89,6 @@ public:
 	VkFence						m_immFence;
 	VkCommandBuffer				m_immCommandBuffer;
 	VkCommandPool				m_immCommandPool;
-
-	VkPipeline					m_triPipeline;
-	VkPipelineLayout			m_triPipelineLayout;
-
-	VkPipeline					m_gradientPipeline;
-	VkPipelineLayout			m_gradientPipelineLayout;
 
 	DescriptorAllocatorGrowable	m_globalDescriptorAllocator;
 	VkDescriptorSet				m_renderImageDescriptors;
@@ -126,25 +124,26 @@ public:
 	bool						m_resizeRequested = false;
 
 	RenderMode					m_renderMode = RenderMode_FinalColor;
+	bool						m_hotReloadShaders = false;
+	trayser::SlangCompiler		m_compiler;
+	VkDescriptorSetLayout		m_singleImageDescriptorLayout;
+
+	std::vector<trayser::Pipeline*> m_pipelines;
+
+	VkSampler m_defaultSamplerLinear;
+	VkSampler m_defaultSamplerNearest;
+
+	Material m_defaultMaterial;
 
 private:
 	FrameData					m_frames[kFrameCount];
-		
-	VkPipelineLayout m_meshPipelineLayout;
-	VkPipeline m_meshPipeline;
 
-	gpu::MeshBuffers rectangle;
 	gpu::SceneData m_sceneData;
 	VkDescriptorSetLayout m_gpuSceneDataDescriptorLayout;
-	VkDescriptorSetLayout m_singleImageDescriptorLayout;
 
 	AllocatedImage m_whiteImage;
 	AllocatedImage m_blackImage;
 	AllocatedImage m_greyImage;
 
-	VkSampler m_defaultSamplerLinear;
-	VkSampler m_defaultSamplerNearest;
 
-
-	Material m_defaultMaterial;
 };
