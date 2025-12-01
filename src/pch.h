@@ -15,6 +15,7 @@
 #include <stack>
 #include <assert.h>
 #include <fstream>
+#include <iostream>
 // temp
 #include <list>
 

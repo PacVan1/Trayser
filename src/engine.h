@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include <loader.h>
-#include <types.h>
+#include <types.h>	
 #include <util.h>
 #include <descriptors.h>
 #include <editor.h>
@@ -10,8 +10,19 @@
 #include <scene.h>
 #include <resources.h>
 #include <pipelines.h>
+#include <device.h>
 
-constexpr unsigned int kFrameCount{ 2 };
+static constexpr char const*	kEngineName	= "Trayser";
+static constexpr unsigned int	kFrameCount	= 2;
+
+#if defined (_DEBUG)
+static constexpr bool kUseValidationLayers = true;
+#else
+static constexpr bool kUseValidationLayers = false;
+#endif
+
+static const std::vector<const char*> g_validationLayers	= { "VK_LAYER_KHRONOS_validation" };
+static const std::vector<const char*> g_gpuExtensions		= { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 
 enum PipelineType
 {
@@ -58,8 +69,7 @@ public:
 	[[nodiscard]] FrameData& GetCurrentFrame() { return m_frames[m_frameIdx]; }
 
 private:
-	void InitVulkan();
-	void InitSwapchain();
+	//void InitSwapchain();
 	void InitCommands();
 	void InitSyncStructures();
 	void InitDescriptors();
@@ -67,7 +77,6 @@ private:
 	void InitImGui();
 	void InitDefaultData();
 	void InitDefaultMaterial();
-	void CreateSwapchain(u32 width, u32 height);
 	void CreateSwapchainImageView();
 	void DestroySwapchain();
 	void BeginRecording(VkCommandBuffer cmd);
@@ -98,30 +107,17 @@ public:
 	VmaAllocator				m_allocator;
 	vkutil::DeletionQueue		m_deletionQueue;
 
-	VkInstance					m_instance;			// Vulkan library handle
-	VkDebugUtilsMessengerEXT	m_debugMessenger;	// Vulkan debug output handle
-	VkPhysicalDevice			m_chosenGPU;		// GPU chosen as the default device
-	VkDevice					m_device;			// Vulkan device for commands
-	VkSurfaceKHR				m_surface;			// Vulkan window surface
-
-	VkSwapchainKHR				m_swapchain;
-	VkFormat					m_swapchainImageFormat;
-	std::vector<VkImage>		m_swapchainImages;
-	std::vector<VkImageView>	m_swapchainImageViews;
-	VkExtent2D					m_swapchainExtent;
-
-	VkQueue						m_graphicsQueue;
 	u32							m_graphicsQueueFamily;
 	u32							m_frameIdx{0};
 
 	bool						m_isInitialized{false};
 	bool						m_stopRendering{false};
 	VkExtent2D					m_windowExtent{1700, 900};
-	struct SDL_Window*			m_window{nullptr};
 	bool						m_resizeRequested = false;
 
+	trayser::Device				m_device;
+
 	RenderMode					m_renderMode = RenderMode_FinalColor;
-	bool						m_hotReloadShaders = false;
 	trayser::SlangCompiler		m_compiler;
 	VkDescriptorSetLayout		m_singleImageDescriptorLayout;
 
@@ -131,6 +127,30 @@ public:
 	VkSampler m_defaultSamplerNearest;
 
 	Material m_defaultMaterial;
+
+	// RAY TRACING //////////////////////////////////////////
+	//nvvk::DescriptorPack m_rtDescPack;               // Ray tracing descriptor bindings
+	//VkPipeline           m_rtPipeline{};             // Ray tracing pipeline
+	//VkPipelineLayout     m_rtPipelineLayout{};       // Ray tracing pipeline layout
+	//
+	//// Acceleration Structure Components
+	//std::vector<gpu::AccelerationStructure> m_blasAccel;     // Bottom-level acceleration structures
+	//gpu::AccelerationStructure              m_tlasAccel;     // Top-level acceleration structure
+	//
+	//// Direct SBT management
+	//AllocatedBuffer                 sm_sbtBuffer;         // Buffer for shader binding table
+	//std::vector<uint8_t>            m_shaderHandles;     // Storage for shader group handles
+	//VkStridedDeviceAddressRegionKHR m_raygenRegion{};    // Ray generation shader region
+	//VkStridedDeviceAddressRegionKHR m_missRegion{};      // Miss shader region
+	//VkStridedDeviceAddressRegionKHR m_hitRegion{};       // Hit shader region
+	//VkStridedDeviceAddressRegionKHR m_callableRegion{};  // Callable shader region
+	//
+	//// Ray Tracing Properties
+	//VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties{
+	//	VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR };
+	//VkPhysicalDeviceAccelerationStructurePropertiesKHR m_asProperties{
+	//	VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR };
+	//////////////////////////////////////////////////
 
 private:
 	FrameData					m_frames[kFrameCount];

@@ -17,126 +17,35 @@
 
 #include "vk_mem_alloc.h"
 
-//#define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
 #include <chrono>
 #include <thread>
-
-static constexpr bool kUseValidationLayers = true;
+#include <iostream>
 
 Engine g_engine;
 
-using Slang::ComPtr;
-
-inline bool CompileSlangShader()
-{
-    SlangResult result{};
-
-    Slang::ComPtr<slang::IGlobalSession> slangGlobalSession;
-    result = slang::createGlobalSession(slangGlobalSession.writeRef());
-
-    slang::TargetDesc targetDesc = {};
-    targetDesc.format = SLANG_SPIRV;
-    targetDesc.profile = slangGlobalSession->findProfile("spirv_1_5");
-    targetDesc.flags = 0;
-    slang::SessionDesc sessionDesc = {};
-    sessionDesc.targets = &targetDesc;
-    sessionDesc.targetCount = 1;
-    sessionDesc.compilerOptionEntryCount = 0;
-
-    const char* searchPaths[] = 
-    {
-        "C:/Projects/BUas/Y2B/Trayser/shaders"
-    };
-
-    sessionDesc.searchPaths = searchPaths;
-    sessionDesc.searchPathCount = 1;
-    Slang::ComPtr<slang::ISession> session;
-    slangGlobalSession->createSession(sessionDesc, session.writeRef());
-
-    slang::IModule* slangModule = nullptr;
-    {
-        Slang::ComPtr<slang::IBlob> diagnosticBlob;
-        slangModule = session->loadModule("hello-world", diagnosticBlob.writeRef());
-        //diagnoseIfNeeded(diagnosticBlob);
-        if (!slangModule)
-            return -1;
-    }
-
-    Slang::ComPtr<slang::IEntryPoint> entryPoint;
-    slangModule->findEntryPointByName("computeMain", entryPoint.writeRef());
-
-    std::vector<slang::IComponentType*> componentTypes;
-    componentTypes.push_back(slangModule);
-    componentTypes.push_back(entryPoint);
-
-    ComPtr<slang::IComponentType> composedProgram;
-    {
-        ComPtr<slang::IBlob> diagnosticsBlob;
-        SlangResult result = session->createCompositeComponentType(
-            componentTypes.data(),
-            componentTypes.size(),
-            composedProgram.writeRef(),
-            diagnosticsBlob.writeRef());
-        //diagnoseIfNeeded(diagnosticsBlob);
-        if (result == SLANG_FAIL)
-        {
-            return false;
-        }
-    }
-
-    ComPtr<slang::IBlob> spirvCode;
-    {
-        ComPtr<slang::IBlob> diagnosticsBlob;
-        SlangResult result = composedProgram->getEntryPointCode(
-            0,
-            0,
-            spirvCode.writeRef(),
-            diagnosticsBlob.writeRef());
-        //diagnoseIfNeeded(diagnosticsBlob);
-        //RETURN_ON_FAIL(result);
-
-        if (result == SLANG_FAIL)
-        {
-            return false;
-        }
-
-        //if (isTestMode())
-        //{
-        //	printEntrypointHashes(1, 1, composedProgram);
-        //}
-    }
-
-    return false;
-}
-
-static void ReloadSlangShader()
-{
-
-}
-
 void Engine::Init()
 {
-    SDL_Init(SDL_INIT_VIDEO);
-    m_window = SDL_CreateWindow(
-        "Vulkan Engine",
-        SDL_WINDOWPOS_UNDEFINED,
-        SDL_WINDOWPOS_UNDEFINED,
-        m_windowExtent.width,
-        m_windowExtent.height,
-        SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
-    SDL_ShowCursor(SDL_DISABLE);
-    SDL_SetRelativeMouseMode(SDL_FALSE);
-
-    //CompileSlangShader();
-
     m_compiler.Init();
 
-    InitVulkan();
-    InitSwapchain();
+    m_device.Init();
+
     InitCommands();
     InitSyncStructures();   
+
+    // Initialize VMA
+    VmaAllocatorCreateInfo allocatorInfo = {};
+    allocatorInfo.physicalDevice = m_device.m_physDevice;
+    allocatorInfo.device = m_device.m_device;
+    allocatorInfo.instance = m_device.m_instance;
+    allocatorInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
+    vmaCreateAllocator(&allocatorInfo, &m_allocator);
+
+    m_deletionQueue.Push([&]() { vmaDestroyAllocator(m_allocator); });
+    VK_CHECK(vkWaitForFences(m_device.m_device, 1, &m_immFence, true, 9999999999));
+
+    CreateSwapchainImageView();
     InitDescriptors();
     InitPipelines();
     InitImGui();
@@ -152,14 +61,14 @@ void Engine::Cleanup()
     if (m_isInitialized) 
     {    
         // Make sure the gpu is done with its work
-        vkDeviceWaitIdle(m_device);
+        vkDeviceWaitIdle(m_device.m_device);
 
         for (int i = 0; i < kFrameCount; i++) 
         {
-            vkDestroyCommandPool(m_device, m_frames[i].commandPool, nullptr);
-            vkDestroyFence(m_device, m_frames[i].renderFence, nullptr);
-            vkDestroySemaphore(m_device, m_frames[i].renderSemaphore, nullptr);
-            vkDestroySemaphore(m_device, m_frames[i].swapchainSemaphore, nullptr);
+            vkDestroyCommandPool(m_device.m_device, m_frames[i].commandPool, nullptr);
+            vkDestroyFence(m_device.m_device, m_frames[i].renderFence, nullptr);
+            vkDestroySemaphore(m_device.m_device, m_frames[i].renderSemaphore, nullptr);
+            vkDestroySemaphore(m_device.m_device, m_frames[i].swapchainSemaphore, nullptr);
             m_frames[i].deletionQueue.Flush();
         }
 
@@ -167,25 +76,25 @@ void Engine::Cleanup()
 
         DestroySwapchain();
 
-        vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
-        vkDestroyDevice(m_device, nullptr);
+        vkDestroySurfaceKHR(m_device.m_instance, m_device.m_surface, nullptr);
+        vkDestroyDevice(m_device.m_device, nullptr);
 
-        vkb::destroy_debug_utils_messenger(m_instance, m_debugMessenger);
-        vkDestroyInstance(m_instance, nullptr);
-        SDL_DestroyWindow(m_window);
+        //vkb::destroy_debug_utils_messenger(m_device.m_instance, m_device.m_debugMessenger);
+        vkDestroyInstance(m_device.m_instance, nullptr);
+        SDL_DestroyWindow(m_device.m_window);
     }
 }
 
 void Engine::Render()
 {
-    VK_CHECK(vkWaitForFences(m_device, 1, &GetCurrentFrame().renderFence, true, 1000000000));
+    VK_CHECK(vkWaitForFences(m_device.m_device, 1, &GetCurrentFrame().renderFence, true, 1000000000));
     GetCurrentFrame().deletionQueue.Flush();
-    GetCurrentFrame().descriptors.ClearPools(m_device);
+    GetCurrentFrame().descriptors.ClearPools(m_device.m_device);
 
-    VK_CHECK(vkResetFences(m_device, 1, &GetCurrentFrame().renderFence));
+    VK_CHECK(vkResetFences(m_device.m_device, 1, &GetCurrentFrame().renderFence));
 
     uint32_t swapchainImageIndex;
-    VkResult e = vkAcquireNextImageKHR(m_device, m_swapchain, 1000000000, GetCurrentFrame().swapchainSemaphore, nullptr, &swapchainImageIndex);
+    VkResult e = vkAcquireNextImageKHR(m_device.m_device, m_device.m_swapchain, 1000000000, GetCurrentFrame().swapchainSemaphore, nullptr, &swapchainImageIndex);
     if (e == VK_ERROR_OUT_OF_DATE_KHR) 
     {
         m_resizeRequested = true;
@@ -199,7 +108,7 @@ void Engine::Render()
     BeginRecording(cmd);
 
     // Make the swapchain image into writeable mode before rendering
-    vkutil::TransitionImage(cmd, m_swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+    vkutil::TransitionImage(cmd, m_device.m_swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
     
     m_pipelines[PipelineType_Background]->Update();
 
@@ -211,18 +120,18 @@ void Engine::Render()
 
     // Transition the draw image and the swapchain image into their correct transfer layouts
     vkutil::TransitionImage(cmd, m_renderImage.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-    vkutil::TransitionImage(cmd, m_swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    vkutil::TransitionImage(cmd, m_device.m_swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
-    vkutil::CopyImageToImage(cmd, m_renderImage.image, m_swapchainImages[swapchainImageIndex], m_renderExtent, m_swapchainExtent);
+    vkutil::CopyImageToImage(cmd, m_renderImage.image, m_device.m_swapchainImages[swapchainImageIndex], m_renderExtent, m_device.m_swapchainExtent);
 
     // set swapchain image layout to Attachment Optimal so we can draw it
-    vkutil::TransitionImage(cmd, m_swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    vkutil::TransitionImage(cmd, m_device.m_swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
     //draw imgui into the swapchain image
-    RenderImGui(cmd, m_swapchainImageViews[swapchainImageIndex]);
+    RenderImGui(cmd, m_device.m_swapchainImageViews[swapchainImageIndex]);
 
     // set swapchain image layout to Present so we can draw it
-    vkutil::TransitionImage(cmd, m_swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    vkutil::TransitionImage(cmd, m_device.m_swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
     // Finalize the command buffer (we can no longer add commands, but it can now be executed)
     VK_CHECK(vkEndCommandBuffer(cmd));
@@ -239,7 +148,7 @@ void Engine::Render()
 
     // Submit command buffer to the queue and execute it.
     // _renderFence will now block until the graphic commands finish execution
-    VK_CHECK(vkQueueSubmit2(m_graphicsQueue, 1, &submit, GetCurrentFrame().renderFence));
+    VK_CHECK(vkQueueSubmit2(m_device.m_graphicsQueue, 1, &submit, GetCurrentFrame().renderFence));
 
     // Prepare present
     // This will put the image we just rendered to into the visible window.
@@ -248,7 +157,7 @@ void Engine::Render()
     VkPresentInfoKHR presentInfo = {};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.pNext = nullptr;
-    presentInfo.pSwapchains = &m_swapchain;
+    presentInfo.pSwapchains = &m_device.m_swapchain;
     presentInfo.swapchainCount = 1;
 
     presentInfo.pWaitSemaphores = &GetCurrentFrame().renderSemaphore;
@@ -256,7 +165,7 @@ void Engine::Render()
 
     presentInfo.pImageIndices = &swapchainImageIndex;
 
-    VkResult presentResult = vkQueuePresentKHR(m_graphicsQueue, &presentInfo);
+    VkResult presentResult = vkQueuePresentKHR(m_device.m_graphicsQueue, &presentInfo);
     if (presentResult == VK_ERROR_OUT_OF_DATE_KHR) 
     {
         m_resizeRequested = true;
@@ -344,7 +253,7 @@ void Engine::Run()
 
 void Engine::ImmediateSubmit(std::function<void(VkCommandBuffer cmd)>&& function)
 {
-    VK_CHECK(vkResetFences(m_device, 1, &m_immFence));
+    VK_CHECK(vkResetFences(m_device.m_device, 1, &m_immFence));
     VK_CHECK(vkResetCommandBuffer(m_immCommandBuffer, 0));
 
     VkCommandBuffer cmd = m_immCommandBuffer;
@@ -362,85 +271,24 @@ void Engine::ImmediateSubmit(std::function<void(VkCommandBuffer cmd)>&& function
 
     // Submit command buffer to the queue and execute it.
     // _renderFence will now block until the graphic commands finish execution
-    VK_CHECK(vkQueueSubmit2(m_graphicsQueue, 1, &submit, m_immFence));
+    VK_CHECK(vkQueueSubmit2(m_device.m_graphicsQueue, 1, &submit, m_immFence));
 
-    VK_CHECK(vkWaitForFences(m_device, 1, &m_immFence, true, 9999999999));
+    VK_CHECK(vkWaitForFences(m_device.m_device, 1, &m_immFence, true, 9999999999));
 }
 
-void Engine::InitVulkan()
-{
-    vkb::InstanceBuilder builder;
-
-    // Make the vulkan instance, with basic debug features
-    auto builderResult = builder
-        .set_app_name("Example Vulkan Application")
-        .request_validation_layers(kUseValidationLayers)
-        .use_default_debug_messenger()
-        .require_api_version(1, 3, 0)
-        .build();
-
-    // Grab the instance 
-    vkb::Instance vkbInst = builderResult.value();
-    m_instance       = vkbInst.instance;
-    m_debugMessenger = vkbInst.debug_messenger;
-
-    SDL_Vulkan_CreateSurface(m_window, m_instance, &m_surface);
-
-    VkPhysicalDeviceVulkan12Features features12{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
-    features12.bufferDeviceAddress  = true;
-    features12.descriptorIndexing   = true;
-
-    VkPhysicalDeviceVulkan13Features features13{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES };
-    features13.dynamicRendering = true;
-    features13.synchronization2 = true;
-
-    // Use vkbootstrap to select a gpu. 
-    // We want a gpu that can write to the SDL surface and supports vulkan 1.3 with the correct features
-    vkb::PhysicalDeviceSelector selector{vkbInst};
-    vkb::PhysicalDevice physicalDevice = selector
-        .set_minimum_version(1, 3)
-        .set_required_features_13(features13)
-        .set_required_features_12(features12)
-        .set_surface(m_surface)
-        .select()
-        .value();
-
-    // Create the final vulkan device
-    vkb::DeviceBuilder deviceBuilder{physicalDevice};
-    vkb::Device vkbDevice = deviceBuilder.build().value();
-
-    // Get the VkDevice handle used in the rest of a vulkan application
-    m_device    = vkbDevice.device;
-    m_chosenGPU = physicalDevice.physical_device;
-
-    // Use vkbootstrap to get a Graphics queue
-    m_graphicsQueue         = vkbDevice.get_queue(vkb::QueueType::graphics).value();
-    m_graphicsQueueFamily   = vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
-
-    // Initialize VMA
-    VmaAllocatorCreateInfo allocatorInfo = {};
-    allocatorInfo.physicalDevice    = m_chosenGPU;
-    allocatorInfo.device            = m_device;
-    allocatorInfo.instance          = m_instance;
-    allocatorInfo.flags             = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
-    vmaCreateAllocator(&allocatorInfo, &m_allocator);
-
-    m_deletionQueue.Push([&]() { vmaDestroyAllocator(m_allocator); });
-}
-
-void Engine::InitSwapchain()
-{
-    CreateSwapchain(m_windowExtent.width, m_windowExtent.height);
-
-    CreateSwapchainImageView();
-
-    // Add to deletion queues
-    m_deletionQueue.Push([=]() 
-    {
-        DestroyImage(m_depthImage);
-        DestroyImage(m_renderImage);
-    });
-}
+//void Engine::InitSwapchain()
+//{
+//    CreateSwapchain(m_windowExtent.width, m_windowExtent.height);
+//
+//    CreateSwapchainImageView();
+//
+//    // Add to deletion queues
+//    m_deletionQueue.Push([=]() 
+//    {
+//        DestroyImage(m_depthImage);
+//        DestroyImage(m_renderImage);
+//    });
+//}
 
 void Engine::InitCommands()
 {
@@ -450,24 +298,24 @@ void Engine::InitCommands()
 
     for (int i = 0; i < kFrameCount; i++) 
     {
-        VK_CHECK(vkCreateCommandPool(m_device, &commandPoolInfo, nullptr, &m_frames[i].commandPool));
+        VK_CHECK(vkCreateCommandPool(m_device.m_device, &commandPoolInfo, nullptr, &m_frames[i].commandPool));
 
         // Allocate the default command buffer that we will use for rendering
         VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(m_frames[i].commandPool, 1);
 
-        VK_CHECK(vkAllocateCommandBuffers(m_device, &cmdAllocInfo, &m_frames[i].commandBuffer));
+        VK_CHECK(vkAllocateCommandBuffers(m_device.m_device, &cmdAllocInfo, &m_frames[i].commandBuffer));
     }
 
-    VK_CHECK(vkCreateCommandPool(m_device, &commandPoolInfo, nullptr, &m_immCommandPool));
+    VK_CHECK(vkCreateCommandPool(m_device.m_device, &commandPoolInfo, nullptr, &m_immCommandPool));
 
     // allocate the command buffer for immediate submits
     VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(m_immCommandPool, 1);
 
-    VK_CHECK(vkAllocateCommandBuffers(m_device, &cmdAllocInfo, &m_immCommandBuffer));
+    VK_CHECK(vkAllocateCommandBuffers(m_device.m_device, &cmdAllocInfo, &m_immCommandBuffer));
 
     m_deletionQueue.Push([=]() 
     {
-        vkDestroyCommandPool(m_device, m_immCommandPool, nullptr);
+        vkDestroyCommandPool(m_device.m_device, m_immCommandPool, nullptr);
     });
 }
 
@@ -482,13 +330,13 @@ void Engine::InitSyncStructures()
 
     for (int i = 0; i < kFrameCount; i++) 
     {
-        VK_CHECK(vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_frames[i].renderFence));
-        VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_frames[i].swapchainSemaphore));
-        VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_frames[i].renderSemaphore));
+        VK_CHECK(vkCreateFence(m_device.m_device, &fenceCreateInfo, nullptr, &m_frames[i].renderFence));
+        VK_CHECK(vkCreateSemaphore(m_device.m_device, &semaphoreCreateInfo, nullptr, &m_frames[i].swapchainSemaphore));
+        VK_CHECK(vkCreateSemaphore(m_device.m_device, &semaphoreCreateInfo, nullptr, &m_frames[i].renderSemaphore));
     }
 
-    VK_CHECK(vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_immFence));
-    m_deletionQueue.Push([=]() { vkDestroyFence(m_device, m_immFence, nullptr); });
+    VK_CHECK(vkCreateFence(m_device.m_device, &fenceCreateInfo, nullptr, &m_immFence));
+    m_deletionQueue.Push([=]() { vkDestroyFence(m_device.m_device, m_immFence, nullptr); });
 }
 
 void Engine::InitDescriptors()
@@ -499,18 +347,18 @@ void Engine::InitDescriptors()
         { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 }
     };
 
-    m_globalDescriptorAllocator.Init(m_device, 10, sizes);
+    m_globalDescriptorAllocator.Init(m_device.m_device, 10, sizes);
 
     // Make the descriptor set layout for our compute draw
     {
     DescriptorLayoutBuilder builder;
     builder.AddBinding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-    m_renderImageDescriptorLayout = builder.Build(m_device, VK_SHADER_STAGE_COMPUTE_BIT);
+    m_renderImageDescriptorLayout = builder.Build(m_device.m_device, VK_SHADER_STAGE_COMPUTE_BIT);
     }
     {
     DescriptorLayoutBuilder builder;
     builder.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-    m_gpuSceneDataDescriptorLayout = builder.Build(m_device, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+    m_gpuSceneDataDescriptorLayout = builder.Build(m_device.m_device, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
     }
     {
     DescriptorLayoutBuilder builder;
@@ -519,24 +367,24 @@ void Engine::InitDescriptors()
     builder.AddBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
     builder.AddBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
     builder.AddBinding(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-    m_singleImageDescriptorLayout = builder.Build(m_device, VK_SHADER_STAGE_FRAGMENT_BIT);
+    m_singleImageDescriptorLayout = builder.Build(m_device.m_device, VK_SHADER_STAGE_FRAGMENT_BIT);
     }
     // Allocate a descriptor set for our draw image
-    m_renderImageDescriptors = m_globalDescriptorAllocator.Allocate(m_device, m_renderImageDescriptorLayout);
+    m_renderImageDescriptors = m_globalDescriptorAllocator.Allocate(m_device.m_device, m_renderImageDescriptorLayout);
 
     {
     DescriptorWriter writer;
     writer.WriteImage(0, m_renderImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-    writer.UpdateSet(m_device, m_renderImageDescriptors);
+    writer.UpdateSet(m_device.m_device, m_renderImageDescriptors);
     }
 
     //make sure both the descriptor allocator and the new layout get cleaned up properly
     m_deletionQueue.Push([&]() 
     {
-        m_globalDescriptorAllocator.DestroyPools(m_device);
-        vkDestroyDescriptorSetLayout(m_device, m_renderImageDescriptorLayout, nullptr);
-        vkDestroyDescriptorSetLayout(m_device, m_singleImageDescriptorLayout, nullptr);
-        vkDestroyDescriptorSetLayout(m_device, m_gpuSceneDataDescriptorLayout, nullptr);
+        m_globalDescriptorAllocator.DestroyPools(m_device.m_device);
+        vkDestroyDescriptorSetLayout(m_device.m_device, m_renderImageDescriptorLayout, nullptr);
+        vkDestroyDescriptorSetLayout(m_device.m_device, m_singleImageDescriptorLayout, nullptr);
+        vkDestroyDescriptorSetLayout(m_device.m_device, m_gpuSceneDataDescriptorLayout, nullptr);
     });
 
     for (int i = 0; i < kFrameCount; i++) 
@@ -551,11 +399,11 @@ void Engine::InitDescriptors()
         };
 
         m_frames[i].descriptors = DescriptorAllocatorGrowable{};
-        m_frames[i].descriptors.Init(m_device, 1000, frame_sizes);
+        m_frames[i].descriptors.Init(m_device.m_device, 1000, frame_sizes);
 
         m_deletionQueue.Push([&, i]() 
         {
-            m_frames[i].descriptors.DestroyPools(m_device);
+            m_frames[i].descriptors.DestroyPools(m_device.m_device);
         });
     }
 }
@@ -569,18 +417,6 @@ void Engine::InitPipelines()
 	{
 		pipeline->Init();
 	}
-}
-
-VkShaderModule createShaderModule(VkDevice device, const ComPtr<slang::IBlob>& blob)
-{
-    VkShaderModuleCreateInfo ci{ VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
-    ci.codeSize = blob->getBufferSize();
-    ci.pCode = reinterpret_cast<const uint32_t*>(blob->getBufferPointer());
-
-    VkShaderModule module = VK_NULL_HANDLE;
-    VkResult vr = vkCreateShaderModule(device, &ci, nullptr, &module);
-    if (vr != VK_SUCCESS) { printf("Failed to create shader module"); }
-    return module;
 }
 
 void Engine::InitImGui()
@@ -608,7 +444,7 @@ void Engine::InitImGui()
     pool_info.pPoolSizes = pool_sizes;
 
     VkDescriptorPool imguiPool;
-    VK_CHECK(vkCreateDescriptorPool(m_device, &pool_info, nullptr, &imguiPool));
+    VK_CHECK(vkCreateDescriptorPool(m_device.m_device, &pool_info, nullptr, &imguiPool));
 
     // 2: initialize imgui library
 
@@ -616,14 +452,14 @@ void Engine::InitImGui()
     ImGui::CreateContext();
 
     // this initializes imgui for SDL
-    ImGui_ImplSDL2_InitForVulkan(m_window);
+    ImGui_ImplSDL2_InitForVulkan(m_device.m_window);
 
     // this initializes imgui for Vulkan
     ImGui_ImplVulkan_InitInfo init_info = {};
-    init_info.Instance = m_instance;
-    init_info.PhysicalDevice = m_chosenGPU;
-    init_info.Device = m_device;
-    init_info.Queue = m_graphicsQueue;
+    init_info.Instance = m_device.m_instance;
+    init_info.PhysicalDevice = m_device.m_physDevice;
+    init_info.Device = m_device.m_device;
+    init_info.Queue = m_device.m_graphicsQueue;
     init_info.DescriptorPool = imguiPool;
     init_info.MinImageCount = 3;
     init_info.ImageCount = 3;
@@ -632,7 +468,7 @@ void Engine::InitImGui()
     //dynamic rendering parameters for imgui to use
     init_info.PipelineRenderingCreateInfo = { .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO };
     init_info.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
-    init_info.PipelineRenderingCreateInfo.pColorAttachmentFormats = &m_swapchainImageFormat;
+    init_info.PipelineRenderingCreateInfo.pColorAttachmentFormats = &m_device.m_swapchainImageFormat;
 
 
     init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
@@ -644,7 +480,7 @@ void Engine::InitImGui()
     // add the destroy the imgui created structures
     m_deletionQueue.Push([=]() {
         ImGui_ImplVulkan_Shutdown();
-        vkDestroyDescriptorPool(m_device, imguiPool, nullptr);
+        vkDestroyDescriptorPool(m_device.m_device, imguiPool, nullptr);
         });
 
     ImGuiStyle* style = &ImGui::GetStyle();
@@ -725,16 +561,16 @@ void Engine::InitDefaultData()
 
     sampl.magFilter = VK_FILTER_LINEAR;
     sampl.minFilter = VK_FILTER_LINEAR;
-    vkCreateSampler(m_device, &sampl, nullptr, &m_defaultSamplerNearest);
+    vkCreateSampler(m_device.m_device, &sampl, nullptr, &m_defaultSamplerNearest);
 
     sampl.magFilter = VK_FILTER_LINEAR;
     sampl.minFilter = VK_FILTER_LINEAR;
-    vkCreateSampler(m_device, &sampl, nullptr, &m_defaultSamplerLinear);
+    vkCreateSampler(m_device.m_device, &sampl, nullptr, &m_defaultSamplerLinear);
 
     m_deletionQueue.Push([&]() 
     {
-        vkDestroySampler(m_device, m_defaultSamplerNearest, nullptr);
-        vkDestroySampler(m_device, m_defaultSamplerLinear, nullptr);
+        vkDestroySampler(m_device.m_device, m_defaultSamplerNearest, nullptr);
+        vkDestroySampler(m_device.m_device, m_defaultSamplerLinear, nullptr);
 
         DestroyImage(m_whiteImage);
         DestroyImage(m_greyImage);
@@ -754,27 +590,6 @@ void Engine::InitDefaultMaterial()
     m_defaultMaterial.emissive          = m_resources.Create<Image>("default_emissive_image", &black, 1, 1, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_SAMPLED_BIT);
     m_defaultMaterial.occlusion         = m_resources.Create<Image>("default_ambient_occlusion_image", &white, 1, 1, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT);
     m_defaultMaterial.normalMap         = m_resources.Create<Image>("default_normal_map_image", &normal, 1, 1, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT);
-}
-
-void Engine::CreateSwapchain(u32 width, u32 height)
-{
-    m_swapchainImageFormat = VK_FORMAT_B8G8R8A8_UNORM;
-
-    vkb::SwapchainBuilder builder{m_chosenGPU, m_device, m_surface};
-    vkb::Swapchain vkbSwapchain = builder
-        //.use_default_format_selection()
-        .set_desired_format(VkSurfaceFormatKHR{ .format = m_swapchainImageFormat, .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR })
-        // Use vsync present mode
-        .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
-        .set_desired_extent(width, height)
-        .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT)
-        .build()
-        .value();
-
-    m_swapchainExtent       = vkbSwapchain.extent;
-    m_swapchain             = vkbSwapchain.swapchain;
-    m_swapchainImages       = vkbSwapchain.get_images().value();
-    m_swapchainImageViews   = vkbSwapchain.get_image_views().value();
 }
 
 void Engine::CreateSwapchainImageView()
@@ -810,7 +625,7 @@ void Engine::CreateSwapchainImageView()
     // Build a image-view for the draw image to use for rendering
     VkImageViewCreateInfo rview_info = vkinit::imageview_create_info(m_renderImage.imageFormat, m_renderImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
 
-    VK_CHECK(vkCreateImageView(m_device, &rview_info, nullptr, &m_renderImage.imageView));
+    VK_CHECK(vkCreateImageView(m_device.m_device, &rview_info, nullptr, &m_renderImage.imageView));
     
     // Depth image
     m_depthImage.imageFormat = VK_FORMAT_D32_SFLOAT;
@@ -821,7 +636,7 @@ void Engine::CreateSwapchainImageView()
     VkImageCreateInfo dimg_info = vkinit::image_create_info(m_depthImage.imageFormat, depthImageUsages, drawImageExtent);
     vmaCreateImage(m_allocator, &dimg_info, &rimg_allocinfo, &m_depthImage.image, &m_depthImage.allocation, nullptr);
     VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(m_depthImage.imageFormat, m_depthImage.image, VK_IMAGE_ASPECT_DEPTH_BIT);
-    VK_CHECK(vkCreateImageView(m_device, &dview_info, nullptr, &m_depthImage.imageView));
+    VK_CHECK(vkCreateImageView(m_device.m_device, &dview_info, nullptr, &m_depthImage.imageView));
 }
 
 AllocatedBuffer Engine::CreateBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage)
@@ -875,7 +690,7 @@ AllocatedImage Engine::CreateImage(VkExtent3D size, VkFormat format, VkImageUsag
     VkImageViewCreateInfo view_info = vkinit::imageview_create_info(format, newImage.image, aspectFlag);
     view_info.subresourceRange.levelCount = img_info.mipLevels;
 
-    VK_CHECK(vkCreateImageView(m_device, &view_info, nullptr, &newImage.imageView));
+    VK_CHECK(vkCreateImageView(m_device.m_device, &view_info, nullptr, &newImage.imageView));
 
     return newImage;
 }
@@ -918,7 +733,7 @@ AllocatedImage Engine::CreateImage(void* data, VkExtent3D size, VkFormat format,
 
 void Engine::DestroyImage(const AllocatedImage& img)
 {
-    vkDestroyImageView(m_device, img.imageView, nullptr);
+    vkDestroyImageView(m_device.m_device, img.imageView, nullptr);
     vmaDestroyImage(m_allocator, img.image, img.allocation);
 }
 
@@ -935,7 +750,7 @@ gpu::MeshBuffers Engine::UploadMesh(std::span<uint32_t> indices, std::span<Verte
 
     //find the adress of the vertex buffer
     VkBufferDeviceAddressInfo deviceAdressInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,.buffer = newSurface.vertexBuffer.buffer };
-    newSurface.vertexBufferAddress = vkGetBufferDeviceAddress(m_device, &deviceAdressInfo);
+    newSurface.vertexBufferAddress = vkGetBufferDeviceAddress(m_device.m_device, &deviceAdressInfo);
 
     //create index buffer
     newSurface.indexBuffer = CreateBuffer(indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -988,11 +803,11 @@ void Engine::HotReloadPipelines()
 
 void Engine::DestroySwapchain()
 {
-    vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
+    vkDestroySwapchainKHR(m_device.m_device, m_device.m_swapchain, nullptr);
 
-    for (int i = 0; i < m_swapchainImageViews.size(); i++) 
+    for (int i = 0; i < m_device.m_swapchainImageViews.size(); i++)
     {
-        vkDestroyImageView(m_device, m_swapchainImageViews[i], nullptr);
+        vkDestroyImageView(m_device.m_device, m_device.m_swapchainImageViews[i], nullptr);
     }
 }
 
@@ -1017,21 +832,22 @@ void Engine::RenderImGui(VkCommandBuffer cmd, VkImageView targetImageView)
 
 void Engine::ResizeSwapchain()
 {
-    vkDeviceWaitIdle(m_device);
+    vkDeviceWaitIdle(m_device.m_device);
 
     DestroySwapchain();
 
     int w, h;
-    SDL_GetWindowSize(m_window, &w, &h);
+    SDL_GetWindowSize(m_device.m_window, &w, &h);
     m_windowExtent.width = w;
     m_windowExtent.height = h;
 
     m_renderImage.imageExtent = { m_windowExtent.width, m_windowExtent.height, 1 };
     m_renderExtent = { m_windowExtent.width, m_windowExtent.height };
 
-    CreateSwapchain(m_windowExtent.width, m_windowExtent.height);
+    // TODO
+    //CreateSwapchain(m_windowExtent.width, m_windowExtent.height);
 
-    vkDestroyImageView(m_device, m_renderImage.imageView, nullptr);
+    vkDestroyImageView(m_device.m_device, m_renderImage.imageView, nullptr);
     vmaDestroyImage(m_allocator, m_renderImage.image, m_renderImage.allocation);
 
     CreateSwapchainImageView();

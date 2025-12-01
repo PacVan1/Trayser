@@ -250,7 +250,7 @@ Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mesh& loaded
 
     //find the adress of the vertex buffer
     VkBufferDeviceAddressInfo deviceAdressInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,.buffer = vertexBuffer.buffer };
-    vertexBufferAddr = vkGetBufferDeviceAddress(engine->m_device, &deviceAdressInfo);
+    vertexBufferAddr = vkGetBufferDeviceAddress(engine->m_device.m_device, &deviceAdressInfo);
 
     //create index buffer
     indexBuffer = engine->CreateBuffer(indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,

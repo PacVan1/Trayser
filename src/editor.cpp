@@ -169,8 +169,5 @@ void InspectorWindow::Update()
 
 void RenderSettingsWindow::Update()
 {
-	auto& engine = g_engine;
-
-	ImGui::Combo("Render Mode", &engine.m_renderMode, kRenderModeStr.c_str());
-	engine.m_hotReloadShaders = ImGui::Button("Hot Reload Shaders");
+	ImGui::Combo("Render Mode", &g_engine.m_renderMode, kRenderModeStr.c_str());
 }

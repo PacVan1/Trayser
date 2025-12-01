@@ -222,4 +222,12 @@ struct SceneData {
     glm::vec4 sunlightDirection; // w for sun power
     glm::vec4 sunlightColor;
 };
+
+//struct AccelerationStructure
+//{
+//    VkAccelerationStructureKHR accel{};
+//    VkDeviceAddress            address{};
+//    Buffer                     buffer;  // Underlying buffer
+//};
+
 }

@@ -41,8 +41,8 @@ void trayser::Pipeline::Init()
 
 void trayser::Pipeline::Destroy() const
 {
-	vkDestroyPipelineLayout(g_engine.m_device, m_layout, nullptr);
-	vkDestroyPipeline(g_engine.m_device, m_pipeline, nullptr);
+	vkDestroyPipelineLayout(g_engine.m_device.m_device, m_layout, nullptr);
+	vkDestroyPipeline(g_engine.m_device.m_device, m_pipeline, nullptr);
 }
 
 void trayser::Pipeline::ReloadIfChanged()
@@ -60,7 +60,7 @@ void trayser::Pipeline::ReloadIfChanged()
     {   
         m_lastWriteTime = currentLastWriteTime;
 
-        vkQueueWaitIdle(g_engine.m_graphicsQueue);
+        vkQueueWaitIdle(g_engine.m_device.m_graphicsQueue);
         Load();
     }
 }
@@ -82,8 +82,8 @@ void trayser::PBRPipeline::Load()
 		return;
 	}
 
-    VkShaderModule vsModule = CreateShaderModule(g_engine.m_device, vsSpirv);
-    VkShaderModule fsModule = CreateShaderModule(g_engine.m_device, fsSpirv);
+    VkShaderModule vsModule = CreateShaderModule(g_engine.m_device.m_device, vsSpirv);
+    VkShaderModule fsModule = CreateShaderModule(g_engine.m_device.m_device, fsSpirv);
 
     VkPushConstantRange pushConst{};
     pushConst.offset = 0;
@@ -95,7 +95,7 @@ void trayser::PBRPipeline::Load()
     pipeline_layout_info.pushConstantRangeCount = 2;
     pipeline_layout_info.pSetLayouts = &g_engine.m_singleImageDescriptorLayout;
     pipeline_layout_info.setLayoutCount = 1;
-    VK_CHECK(vkCreatePipelineLayout(g_engine.m_device, &pipeline_layout_info, nullptr, &m_layout));
+    VK_CHECK(vkCreatePipelineLayout(g_engine.m_device.m_device, &pipeline_layout_info, nullptr, &m_layout));
 
     VkPipelineVertexInputStateCreateInfo vertexInput{};
     auto bindingDescription = Vertex::GetBindingDescription();
@@ -199,14 +199,14 @@ void trayser::PBRPipeline::Load()
     pipelineInfo.pDynamicState = &dynamicStateCreateInfo;
     pipelineInfo.layout = m_layout;
 
-    if (vkCreateGraphicsPipelines(g_engine.m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_pipeline) != VK_SUCCESS)
+    if (vkCreateGraphicsPipelines(g_engine.m_device.m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_pipeline) != VK_SUCCESS)
     {
         fmt::println("Failed to create pipeline");
         return;
     }
 
-    vkDestroyShaderModule(g_engine.m_device, vsModule, nullptr);
-    vkDestroyShaderModule(g_engine.m_device, fsModule, nullptr);
+    vkDestroyShaderModule(g_engine.m_device.m_device, vsModule, nullptr);
+    vkDestroyShaderModule(g_engine.m_device.m_device, fsModule, nullptr);
 }
 
 void trayser::PBRPipeline::Update()
@@ -246,7 +246,7 @@ void trayser::PBRPipeline::Update()
         for (auto& prim : render.mesh->primitives)
         {
             //bind a texture
-            VkDescriptorSet imageSet = g_engine.GetCurrentFrame().descriptors.Allocate(g_engine.m_device, g_engine.m_singleImageDescriptorLayout);
+            VkDescriptorSet imageSet = g_engine.GetCurrentFrame().descriptors.Allocate(g_engine.m_device.m_device, g_engine.m_singleImageDescriptorLayout);
             {
                 DescriptorWriter writer;
                 writer.WriteImage(0, render.mesh->materials[prim.materialId].baseColor ? render.mesh->materials[prim.materialId].baseColor->imageView : g_engine.m_defaultMaterial.baseColor->imageView, g_engine.m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
@@ -255,7 +255,7 @@ void trayser::PBRPipeline::Update()
                 writer.WriteImage(3, render.mesh->materials[prim.materialId].occlusion ? render.mesh->materials[prim.materialId].occlusion->imageView : g_engine.m_defaultMaterial.occlusion->imageView, g_engine.m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
                 writer.WriteImage(4, render.mesh->materials[prim.materialId].emissive ? render.mesh->materials[prim.materialId].emissive->imageView : g_engine.m_defaultMaterial.emissive->imageView, g_engine.m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
 
-                writer.UpdateSet(g_engine.m_device, imageSet);
+                writer.UpdateSet(g_engine.m_device.m_device, imageSet);
             }
 
             vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_layout, 0, 1, &imageSet, 0, nullptr);
@@ -373,7 +373,7 @@ bool trayser::SlangCompiler::LoadShaderModule(const char* spirvFileName, VkShade
     createInfo.codeSize = buffer.size() * sizeof(u32);
     createInfo.pCode = buffer.data();
     VkShaderModule shaderModule;
-    if (vkCreateShaderModule(g_engine.m_device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
+    if (vkCreateShaderModule(g_engine.m_device.m_device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
     {
         return false;
     }
@@ -441,7 +441,7 @@ void trayser::BackgroundPipeline::Load()
     computeLayout.pPushConstantRanges = &pushConstant;
     computeLayout.pushConstantRangeCount = 1;
 
-    VK_CHECK(vkCreatePipelineLayout(g_engine.m_device, &computeLayout, nullptr, &m_layout));
+    VK_CHECK(vkCreatePipelineLayout(g_engine.m_device.m_device, &computeLayout, nullptr, &m_layout));
 
     // Layout code
     VkShaderModule computeDrawShader;
@@ -463,9 +463,9 @@ void trayser::BackgroundPipeline::Load()
     computePipelineCreateInfo.layout = m_layout;
     computePipelineCreateInfo.stage = stageinfo;
 
-    VK_CHECK(vkCreateComputePipelines(g_engine.m_device, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &m_pipeline));
+    VK_CHECK(vkCreateComputePipelines(g_engine.m_device.m_device, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &m_pipeline));
 
-    vkDestroyShaderModule(g_engine.m_device, computeDrawShader, nullptr);
+    vkDestroyShaderModule(g_engine.m_device.m_device, computeDrawShader, nullptr);
 }
 
 void trayser::BackgroundPipeline::Update()
