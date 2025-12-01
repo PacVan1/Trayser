@@ -4,24 +4,23 @@
 #include <initializers.h>
 #include <vk_mem_alloc.h>
 
-const std::vector<const char*> trayser::Device::kValidationLayers = { "VK_LAYER_KHRONOS_validation" };
-const std::vector<const char*> trayser::Device::kPhysDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+const std::vector<const char*> trayser::Device::kValidationLayers = 
+{ 
+    "VK_LAYER_KHRONOS_validation" 
+};
+
+const std::vector<const char*> trayser::Device::kPhysDeviceExtensions = 
+{ 
+    VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+    VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
+    VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
+    VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME
+};
 
 void trayser::Device::ShowCursor(bool show)
 {
     SDL_ShowCursor((SDL_bool)!show);
     SDL_SetRelativeMouseMode((SDL_bool)!show);
-}
-
-trayser::Device::Device() :
-    m_instance(VK_NULL_HANDLE),
-	m_debugMessenger(VK_NULL_HANDLE),
-	m_device(VK_NULL_HANDLE),
-	m_graphicsQueue(VK_NULL_HANDLE),
-	m_physDevice(VK_NULL_HANDLE),
-	m_presentQueue(VK_NULL_HANDLE)
-	//m_allocator(nullptr)
-{
 }
 
 void trayser::Device::Init()
@@ -33,6 +32,7 @@ void trayser::Device::Init()
 	InitPhysicalDevice();
 	InitLogicalDevice();
 	InitSwapchain();
+    InitVMA();
 }
 
 void trayser::Device::Destroy()
@@ -358,6 +358,17 @@ void trayser::Device::InitSwapchain()
         VkImageViewCreateInfo createInfo = vkinit::imageview_create_info(m_swapchainImageFormat, m_swapchainImages[i], VK_IMAGE_ASPECT_COLOR_BIT);
         VK_CHECK(vkCreateImageView(m_device, &createInfo, nullptr, &m_swapchainImageViews[i]));
     }
+}
+
+void trayser::Device::InitVMA()
+{
+    // Initialize VMA
+    VmaAllocatorCreateInfo info = {};
+    info.physicalDevice = m_physDevice;
+    info.device         = m_device;
+    info.instance       = m_instance;
+    info.flags          = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
+    vmaCreateAllocator(&info, &m_allocator);
 }
 
 bool trayser::Device::CheckValidationLayerSupport()

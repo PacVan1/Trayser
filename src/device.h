@@ -3,6 +3,7 @@
 #include <SDL.h>
 #include <SDL_vulkan.h>
 #include <vulkan/vulkan.h>
+#include <vk_mem_alloc.h>
 #include <types.h>
 #include <vector>
 
@@ -35,7 +36,6 @@ struct SwapChainSupportDetails
 class Device
 {
 public:
-	Device();
 	void Init();
 	void Destroy();
 	void ShowCursor(bool show);
@@ -48,6 +48,7 @@ private:
 	void InitLogicalDevice();
 	void InitSurface();
 	void InitSwapchain();
+	void InitVMA();
 
 	bool CheckValidationLayerSupport();
 	std::vector<const char*> GetRequiredExtensions();
@@ -85,7 +86,7 @@ public:
 	VkQueue						m_graphicsQueue;
 	VkQueue						m_presentQueue;
 
-	//VmaAllocator				m_allocator;
+	VmaAllocator				m_allocator;
 };
 
 } // namespace trayser

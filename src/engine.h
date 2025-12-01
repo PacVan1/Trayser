@@ -104,7 +104,6 @@ public:
 	AllocatedImage				m_depthImage;
 	VkExtent2D					m_renderExtent;
 
-	VmaAllocator				m_allocator;
 	vkutil::DeletionQueue		m_deletionQueue;
 
 	u32							m_graphicsQueueFamily;

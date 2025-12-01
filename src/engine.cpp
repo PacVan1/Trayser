@@ -34,15 +34,6 @@ void Engine::Init()
     InitCommands();
     InitSyncStructures();   
 
-    // Initialize VMA
-    VmaAllocatorCreateInfo allocatorInfo = {};
-    allocatorInfo.physicalDevice = m_device.m_physDevice;
-    allocatorInfo.device = m_device.m_device;
-    allocatorInfo.instance = m_device.m_instance;
-    allocatorInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
-    vmaCreateAllocator(&allocatorInfo, &m_allocator);
-
-    m_deletionQueue.Push([&]() { vmaDestroyAllocator(m_allocator); });
     VK_CHECK(vkWaitForFences(m_device.m_device, 1, &m_immFence, true, 9999999999));
 
     CreateSwapchainImageView();
@@ -620,7 +611,7 @@ void Engine::CreateSwapchainImageView()
     rimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     // Allocate and create the image
-    vmaCreateImage(m_allocator, &rimg_info, &rimg_allocinfo, &m_renderImage.image, &m_renderImage.allocation, nullptr);
+    vmaCreateImage(m_device.m_allocator, &rimg_info, &rimg_allocinfo, &m_renderImage.image, &m_renderImage.allocation, nullptr);
 
     // Build a image-view for the draw image to use for rendering
     VkImageViewCreateInfo rview_info = vkinit::imageview_create_info(m_renderImage.imageFormat, m_renderImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
@@ -634,7 +625,7 @@ void Engine::CreateSwapchainImageView()
     VkImageUsageFlags depthImageUsages{};
     depthImageUsages |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
     VkImageCreateInfo dimg_info = vkinit::image_create_info(m_depthImage.imageFormat, depthImageUsages, drawImageExtent);
-    vmaCreateImage(m_allocator, &dimg_info, &rimg_allocinfo, &m_depthImage.image, &m_depthImage.allocation, nullptr);
+    vmaCreateImage(m_device.m_allocator, &dimg_info, &rimg_allocinfo, &m_depthImage.image, &m_depthImage.allocation, nullptr);
     VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(m_depthImage.imageFormat, m_depthImage.image, VK_IMAGE_ASPECT_DEPTH_BIT);
     VK_CHECK(vkCreateImageView(m_device.m_device, &dview_info, nullptr, &m_depthImage.imageView));
 }
@@ -654,7 +645,7 @@ AllocatedBuffer Engine::CreateBuffer(size_t allocSize, VkBufferUsageFlags usage,
     AllocatedBuffer newBuffer;
 
     // allocate the buffer
-    VK_CHECK(vmaCreateBuffer(m_allocator, &bufferInfo, &vmaallocInfo, &newBuffer.buffer, &newBuffer.allocation,
+    VK_CHECK(vmaCreateBuffer(m_device.m_allocator, &bufferInfo, &vmaallocInfo, &newBuffer.buffer, &newBuffer.allocation,
         &newBuffer.info));
 
     return newBuffer;
@@ -677,7 +668,7 @@ AllocatedImage Engine::CreateImage(VkExtent3D size, VkFormat format, VkImageUsag
     allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     // allocate and create the image
-    VK_CHECK(vmaCreateImage(m_allocator, &img_info, &allocinfo, &newImage.image, &newImage.allocation, nullptr));
+    VK_CHECK(vmaCreateImage(m_device.m_allocator, &img_info, &allocinfo, &newImage.image, &newImage.allocation, nullptr));
 
     // if the format is a depth format, we will need to have it use the correct
     // aspect flag
@@ -734,7 +725,7 @@ AllocatedImage Engine::CreateImage(void* data, VkExtent3D size, VkFormat format,
 void Engine::DestroyImage(const AllocatedImage& img)
 {
     vkDestroyImageView(m_device.m_device, img.imageView, nullptr);
-    vmaDestroyImage(m_allocator, img.image, img.allocation);
+    vmaDestroyImage(m_device.m_allocator, img.image, img.allocation);
 }
 
 gpu::MeshBuffers Engine::UploadMesh(std::span<uint32_t> indices, std::span<Vertex> vertices)
@@ -759,7 +750,7 @@ gpu::MeshBuffers Engine::UploadMesh(std::span<uint32_t> indices, std::span<Verte
     AllocatedBuffer staging = CreateBuffer(vertexBufferSize + indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
 
     VmaAllocationInfo info;
-    vmaGetAllocationInfo(m_allocator, staging.allocation, &info);
+    vmaGetAllocationInfo(m_device.m_allocator, staging.allocation, &info);
     void* data = info.pMappedData; // safe to use
 
     // copy vertex buffer
@@ -790,7 +781,7 @@ gpu::MeshBuffers Engine::UploadMesh(std::span<uint32_t> indices, std::span<Verte
 
 void Engine::DestroyBuffer(const AllocatedBuffer& buffer)
 {
-    vmaDestroyBuffer(m_allocator, buffer.buffer, buffer.allocation);
+    vmaDestroyBuffer(m_device.m_allocator, buffer.buffer, buffer.allocation);
 }
 
 void Engine::HotReloadPipelines()
@@ -848,7 +839,7 @@ void Engine::ResizeSwapchain()
     //CreateSwapchain(m_windowExtent.width, m_windowExtent.height);
 
     vkDestroyImageView(m_device.m_device, m_renderImage.imageView, nullptr);
-    vmaDestroyImage(m_allocator, m_renderImage.image, m_renderImage.allocation);
+    vmaDestroyImage(m_device.m_allocator, m_renderImage.image, m_renderImage.allocation);
 
     CreateSwapchainImageView();
 

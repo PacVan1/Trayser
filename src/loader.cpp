@@ -259,7 +259,7 @@ Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mesh& loaded
     AllocatedBuffer staging = engine->CreateBuffer(vertexBufferSize + indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
 
     VmaAllocationInfo info;
-    vmaGetAllocationInfo(engine->m_allocator, staging.allocation, &info);
+    vmaGetAllocationInfo(engine->m_device.m_allocator, staging.allocation, &info);
     Vertex* vertices = (Vertex*)info.pMappedData;
     ////////////////////////////////////////////////////////////////
 
