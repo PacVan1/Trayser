@@ -62,4 +62,4 @@ public:
     virtual void Update() override;
 };
 
-}
+} // namespace trayser

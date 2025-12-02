@@ -2,6 +2,9 @@
 
 #include <types.h>
 
+namespace trayser
+{
+
 class Camera 
 {
 public:
@@ -23,3 +26,5 @@ public:
 	float m_sensitivity = 0.2f;
 	float m_fov			= 90.0f;
 };
+
+} // namespace trayser

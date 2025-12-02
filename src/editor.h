@@ -5,6 +5,9 @@
 #include <vector>
 #include <imgui.h>
 
+namespace trayser
+{
+
 class IWindow
 {
 public:
@@ -54,3 +57,5 @@ public:
 private:
 	void AddWindow(int windowIdx, IWindow* window, const char* title = "", ImGuiWindowFlags addons = ImGuiWindowFlags_None, bool opened = false);
 };
+
+} // namespace trayser

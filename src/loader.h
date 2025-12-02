@@ -5,6 +5,9 @@
 #include <filesystem>
 #include <mikktspace.h>
 
+namespace trayser
+{
+
 class Engine;
 
 struct GeoSurface {
@@ -56,6 +59,12 @@ struct LoadingMesh
     u32     vertexCount;
 };
 
+struct Instance
+{
+    glm::mat4 transform;
+    u32 meshIdx;
+};
+
 struct Mesh
 {
     std::vector<Primitive>  primitives;
@@ -63,6 +72,7 @@ struct Mesh
     AllocatedBuffer         indexBuffer;
     AllocatedBuffer         vertexBuffer;
     VkDeviceAddress         vertexBufferAddr;
+	u32                     vertexCount;
 
     Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mesh& loadedMesh, const std::string& folder);
     void LoadMaterial(const tinygltf::Model&, const tinygltf::Material&, const std::string& folder, Material&);
@@ -124,10 +134,9 @@ public:
     void TraverseNode(tinygltf::Model&, const tinygltf::Node&, Node*, const std::string&);
 };
 
-//forward declaration
-class Engine;
-
 std::string ReadTextFile(const std::string& path);
 std::vector<char> ReadBinaryFile(const std::string& path);
 
 std::optional<std::vector<std::shared_ptr<MeshAsset>>> LoadglTF(Engine* engine, std::filesystem::path filePath);
+
+} // namespace trayser

@@ -3,10 +3,10 @@
 #include "camera.h"
 #include "engine.h"
 
-void Camera::Input()
+void trayser::Camera::Input()
 {
 	auto& engine = g_engine;
-	auto& input = engine.m_input;
+	auto& input = engine.GetInput();
 
 	float mod = input.IsKeyDown(KeyboardKey_LeftShift) ? 2.0f : 1.0f;
 	float vel = m_speed * mod;

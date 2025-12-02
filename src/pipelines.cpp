@@ -211,7 +211,7 @@ void trayser::PBRPipeline::Load()
 
 void trayser::PBRPipeline::Update()
 {
-    auto& cmd = g_engine.GetCurrentFrame().commandBuffer;
+    auto cmd = g_engine.m_device.GetCmd();
 
     VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(g_engine.m_renderImage.imageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     VkRenderingAttachmentInfo depthAttachment = vkinit::depth_attachment_info(g_engine.m_depthImage.imageView, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
@@ -246,7 +246,7 @@ void trayser::PBRPipeline::Update()
         for (auto& prim : render.mesh->primitives)
         {
             //bind a texture
-            VkDescriptorSet imageSet = g_engine.GetCurrentFrame().descriptors.Allocate(g_engine.m_device.m_device, g_engine.m_singleImageDescriptorLayout);
+            VkDescriptorSet imageSet = g_engine.m_device.GetFrame().descriptors.Allocate(g_engine.m_device.m_device, g_engine.m_singleImageDescriptorLayout);
             {
                 DescriptorWriter writer;
                 writer.WriteImage(0, render.mesh->materials[prim.materialId].baseColor ? render.mesh->materials[prim.materialId].baseColor->imageView : g_engine.m_defaultMaterial.baseColor->imageView, g_engine.m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
@@ -470,7 +470,7 @@ void trayser::BackgroundPipeline::Load()
 
 void trayser::BackgroundPipeline::Update()
 {
-    auto& cmd = g_engine.GetCurrentFrame().commandBuffer;
+    auto cmd = g_engine.m_device.GetCmd();
 
     // bind the gradient drawing compute pipeline
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline);

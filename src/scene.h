@@ -6,6 +6,9 @@
 #include <loader.h>
 #include <memory>
 
+namespace trayser
+{
+
 class Scene
 {
 public:
@@ -34,3 +37,5 @@ private:
     Entity               m_root;
     bool                 m_dirty;
 };
+
+} // namespace trayser

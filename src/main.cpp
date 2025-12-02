@@ -5,6 +5,8 @@
 #undef main
 #endif
 
+using namespace trayser;
+
 int main(int argc, char* argv[])
 {
 	g_engine.Init();	

@@ -3,13 +3,13 @@
 #include <stack>
 #include <scene.h>
 
-Scene::Scene() :
+trayser::Scene::Scene() :
     m_dirty(true)
 {
     m_root = CreateNode(entt::null);
 }
 
-void Scene::Update(float dt)
+void trayser::Scene::Update(float dt)
 {
     if (m_dirty)
         Build();
@@ -59,12 +59,12 @@ void Scene::Update(float dt)
     }
 }
 
-Entity Scene::CreateNode()
+Entity trayser::Scene::CreateNode()
 {
     return CreateNode(m_root);
 }
 
-Entity Scene::CreateNode(Entity parent)
+Entity trayser::Scene::CreateNode(Entity parent)
 {
     Entity child = m_registry.create();
     AddNode(parent, child);
@@ -72,7 +72,7 @@ Entity Scene::CreateNode(Entity parent)
     return child;
 }
 
-Entity Scene::TraverseModel(std::shared_ptr<Model> model, int modelNodeIdx, SGNode* parent)
+Entity trayser::Scene::TraverseModel(std::shared_ptr<Model> model, int modelNodeIdx, SGNode* parent)
 {
     Model::Node* modelNode = &model->nodes[modelNodeIdx];
 
@@ -110,12 +110,12 @@ Entity Scene::TraverseModel(std::shared_ptr<Model> model, int modelNodeIdx, SGNo
     return child;
 }
 
-Entity Scene::CreateModel(std::shared_ptr<Model> model)
+Entity trayser::Scene::CreateModel(std::shared_ptr<Model> model)
 {
     return CreateModel(model, m_root);
 }
 
-Entity Scene::CreateModel(std::shared_ptr<Model> model, Entity parent)
+Entity trayser::Scene::CreateModel(std::shared_ptr<Model> model, Entity parent)
 {
     Entity node = entt::null;
     for (auto rootNode : model->rootNodes)
@@ -127,12 +127,12 @@ Entity Scene::CreateModel(std::shared_ptr<Model> model, Entity parent)
     return node;
 }
 
-void Scene::AddNode(Entity child)
+void trayser::Scene::AddNode(Entity child)
 {
     AddNode(m_root, child);
 }
 
-void Scene::AddNode(Entity parent, Entity child)
+void trayser::Scene::AddNode(Entity parent, Entity child)
 {
     if (parent != entt::null)
     {
@@ -146,13 +146,13 @@ void Scene::AddNode(Entity parent, Entity child)
     m_dirty = true;
 }
 
-void Scene::Clear()
+void trayser::Scene::Clear()
 {
     m_registry.clear();
     m_root = CreateNode(entt::null);
 }
 
-void Scene::Build()
+void trayser::Scene::Build()
 {
     auto view = m_registry.view<SGNode>();
     m_traversalBuffer.clear();

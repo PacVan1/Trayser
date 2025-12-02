@@ -51,7 +51,7 @@ std::vector<char> ReadBinaryFile(const std::string& path)
     return std::vector<char>();
 }
 
-std::optional<std::vector<std::shared_ptr<MeshAsset>>> LoadglTF(Engine* engine, std::filesystem::path filePath)
+std::optional<std::vector<std::shared_ptr<trayser::MeshAsset>>> trayser::LoadglTF(Engine* engine, std::filesystem::path filePath)
 {
     std::cout << "Loading GLTF: " << filePath << std::endl;
 
@@ -171,7 +171,7 @@ std::optional<std::vector<std::shared_ptr<MeshAsset>>> LoadglTF(Engine* engine, 
     return meshes;
 }
 
-void Model::TraverseNode(tinygltf::Model& loaded, const tinygltf::Node& loadedNode, Node* parent, const std::string& folder)
+void trayser::Model::TraverseNode(tinygltf::Model& loaded, const tinygltf::Node& loadedNode, Node* parent, const std::string& folder)
 {
     auto& node = nodes.emplace_back();
     if (loadedNode.matrix.empty())
@@ -229,19 +229,19 @@ void Model::TraverseNode(tinygltf::Model& loaded, const tinygltf::Node& loadedNo
     }
 }
 
-Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mesh& loadedMesh, const std::string& folder)
+trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mesh& loadedMesh, const std::string& folder)
 {
     // Indexing is already being processed during loading,
     // so the amount of indices equals the amount of vertices
-    int meshVertexCount = Model::TotalIndexCountInMesh(loaded, loadedMesh);
-    if (meshVertexCount == 0)
+    vertexCount = Model::TotalIndexCountInMesh(loaded, loadedMesh);
+    if (vertexCount == 0)
     {
         printf("Model loader: mesh misses indices");
         return;
     }
 
     // NEW /////////////////////////////////////////////////////////
-    const size_t vertexBufferSize = meshVertexCount * sizeof(Vertex);
+    const size_t vertexBufferSize = vertexCount * sizeof(Vertex);
     const size_t indexBufferSize = 16 * sizeof(u32);
 
     //create vertex buffer
@@ -418,7 +418,7 @@ Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mesh& loaded
     }
 
     LoadingMesh loadingMesh{};
-    loadingMesh.vertexCount = meshVertexCount;
+    loadingMesh.vertexCount = vertexCount;
     loadingMesh.vertices = vertices;
     
     if (missesTangents)
@@ -427,28 +427,30 @@ Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mesh& loaded
     }
 
     // NEW ///////////////////////////////////////////////////////
-    engine->ImmediateSubmit([&](VkCommandBuffer cmd) 
-    {
-        VkBufferCopy vertexCopy{ 0 };
-        vertexCopy.dstOffset = 0;
-        vertexCopy.srcOffset = 0;
-        vertexCopy.size = vertexBufferSize;
+    VkCommandBuffer cmd;
+    engine->m_device.BeginOneTimeSubmit(cmd);
 
-        vkCmdCopyBuffer(cmd, staging.buffer, vertexBuffer.buffer, 1, &vertexCopy);
+    VkBufferCopy vertexCopy{ 0 };
+    vertexCopy.dstOffset = 0;
+    vertexCopy.srcOffset = 0;
+    vertexCopy.size = vertexBufferSize;
 
-        VkBufferCopy indexCopy{ 0 };
-        indexCopy.dstOffset = 0;
-        indexCopy.srcOffset = vertexBufferSize;
-        indexCopy.size = indexBufferSize;
+    vkCmdCopyBuffer(cmd, staging.buffer, vertexBuffer.buffer, 1, &vertexCopy);
 
-        vkCmdCopyBuffer(cmd, staging.buffer, indexBuffer.buffer, 1, &indexCopy);
-    });
+    VkBufferCopy indexCopy{ 0 };
+    indexCopy.dstOffset = 0;
+    indexCopy.srcOffset = vertexBufferSize;
+    indexCopy.size = indexBufferSize;
+
+    vkCmdCopyBuffer(cmd, staging.buffer, indexBuffer.buffer, 1, &indexCopy);
+
+	engine->m_device.EndOneTimeSubmit();
 
     engine->DestroyBuffer(staging);
     //////////////////////////////////////////////////////////////
 }
 
-void Mesh::LoadMaterial(const tinygltf::Model& model, const tinygltf::Material& material, const std::string& folder, Material& newMaterial)
+void trayser::Mesh::LoadMaterial(const tinygltf::Model& model, const tinygltf::Material& material, const std::string& folder, Material& newMaterial)
 {
     auto GetImagePath = [&](const tinygltf::Image& image, const tinygltf::Texture& texture)
         { return folder + (image.uri.empty() ? "_texture" + std::to_string(texture.source) : image.uri); };
@@ -552,13 +554,13 @@ void Mesh::LoadMaterial(const tinygltf::Model& model, const tinygltf::Material& 
     }
 }
 
-void Model::MikkTSpaceCalc(LoadingMesh* mesh)
+void trayser::Model::MikkTSpaceCalc(LoadingMesh* mesh)
 {
     Model::g_mikkTSpaceCtx.m_pUserData = mesh;
     genTangSpaceDefault(&Model::g_mikkTSpaceCtx);
 }
 
-int Model::MikkTSpaceGetNumFaces(const SMikkTSpaceContext* context)
+int trayser::Model::MikkTSpaceGetNumFaces(const SMikkTSpaceContext* context)
 {
     LoadingMesh* mesh = static_cast<LoadingMesh*>(context->m_pUserData);
     float fSize = (float)mesh->vertexCount / 3.f;
@@ -567,12 +569,12 @@ int Model::MikkTSpaceGetNumFaces(const SMikkTSpaceContext* context)
     return iSize;
 }
 
-int Model::MikkTSpaceGetNumVerticesOfFace(const SMikkTSpaceContext* context, const int iFace)
+int trayser::Model::MikkTSpaceGetNumVerticesOfFace(const SMikkTSpaceContext* context, const int iFace)
 {
     return 3;
 }
 
-void Model::MikkTSpaceGetPosition(const SMikkTSpaceContext* context,
+void trayser::Model::MikkTSpaceGetPosition(const SMikkTSpaceContext* context,
     float* outPos,
     const int iFace,
     const int iVert)
@@ -586,7 +588,7 @@ void Model::MikkTSpaceGetPosition(const SMikkTSpaceContext* context,
     outPos[2] = vertices[index].position.z;
 }
 
-void Model::MikkTSpaceGetNormal(const SMikkTSpaceContext* context,
+void trayser::Model::MikkTSpaceGetNormal(const SMikkTSpaceContext* context,
     float* outNormal,
     const int iFace,
     const int iVert)
@@ -600,7 +602,7 @@ void Model::MikkTSpaceGetNormal(const SMikkTSpaceContext* context,
     outNormal[2] = vertices[index].normal.z;
 }
 
-void Model::MikkTSpaceGetTexCoords(const SMikkTSpaceContext* context,
+void trayser::Model::MikkTSpaceGetTexCoords(const SMikkTSpaceContext* context,
     float* outUv,
     const int iFace,
     const int iVert)
@@ -613,7 +615,7 @@ void Model::MikkTSpaceGetTexCoords(const SMikkTSpaceContext* context,
     outUv[1] = vertices[index].uvY;
 }
 
-void Model::MikkTSpaceSetTSpaceBasic(
+void trayser::Model::MikkTSpaceSetTSpaceBasic(
     const SMikkTSpaceContext* context,
     const float* tangentu,
     const float fSign,
@@ -630,12 +632,12 @@ void Model::MikkTSpaceSetTSpaceBasic(
     vertices[index].tangent.w = -fSign;
 }
 
-int Model::MikkTSpaceGetVertexIndex(const SMikkTSpaceContext* context, int iFace, int iVert)
+int trayser::Model::MikkTSpaceGetVertexIndex(const SMikkTSpaceContext* context, int iFace, int iVert)
 {
     return iFace * MikkTSpaceGetNumVerticesOfFace(context, iFace) + iVert;
 }
 
-void Model::MikkTSpaceInit()
+void trayser::Model::MikkTSpaceInit()
 {
     g_mikkTSpaceIface.m_getNumFaces = MikkTSpaceGetNumFaces;
     g_mikkTSpaceIface.m_getNumVerticesOfFace = MikkTSpaceGetNumVerticesOfFace;
@@ -661,7 +663,7 @@ static bool LoadImageCallback(
     return true;
 }
 
-Model::Model(std::string_view path, Engine* engine)
+trayser::Model::Model(std::string_view path, Engine* engine)
 {
     tinygltf::TinyGLTF loader;
     loader.SetImageLoader(LoadImageCallback, nullptr);
@@ -710,7 +712,7 @@ Model::Model(std::string_view path, Engine* engine)
     }
 }
 
-Image::Image(const std::string& path, const tinygltf::Model& model, const tinygltf::Image& inImage, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
+trayser::Image::Image(const std::string& path, const tinygltf::Model& model, const tinygltf::Image& inImage, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
 {
     auto& engine = g_engine;
 
@@ -744,27 +746,30 @@ Image::Image(const std::string& path, const tinygltf::Model& model, const tinygl
 
     AllocatedImage new_image = engine.CreateImage(extent, format, usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, mipmapped);
 
-    engine.ImmediateSubmit([&](VkCommandBuffer cmd) {
-        vkutil::TransitionImage(cmd, new_image.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    VkCommandBuffer cmd;
+    engine.m_device.BeginOneTimeSubmit(cmd);
 
-        VkBufferImageCopy copyRegion = {};
-        copyRegion.bufferOffset = 0;
-        copyRegion.bufferRowLength = 0;
-        copyRegion.bufferImageHeight = 0;
+    vkutil::TransitionImage(cmd, new_image.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
-        copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        copyRegion.imageSubresource.mipLevel = 0;
-        copyRegion.imageSubresource.baseArrayLayer = 0;
-        copyRegion.imageSubresource.layerCount = 1;
-        copyRegion.imageExtent = extent;
+    VkBufferImageCopy copyRegion = {};
+    copyRegion.bufferOffset = 0;
+    copyRegion.bufferRowLength = 0;
+    copyRegion.bufferImageHeight = 0;
 
-        // copy the buffer into the image
-        vkCmdCopyBufferToImage(cmd, uploadbuffer.buffer, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
-            &copyRegion);
+    copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    copyRegion.imageSubresource.mipLevel = 0;
+    copyRegion.imageSubresource.baseArrayLayer = 0;
+    copyRegion.imageSubresource.layerCount = 1;
+    copyRegion.imageExtent = extent;
 
-        vkutil::TransitionImage(cmd, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-        });
+    // copy the buffer into the image
+    vkCmdCopyBufferToImage(cmd, uploadbuffer.buffer, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+        &copyRegion);
+
+    vkutil::TransitionImage(cmd, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+	engine.m_device.EndOneTimeSubmit();
 
     engine.DestroyBuffer(uploadbuffer);
     stbi_image_free(data);
@@ -776,7 +781,7 @@ Image::Image(const std::string& path, const tinygltf::Model& model, const tinygl
     imageFormat = new_image.imageFormat;
 }
 
-Image::Image(u32* data, u32 width, u32 height, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
+trayser::Image::Image(u32* data, u32 width, u32 height, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
 {
     auto& engine = g_engine;
 
@@ -789,27 +794,30 @@ Image::Image(u32* data, u32 width, u32 height, VkFormat format, VkImageUsageFlag
 
     AllocatedImage new_image = engine.CreateImage(extent, format, usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, mipmapped);
 
-    engine.ImmediateSubmit([&](VkCommandBuffer cmd) {
-        vkutil::TransitionImage(cmd, new_image.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    VkCommandBuffer cmd;
+    engine.m_device.BeginOneTimeSubmit(cmd);
 
-        VkBufferImageCopy copyRegion = {};
-        copyRegion.bufferOffset = 0;
-        copyRegion.bufferRowLength = 0;
-        copyRegion.bufferImageHeight = 0;
+    vkutil::TransitionImage(cmd, new_image.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
-        copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        copyRegion.imageSubresource.mipLevel = 0;
-        copyRegion.imageSubresource.baseArrayLayer = 0;
-        copyRegion.imageSubresource.layerCount = 1;
-        copyRegion.imageExtent = extent;
+    VkBufferImageCopy copyRegion = {};
+    copyRegion.bufferOffset = 0;
+    copyRegion.bufferRowLength = 0;
+    copyRegion.bufferImageHeight = 0;
 
-        // copy the buffer into the image
-        vkCmdCopyBufferToImage(cmd, uploadbuffer.buffer, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
-            &copyRegion);
+    copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    copyRegion.imageSubresource.mipLevel = 0;
+    copyRegion.imageSubresource.baseArrayLayer = 0;
+    copyRegion.imageSubresource.layerCount = 1;
+    copyRegion.imageExtent = extent;
 
-        vkutil::TransitionImage(cmd, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-        });
+    // copy the buffer into the image
+    vkCmdCopyBufferToImage(cmd, uploadbuffer.buffer, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+        &copyRegion);
+
+    vkutil::TransitionImage(cmd, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+  
+		engine.m_device.EndOneTimeSubmit();
 
     engine.DestroyBuffer(uploadbuffer);
 

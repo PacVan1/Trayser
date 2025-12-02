@@ -3,22 +3,22 @@
 #include "engine.h"
 #include "imgui.h"
 
-Editor::Editor()
+trayser::Editor::Editor()
 {
 	AddWindow(0, new CameraWindow(), "Camera", ImGuiWindowFlags_AlwaysAutoResize);
 	AddWindow(1, new InspectorWindow(), "Inspector");
 	AddWindow(2, new RenderSettingsWindow(), "Render Settings", ImGuiWindowFlags_AlwaysAutoResize);
 }
 
-Editor::~Editor()
+trayser::Editor::~Editor()
 {
 	for (IWindow* window : m_windows)
 		delete window;
 }
 
-void Editor::Update()
+void trayser::Editor::Update()
 {
-	if (g_engine.m_input.IsKeyReleased(KeyboardKey_Tab))
+	if (g_engine.GetInput().IsKeyReleased(KeyboardKey_Tab))
 	{
 		m_update = !m_update;
 		SDL_SetRelativeMouseMode(SDL_bool(!m_update));
@@ -48,7 +48,7 @@ void Editor::Update()
 	}
 }
 
-void Editor::AddWindow(int windowIdx, IWindow* window, const char* title, ImGuiWindowFlags addons, bool opened)
+void trayser::Editor::AddWindow(int windowIdx, IWindow* window, const char* title, ImGuiWindowFlags addons, bool opened)
 {
 	m_windows[windowIdx] = window;
 	m_titles[windowIdx]  = title;
@@ -56,7 +56,7 @@ void Editor::AddWindow(int windowIdx, IWindow* window, const char* title, ImGuiW
 	m_flags[windowIdx]   = ImGuiWindowFlags_NoCollapse | addons;
 }
 
-void CameraWindow::Update()
+void trayser::CameraWindow::Update()
 {
 	Camera& cam = g_engine.m_camera;
 
@@ -65,7 +65,7 @@ void CameraWindow::Update()
 	ImGui::DragFloat("Sensitivity", &cam.m_sensitivity, 0.002f);
 }
 
-void InspectorWindow::EditNode(Entity ent)
+void trayser::InspectorWindow::EditNode(Entity ent)
 {
 	auto& scene = g_engine.m_scene;
 
@@ -91,7 +91,7 @@ void InspectorWindow::EditNode(Entity ent)
 	}
 }
 
-void InspectorWindow::Update()
+void trayser::InspectorWindow::Update()
 {
 	auto& scene = g_engine.m_scene;
 
@@ -167,7 +167,7 @@ void InspectorWindow::Update()
 	ImGui::Text("Scale");
 };
 
-void RenderSettingsWindow::Update()
+void trayser::RenderSettingsWindow::Update()
 {
 	ImGui::Combo("Render Mode", &g_engine.m_renderMode, kRenderModeStr.c_str());
 }

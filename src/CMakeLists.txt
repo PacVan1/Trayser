@@ -2,6 +2,10 @@
 # Add source to this project's executable.
 add_executable (engine 
   main.cpp
+  staging.h
+  staging.cpp
+  ray_tracing.h
+  ray_tracing.cpp
   device.h
   device.cpp
   mikktspace.h

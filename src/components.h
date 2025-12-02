@@ -7,6 +7,9 @@
 #include <loader.h>
 #include <memory>
 
+namespace trayser
+{
+
 namespace components
 {
 
@@ -37,3 +40,5 @@ struct RenderComponent
 } // namespace components
 
 using namespace components;
+
+} // namespace trayser
