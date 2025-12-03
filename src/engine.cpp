@@ -46,58 +46,51 @@ void trayser::Engine::Init()
 
     auto model = m_resources.Create<Model>(kModelPaths[ModelResource_DamagedHelmet], kModelPaths[ModelResource_DamagedHelmet], this);
     m_scene.CreateModel(model);
-
-    m_isInitialized = true;
 }
 
 void trayser::Engine::Cleanup()
 {
-    if (m_isInitialized) 
-    {    
-        // Make sure the gpu is done with its work
-        vkDeviceWaitIdle(m_device.m_device);
+    // Make sure the gpu is done with its work
+    vkDeviceWaitIdle(m_device.m_device);
 
-        //for (int i = 0; i < kFrameCount; i++) 
-        //{
-        //    vkDestroyCommandPool(m_device.m_device, m_frames[i].commandPool, nullptr);
-        //    vkDestroyFence(m_device.m_device, m_frames[i].renderFence, nullptr);
-        //    vkDestroySemaphore(m_device.m_device, m_frames[i].renderSemaphore, nullptr);
-        //    vkDestroySemaphore(m_device.m_device, m_frames[i].swapchainSemaphore, nullptr);
-        //    m_frames[i].deletionQueue.Flush();
-        //}
+    //for (int i = 0; i < kFrameCount; i++) 
+    //{
+    //    vkDestroyCommandPool(m_device.m_device, m_frames[i].commandPool, nullptr);
+    //    vkDestroyFence(m_device.m_device, m_frames[i].renderFence, nullptr);
+    //    vkDestroySemaphore(m_device.m_device, m_frames[i].renderSemaphore, nullptr);
+    //    vkDestroySemaphore(m_device.m_device, m_frames[i].swapchainSemaphore, nullptr);
+    //    m_frames[i].deletionQueue.Flush();
+    //}
 
-        m_deletionQueue.Flush();
+    m_deletionQueue.Flush();
 
-        DestroySwapchain();
+    DestroySwapchain();
 
-        vkDestroySurfaceKHR(m_device.m_instance, m_device.m_surface, nullptr);
-        vkDestroyDevice(m_device.m_device, nullptr);
+    vkDestroySurfaceKHR(m_device.m_instance, m_device.m_surface, nullptr);
+    vkDestroyDevice(m_device.m_device, nullptr);
 
-        //vkb::destroy_debug_utils_messenger(m_device.m_instance, m_device.m_debugMessenger);
-        vkDestroyInstance(m_device.m_instance, nullptr);
-        SDL_DestroyWindow(m_device.m_window);
-    }
+    //vkb::destroy_debug_utils_messenger(m_device.m_instance, m_device.m_debugMessenger);
+    vkDestroyInstance(m_device.m_instance, nullptr);
+    SDL_DestroyWindow(m_device.m_window);
 }
 
 void trayser::Engine::Render()
 {
-    m_renderExtent.width  = m_renderImage.imageExtent.width;
-    m_renderExtent.height = m_renderImage.imageExtent.height;
-
     VkCommandBuffer cmd = m_device.GetCmd();
     BeginRecording(cmd);
 
-    vkutil::TransitionImage(cmd, m_renderImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-    vkutil::TransitionImage(cmd, m_depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+    vkutil::TransitionImage(cmd, m_gBuffer.colorBuffer.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    vkutil::TransitionImage(cmd, m_gBuffer.depthBuffer.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 
     m_pipelines[PipelineType_Background]->Update();
     m_pipelines[PipelineType_PBR]->Update();
+    m_pipelines[PipelineType_Tonemap]->Update();
 
     // Transition the draw image and the swapchain image into their correct transfer layouts
-    vkutil::TransitionImage(cmd, m_renderImage.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    vkutil::TransitionImage(cmd, m_gBuffer.colorBuffer.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
     vkutil::TransitionImage(cmd, m_device.m_swapchain.m_images[m_device.m_swapchain.m_imageIdx], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-    vkutil::CopyImageToImage(cmd, m_renderImage.image, m_device.m_swapchain.m_images[m_device.m_swapchain.m_imageIdx], m_renderExtent, m_device.m_swapchain.m_extent);
+    VkExtent2D extent = { m_gBuffer.colorBuffer.imageExtent.width, m_gBuffer.colorBuffer.imageExtent.height };
+    vkutil::CopyImageToImage(cmd, m_gBuffer.colorBuffer.image, m_device.m_swapchain.m_images[m_device.m_swapchain.m_imageIdx], extent, m_device.m_swapchain.m_extent);
 }
 
 void trayser::Engine::Run()
@@ -126,7 +119,7 @@ void trayser::Engine::InitDescriptors()
         { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 }
     };
 
-    m_globalDescriptorAllocator.Init(m_device.m_device, 10, sizes);
+    m_globalDescriptorAllocator.Init(m_device.m_device, 20, sizes);
 
     // Make the descriptor set layout for our compute draw
     {
@@ -153,7 +146,7 @@ void trayser::Engine::InitDescriptors()
 
     {
     DescriptorWriter writer;
-    writer.WriteImage(0, m_renderImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    writer.WriteImage(0, m_gBuffer.colorBuffer.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
     writer.UpdateSet(m_device.m_device, m_renderImageDescriptors);
     }
 
@@ -189,8 +182,9 @@ void trayser::Engine::InitDescriptors()
 
 void trayser::Engine::InitPipelines()
 {
-	m_pipelines.push_back(new trayser::BackgroundPipeline());
-	m_pipelines.push_back(new trayser::PBRPipeline());
+	m_pipelines.push_back(new BackgroundPipeline());
+	m_pipelines.push_back(new PBRPipeline());
+	m_pipelines.push_back(new TonemapPipeline());
 
 	for (auto& pipeline : m_pipelines)
 	{
@@ -259,39 +253,17 @@ void trayser::Engine::InitImGuiStyle()
 
 void trayser::Engine::InitDefaultData()
 {
-    //3 default textures, white, grey, black. 1 pixel each
-    uint32_t white = glm::packUnorm4x8(glm::vec4(1, 1, 1, 1));
-    m_whiteImage = CreateImage((void*)&white, VkExtent3D{ 1, 1, 1 }, VK_FORMAT_R8G8B8A8_UNORM,
-        VK_IMAGE_USAGE_SAMPLED_BIT);
-
-    uint32_t grey = glm::packUnorm4x8(glm::vec4(0.66f, 0.66f, 0.66f, 1));
-    m_greyImage = CreateImage((void*)&grey, VkExtent3D{ 1, 1, 1 }, VK_FORMAT_R8G8B8A8_UNORM,
-        VK_IMAGE_USAGE_SAMPLED_BIT);
-
-    uint32_t black = glm::packUnorm4x8(glm::vec4(0, 0, 0, 0));
-    m_blackImage = CreateImage((void*)&black, VkExtent3D{ 1, 1, 1 }, VK_FORMAT_R8G8B8A8_UNORM,
-        VK_IMAGE_USAGE_SAMPLED_BIT);
-
     InitDefaultMaterial();
 
     VkSamplerCreateInfo sampl = { .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
 
     sampl.magFilter = VK_FILTER_LINEAR;
     sampl.minFilter = VK_FILTER_LINEAR;
-    vkCreateSampler(m_device.m_device, &sampl, nullptr, &m_defaultSamplerNearest);
-
-    sampl.magFilter = VK_FILTER_LINEAR;
-    sampl.minFilter = VK_FILTER_LINEAR;
-    vkCreateSampler(m_device.m_device, &sampl, nullptr, &m_defaultSamplerLinear);
+    vkCreateSampler(m_device.m_device, &sampl, nullptr, &m_sampler);
 
     m_deletionQueue.Push([&]() 
     {
-        vkDestroySampler(m_device.m_device, m_defaultSamplerNearest, nullptr);
-        vkDestroySampler(m_device.m_device, m_defaultSamplerLinear, nullptr);
-
-        DestroyImage(m_whiteImage);
-        DestroyImage(m_greyImage);
-        DestroyImage(m_blackImage);
+        vkDestroySampler(m_device.m_device, m_sampler, nullptr);
     });
 }
 
@@ -320,8 +292,8 @@ void trayser::Engine::CreateSwapchainImageView()
     };
 
     // Hardcoding the render format to 32 bit float
-    m_renderImage.imageFormat = VK_FORMAT_R8G8B8A8_UNORM;
-    m_renderImage.imageExtent = drawImageExtent;
+    m_gBuffer.colorBuffer.imageFormat = VK_FORMAT_R8G8B8A8_UNORM;
+    m_gBuffer.colorBuffer.imageExtent = drawImageExtent;
 
     VkImageUsageFlags drawImageUsages{};
     drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
@@ -329,7 +301,7 @@ void trayser::Engine::CreateSwapchainImageView()
     drawImageUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
     drawImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-    VkImageCreateInfo rimg_info = vkinit::image_create_info(m_renderImage.imageFormat, drawImageUsages, drawImageExtent);
+    VkImageCreateInfo rimg_info = vkinit::image_create_info(m_gBuffer.colorBuffer.imageFormat, drawImageUsages, drawImageExtent);
 
     // For the draw image, we want to allocate it from gpu local memory
     VmaAllocationCreateInfo rimg_allocinfo = {};
@@ -337,23 +309,23 @@ void trayser::Engine::CreateSwapchainImageView()
     rimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     // Allocate and create the image
-    vmaCreateImage(m_device.m_allocator, &rimg_info, &rimg_allocinfo, &m_renderImage.image, &m_renderImage.allocation, nullptr);
+    vmaCreateImage(m_device.m_allocator, &rimg_info, &rimg_allocinfo, &m_gBuffer.colorBuffer.image, &m_gBuffer.colorBuffer.allocation, nullptr);
 
     // Build a image-view for the draw image to use for rendering
-    VkImageViewCreateInfo rview_info = vkinit::imageview_create_info(m_renderImage.imageFormat, m_renderImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
+    VkImageViewCreateInfo rview_info = vkinit::imageview_create_info(m_gBuffer.colorBuffer.imageFormat, m_gBuffer.colorBuffer.image, VK_IMAGE_ASPECT_COLOR_BIT);
 
-    VK_CHECK(vkCreateImageView(m_device.m_device, &rview_info, nullptr, &m_renderImage.imageView));
+    VK_CHECK(vkCreateImageView(m_device.m_device, &rview_info, nullptr, &m_gBuffer.colorBuffer.imageView));
     
     // Depth image
-    m_depthImage.imageFormat = VK_FORMAT_D32_SFLOAT;
-    m_renderImage.imageExtent = drawImageExtent;
+    m_gBuffer.depthBuffer.imageFormat = VK_FORMAT_D32_SFLOAT;
+    m_gBuffer.colorBuffer.imageExtent = drawImageExtent;
 
     VkImageUsageFlags depthImageUsages{};
     depthImageUsages |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-    VkImageCreateInfo dimg_info = vkinit::image_create_info(m_depthImage.imageFormat, depthImageUsages, drawImageExtent);
-    vmaCreateImage(m_device.m_allocator, &dimg_info, &rimg_allocinfo, &m_depthImage.image, &m_depthImage.allocation, nullptr);
-    VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(m_depthImage.imageFormat, m_depthImage.image, VK_IMAGE_ASPECT_DEPTH_BIT);
-    VK_CHECK(vkCreateImageView(m_device.m_device, &dview_info, nullptr, &m_depthImage.imageView));
+    VkImageCreateInfo dimg_info = vkinit::image_create_info(m_gBuffer.depthBuffer.imageFormat, depthImageUsages, drawImageExtent);
+    vmaCreateImage(m_device.m_allocator, &dimg_info, &rimg_allocinfo, &m_gBuffer.depthBuffer.image, &m_gBuffer.depthBuffer.allocation, nullptr);
+    VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(m_gBuffer.depthBuffer.imageFormat, m_gBuffer.depthBuffer.image, VK_IMAGE_ASPECT_DEPTH_BIT);
+    VK_CHECK(vkCreateImageView(m_device.m_device, &dview_info, nullptr, &m_gBuffer.depthBuffer.imageView));
 }
 
 AllocatedBuffer trayser::Engine::CreateBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage)
@@ -552,16 +524,13 @@ void trayser::Engine::ResizeSwapchain()
     m_windowExtent.width = w;
     m_windowExtent.height = h;
 
-    m_renderImage.imageExtent = { m_windowExtent.width, m_windowExtent.height, 1 };
-    m_renderExtent = { m_windowExtent.width, m_windowExtent.height };
+    m_gBuffer.colorBuffer.imageExtent = { m_windowExtent.width, m_windowExtent.height, 1 };
 
     // TODO
     //CreateSwapchain(m_windowExtent.width, m_windowExtent.height);
 
-    vkDestroyImageView(m_device.m_device, m_renderImage.imageView, nullptr);
-    vmaDestroyImage(m_device.m_allocator, m_renderImage.image, m_renderImage.allocation);
+    vkDestroyImageView(m_device.m_device, m_gBuffer.colorBuffer.imageView, nullptr);
+    vmaDestroyImage(m_device.m_allocator, m_gBuffer.colorBuffer.image, m_gBuffer.colorBuffer.allocation);
 
     CreateSwapchainImageView();
-
-    m_resizeRequested = false;
 }

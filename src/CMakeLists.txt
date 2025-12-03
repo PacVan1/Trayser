@@ -2,6 +2,8 @@
 # Add source to this project's executable.
 add_executable (engine 
   main.cpp
+  gbuffer.h
+  gbuffer.cpp
   staging.h
   staging.cpp
   ray_tracing.h

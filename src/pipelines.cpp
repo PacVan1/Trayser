@@ -25,6 +25,176 @@ VkShaderModule CreateShaderModule(VkDevice device, const Slang::ComPtr<slang::IB
     return module;
 }
 
+void trayser::SlangCompiler::Init()
+{
+    SlangResult result{};
+    result = slang::createGlobalSession(m_slangGlobalSession.writeRef());
+    if (SLANG_FAILED(result))
+    {
+        fmt::println("Failed to create Slang global session");
+        return;
+    }
+
+    m_searchPaths =
+    {
+        "shaders"
+        "../shaders",
+        "../../shaders",
+        "../../../shaders",
+    };
+}
+
+void trayser::SlangCompiler::LoadVertexFragmentShader(const char* slangFileName, Slang::ComPtr<slang::IBlob>& vsSpirv, Slang::ComPtr<slang::IBlob>& fsSpirv)
+{
+    Slang::ComPtr<slang::ISession> session;
+    CreateSlangSession(session);
+
+    slang::IModule* module = LoadModule(slangFileName, session);
+    if (!module)
+        return;
+
+    Slang::ComPtr<slang::IEntryPoint> vsEntryPoint;
+    module->findEntryPointByName("vsMain", vsEntryPoint.writeRef());
+    Slang::ComPtr<slang::IEntryPoint> fsEntryPoint;
+    module->findEntryPointByName("fsMain", fsEntryPoint.writeRef());
+
+    std::vector<slang::IComponentType*> componentTypes;
+    componentTypes.push_back(module);
+    componentTypes.push_back(vsEntryPoint);
+    componentTypes.push_back(fsEntryPoint);
+
+    Slang::ComPtr<slang::IComponentType> composedProgram;
+    {
+        Slang::ComPtr<slang::IBlob> diagnosticsBlob;
+        SlangResult result = session->createCompositeComponentType(
+            componentTypes.data(),
+            componentTypes.size(),
+            composedProgram.writeRef(),
+            diagnosticsBlob.writeRef());
+        if (result == SLANG_FAIL)
+        {
+            return;
+        }
+    }
+
+    Slang::ComPtr<slang::IBlob> diagnosticBlob;
+    composedProgram->getEntryPointCode(0, 0, vsSpirv.writeRef(), diagnosticBlob.writeRef());
+    Diagnose(diagnosticBlob);
+
+    diagnosticBlob = nullptr;
+    composedProgram->getEntryPointCode(1, 0, fsSpirv.writeRef(), diagnosticBlob.writeRef());
+    Diagnose(diagnosticBlob);
+}
+
+void trayser::SlangCompiler::LoadComputeShader(const char* slangFileName, Slang::ComPtr<slang::IBlob>& spirv)
+{
+    Slang::ComPtr<slang::ISession> session;
+    CreateSlangSession(session);
+
+    slang::IModule* module = LoadModule(slangFileName, session);
+    if (!module)
+        return;
+
+    Slang::ComPtr<slang::IEntryPoint> entryPoint;
+    module->findEntryPointByName("csMain", entryPoint.writeRef());
+
+    std::vector<slang::IComponentType*> componentTypes;
+    componentTypes.push_back(module);
+    componentTypes.push_back(entryPoint);
+
+    Slang::ComPtr<slang::IComponentType> composedProgram;
+    {
+        Slang::ComPtr<slang::IBlob> diagnosticsBlob;
+        SlangResult result = session->createCompositeComponentType(
+            componentTypes.data(),
+            componentTypes.size(),
+            composedProgram.writeRef(),
+            diagnosticsBlob.writeRef());
+        if (result == SLANG_FAIL)
+        {
+            return;
+        }
+    }
+
+    Slang::ComPtr<slang::IBlob> diagnosticBlob;
+    composedProgram->getEntryPointCode(0, 0, spirv.writeRef(), diagnosticBlob.writeRef());
+    Diagnose(diagnosticBlob);
+}
+
+bool trayser::SlangCompiler::LoadShaderModule(const char* spirvFileName, VkShaderModule& outModule)
+{
+    std::string filePath = FindExistingFile((std::string(spirvFileName) + ".spv").c_str());
+
+    if (filePath.empty())
+    {
+        return false;
+    }
+
+    // open the file. With cursor at the end
+    std::ifstream file(filePath, std::ios::ate | std::ios::binary);
+
+    if (!file.is_open())
+    {
+        return false;
+    }
+
+    size_t fileSize = (size_t)file.tellg();
+    std::vector<u32> buffer(fileSize / sizeof(u32));
+    file.seekg(0);
+    file.read((char*)buffer.data(), fileSize);
+    file.close();
+    VkShaderModuleCreateInfo createInfo = {};
+    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    createInfo.pNext = nullptr;
+    createInfo.codeSize = buffer.size() * sizeof(u32);
+    createInfo.pCode = buffer.data();
+    VkShaderModule shaderModule;
+    if (vkCreateShaderModule(g_engine.m_device.m_device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
+    {
+        return false;
+    }
+
+    outModule = shaderModule;
+    return true;
+}
+
+void trayser::SlangCompiler::CreateSlangSession(Slang::ComPtr<slang::ISession>& session) const
+{
+    slang::TargetDesc targetDesc{};
+    targetDesc.format = SLANG_SPIRV;
+    targetDesc.profile = m_slangGlobalSession->findProfile("spirv_1_3");
+    targetDesc.flags = 0;
+
+    slang::SessionDesc sessionDesc{};
+    sessionDesc.targets = &targetDesc;
+    sessionDesc.targetCount = 1;
+    sessionDesc.compilerOptionEntryCount = 0;
+    sessionDesc.searchPaths = m_searchPaths.data();
+    sessionDesc.searchPathCount = m_searchPaths.size();
+
+    m_slangGlobalSession->createSession(sessionDesc, session.writeRef());
+}
+
+slang::IModule* trayser::SlangCompiler::LoadModule(const char* slangFileName, Slang::ComPtr<slang::ISession>& session)
+{
+    slang::IModule* module = nullptr;
+    Slang::ComPtr<slang::IBlob> diagnosticBlob;
+    module = session->loadModule(slangFileName, diagnosticBlob.writeRef());
+    Diagnose(diagnosticBlob);
+    return module;
+}
+
+std::string trayser::SlangCompiler::FindExistingFile(const char* fileName)
+{
+    for (auto& path : m_searchPaths)
+    {
+        std::string fullPath = std::string(path) + "/" + fileName;
+        if (std::filesystem::exists(fullPath))
+            return fullPath;
+    }
+    return "";
+}
+
 void trayser::Pipeline::Init()
 {
     if (m_canHotReload)
@@ -146,8 +316,8 @@ void trayser::PBRPipeline::Load()
     VkPipelineRenderingCreateInfo rendering{};
     rendering.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     rendering.colorAttachmentCount = 1;
-    rendering.pColorAttachmentFormats = &g_engine.m_renderImage.imageFormat;
-    rendering.depthAttachmentFormat = g_engine.m_depthImage.imageFormat;
+    rendering.pColorAttachmentFormats = &g_engine.m_gBuffer.colorBuffer.imageFormat;
+    rendering.depthAttachmentFormat = g_engine.m_gBuffer.depthBuffer.imageFormat;
 
     VkPipelineShaderStageCreateInfo vsStage{};
     vsStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -213,18 +383,20 @@ void trayser::PBRPipeline::Update()
 {
     auto cmd = g_engine.m_device.GetCmd();
 
-    VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(g_engine.m_renderImage.imageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-    VkRenderingAttachmentInfo depthAttachment = vkinit::depth_attachment_info(g_engine.m_depthImage.imageView, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+    VkExtent2D extent = { g_engine.m_gBuffer.colorBuffer.imageExtent.width, g_engine.m_gBuffer.colorBuffer.imageExtent.height };
 
-    VkRenderingInfo renderInfo = vkinit::rendering_info(g_engine.m_renderExtent, &colorAttachment, &depthAttachment);
+    VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(g_engine.m_gBuffer.colorBuffer.imageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    VkRenderingAttachmentInfo depthAttachment = vkinit::depth_attachment_info(g_engine.m_gBuffer.depthBuffer.imageView, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+
+    VkRenderingInfo renderInfo = vkinit::rendering_info(extent, &colorAttachment, &depthAttachment);
     vkCmdBeginRendering(cmd, &renderInfo);
 
     //set dynamic viewport and scissor
     VkViewport viewport = {};
     viewport.x = 0;
     viewport.y = 0;
-    viewport.width = g_engine.m_renderExtent.width;
-    viewport.height = g_engine.m_renderExtent.height;
+    viewport.width = extent.width;
+    viewport.height = extent.height;
     viewport.minDepth = 0.f;
     viewport.maxDepth = 1.f;
 
@@ -233,8 +405,8 @@ void trayser::PBRPipeline::Update()
     VkRect2D scissor = {};
     scissor.offset.x = 0;
     scissor.offset.y = 0;
-    scissor.extent.width = g_engine.m_renderExtent.width;
-    scissor.extent.height = g_engine.m_renderExtent.height;
+    scissor.extent.width = extent.width;
+    scissor.extent.height = extent.height;
 
     vkCmdSetScissor(cmd, 0, 1, &scissor);
 
@@ -249,11 +421,11 @@ void trayser::PBRPipeline::Update()
             VkDescriptorSet imageSet = g_engine.m_device.GetFrame().descriptors.Allocate(g_engine.m_device.m_device, g_engine.m_singleImageDescriptorLayout);
             {
                 DescriptorWriter writer;
-                writer.WriteImage(0, render.mesh->materials[prim.materialId].baseColor ? render.mesh->materials[prim.materialId].baseColor->imageView : g_engine.m_defaultMaterial.baseColor->imageView, g_engine.m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-                writer.WriteImage(1, render.mesh->materials[prim.materialId].normalMap ? render.mesh->materials[prim.materialId].normalMap->imageView : g_engine.m_defaultMaterial.normalMap->imageView, g_engine.m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-                writer.WriteImage(2, render.mesh->materials[prim.materialId].metallicRoughness ? render.mesh->materials[prim.materialId].metallicRoughness->imageView : g_engine.m_defaultMaterial.metallicRoughness->imageView, g_engine.m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-                writer.WriteImage(3, render.mesh->materials[prim.materialId].occlusion ? render.mesh->materials[prim.materialId].occlusion->imageView : g_engine.m_defaultMaterial.occlusion->imageView, g_engine.m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-                writer.WriteImage(4, render.mesh->materials[prim.materialId].emissive ? render.mesh->materials[prim.materialId].emissive->imageView : g_engine.m_defaultMaterial.emissive->imageView, g_engine.m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+                writer.WriteImage(0, render.mesh->materials[prim.materialId].baseColor ? render.mesh->materials[prim.materialId].baseColor->imageView : g_engine.m_defaultMaterial.baseColor->imageView, g_engine.m_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+                writer.WriteImage(1, render.mesh->materials[prim.materialId].normalMap ? render.mesh->materials[prim.materialId].normalMap->imageView : g_engine.m_defaultMaterial.normalMap->imageView, g_engine.m_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+                writer.WriteImage(2, render.mesh->materials[prim.materialId].metallicRoughness ? render.mesh->materials[prim.materialId].metallicRoughness->imageView : g_engine.m_defaultMaterial.metallicRoughness->imageView, g_engine.m_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+                writer.WriteImage(3, render.mesh->materials[prim.materialId].occlusion ? render.mesh->materials[prim.materialId].occlusion->imageView : g_engine.m_defaultMaterial.occlusion->imageView, g_engine.m_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+                writer.WriteImage(4, render.mesh->materials[prim.materialId].emissive ? render.mesh->materials[prim.materialId].emissive->imageView : g_engine.m_defaultMaterial.emissive->imageView, g_engine.m_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
 
                 writer.UpdateSet(g_engine.m_device.m_device, imageSet);
             }
@@ -282,141 +454,6 @@ void trayser::PBRPipeline::Update()
     }
 
     vkCmdEndRendering(cmd);
-}
-
-void trayser::SlangCompiler::Init()
-{
-    SlangResult result{};
-    result = slang::createGlobalSession(m_slangGlobalSession.writeRef());
-    if (SLANG_FAILED(result))
-    {
-        fmt::println("Failed to create Slang global session");
-        return;
-    }
-
-    m_searchPaths =
-    {
-        "shaders"
-        "../shaders",
-        "../../shaders",
-        "../../../shaders",
-    };
-}
-
-void trayser::SlangCompiler::LoadVertexFragmentShader(const char* slangFileName, Slang::ComPtr<slang::IBlob>& vsSpirv, Slang::ComPtr<slang::IBlob>& fsSpirv)
-{
-    Slang::ComPtr<slang::ISession> session;
-    CreateSlangSession(session);
-
-    slang::IModule* module = LoadModule(slangFileName, session);
-    if (!module)
-        return;
-
-    Slang::ComPtr<slang::IEntryPoint> vsEntryPoint;
-    module->findEntryPointByName("vsMain", vsEntryPoint.writeRef());
-    Slang::ComPtr<slang::IEntryPoint> fsEntryPoint;
-    module->findEntryPointByName("fsMain", fsEntryPoint.writeRef());
-
-    std::vector<slang::IComponentType*> componentTypes;
-    componentTypes.push_back(module);
-    componentTypes.push_back(vsEntryPoint);
-    componentTypes.push_back(fsEntryPoint);
-
-    Slang::ComPtr<slang::IComponentType> composedProgram;
-    {
-        Slang::ComPtr<slang::IBlob> diagnosticsBlob;
-        SlangResult result = session->createCompositeComponentType(
-            componentTypes.data(),
-            componentTypes.size(),
-            composedProgram.writeRef(),
-            diagnosticsBlob.writeRef());
-        if (result == SLANG_FAIL)
-        {
-            return;
-        }
-    }
-
-    Slang::ComPtr<slang::IBlob> diagnosticBlob;
-    composedProgram->getEntryPointCode(0, 0, vsSpirv.writeRef(), diagnosticBlob.writeRef());
-    Diagnose(diagnosticBlob);
-
-    diagnosticBlob = nullptr;
-    composedProgram->getEntryPointCode(1, 0, fsSpirv.writeRef(), diagnosticBlob.writeRef());
-    Diagnose(diagnosticBlob);
-}
-
-bool trayser::SlangCompiler::LoadShaderModule(const char* spirvFileName, VkShaderModule& outModule)
-{
-    std::string filePath = FindExistingFile((std::string(spirvFileName) + ".spv").c_str());
-
-	if (filePath.empty())
-	{
-		return false;
-	}
-
-    // open the file. With cursor at the end
-    std::ifstream file(filePath, std::ios::ate | std::ios::binary);
-
-    if (!file.is_open())
-    {
-        return false;
-    }
-
-    size_t fileSize = (size_t)file.tellg();
-    std::vector<u32> buffer(fileSize / sizeof(u32));
-    file.seekg(0);
-    file.read((char*)buffer.data(), fileSize);
-    file.close();
-    VkShaderModuleCreateInfo createInfo = {};
-    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    createInfo.pNext = nullptr;
-    createInfo.codeSize = buffer.size() * sizeof(u32);
-    createInfo.pCode = buffer.data();
-    VkShaderModule shaderModule;
-    if (vkCreateShaderModule(g_engine.m_device.m_device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
-    {
-        return false;
-    }
-
-    outModule = shaderModule;
-    return true;
-}
-
-void trayser::SlangCompiler::CreateSlangSession(Slang::ComPtr<slang::ISession>& session) const
-{
-    slang::TargetDesc targetDesc{};
-    targetDesc.format                    = SLANG_SPIRV;
-    targetDesc.profile                   = m_slangGlobalSession->findProfile("spirv_1_3");
-    targetDesc.flags                     = 0;
-
-    slang::SessionDesc sessionDesc{};
-    sessionDesc.targets                  = &targetDesc;
-    sessionDesc.targetCount              = 1;
-    sessionDesc.compilerOptionEntryCount = 0;
-    sessionDesc.searchPaths              = m_searchPaths.data();
-    sessionDesc.searchPathCount          = m_searchPaths.size();
-
-    m_slangGlobalSession->createSession(sessionDesc, session.writeRef());
-}
-
-slang::IModule* trayser::SlangCompiler::LoadModule(const char* slangFileName, Slang::ComPtr<slang::ISession>& session)
-{
-    slang::IModule* module = nullptr;
-    Slang::ComPtr<slang::IBlob> diagnosticBlob;
-    module = session->loadModule(slangFileName, diagnosticBlob.writeRef());
-    Diagnose(diagnosticBlob);
-    return module;
-}
-
-std::string trayser::SlangCompiler::FindExistingFile(const char* fileName)
-{
-    for (auto& path : m_searchPaths)
-    {
-		std::string fullPath = std::string(path) + "/" + fileName;
-		if (std::filesystem::exists(fullPath))
-			return fullPath;
-    }
-    return "";
 }
 
 trayser::BackgroundPipeline::BackgroundPipeline()
@@ -483,6 +520,98 @@ void trayser::BackgroundPipeline::Update()
 
     vkCmdPushConstants(cmd, m_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ComputePushConstants), &pc);
 
+    VkExtent2D extent = { g_engine.m_gBuffer.colorBuffer.imageExtent.width, g_engine.m_gBuffer.colorBuffer.imageExtent.height };
+
     // execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
-    vkCmdDispatch(cmd, std::ceil(g_engine.m_renderExtent.width / 16.0), std::ceil(g_engine.m_renderExtent.height / 16.0), 1);
+    vkCmdDispatch(cmd, std::ceil(extent.width / 16.0), std::ceil(extent.height / 16.0), 1);
+}
+
+trayser::TonemapPipeline::TonemapPipeline() :
+	m_descriptorSetLayout(VK_NULL_HANDLE),
+	m_descriptorSet(VK_NULL_HANDLE)
+{
+    m_name = "tonemap";
+    m_canHotReload = true;
+}
+
+void trayser::TonemapPipeline::Load()
+{
+    // Descriptor set layout
+
+    DescriptorLayoutBuilder builder;
+    builder.AddBinding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    builder.AddBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    m_descriptorSetLayout = builder.Build(g_engine.m_device.m_device, VK_SHADER_STAGE_COMPUTE_BIT);
+
+    m_descriptorSet = g_engine.m_globalDescriptorAllocator.Allocate(g_engine.m_device.m_device, m_descriptorSetLayout);
+
+    DescriptorWriter writer;
+    writer.WriteImage(0, g_engine.m_gBuffer.colorBuffer.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    writer.WriteImage(1, g_engine.m_gBuffer.colorBuffer.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    writer.UpdateSet(g_engine.m_device.m_device, m_descriptorSet);
+
+    // ---------------------
+
+    VkPipelineLayoutCreateInfo computeLayout{};
+    computeLayout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    computeLayout.pNext = nullptr;
+    computeLayout.pSetLayouts = &m_descriptorSetLayout;
+    computeLayout.setLayoutCount = 1;
+
+    VkPushConstantRange pushConstant{};
+    pushConstant.offset = 0;
+    pushConstant.size = sizeof(PushConstantComp);
+    pushConstant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+    computeLayout.pPushConstantRanges = &pushConstant;
+    computeLayout.pushConstantRangeCount = 1;
+
+    VK_CHECK(vkCreatePipelineLayout(g_engine.m_device.m_device, &computeLayout, nullptr, &m_layout));
+
+    Slang::ComPtr<slang::IBlob> spirv;
+    g_engine.m_compiler.LoadComputeShader(m_name.c_str(), spirv);
+
+    if (!spirv)
+    {
+        fmt::println("Failed to load tonemap shaders");
+        return;
+    }
+
+    VkShaderModule module = CreateShaderModule(g_engine.m_device.m_device, spirv);
+
+    VkPipelineShaderStageCreateInfo stageinfo{};
+    stageinfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stageinfo.pNext = nullptr;
+    stageinfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+    stageinfo.module = module;
+    stageinfo.pName = "main";
+
+    VkComputePipelineCreateInfo computePipelineCreateInfo{};
+    computePipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+    computePipelineCreateInfo.pNext = nullptr;
+    computePipelineCreateInfo.layout = m_layout;
+    computePipelineCreateInfo.stage = stageinfo;
+
+    VK_CHECK(vkCreateComputePipelines(g_engine.m_device.m_device, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &m_pipeline));
+
+    vkDestroyShaderModule(g_engine.m_device.m_device, module, nullptr);
+}
+
+void trayser::TonemapPipeline::Update()
+{
+    auto cmd = g_engine.m_device.GetCmd();
+
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline);
+
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_layout, 0, 1, &m_descriptorSet, 0, nullptr);
+
+    PushConstantComp pc{};
+    pc.tonemapMode = g_engine.m_tonemapMode;
+
+    vkCmdPushConstants(cmd, m_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(PushConstantComp), &pc);
+
+    VkExtent2D extent = { g_engine.m_gBuffer.colorBuffer.imageExtent.width, g_engine.m_gBuffer.colorBuffer.imageExtent.height };
+
+    // execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
+    vkCmdDispatch(cmd, std::ceil(extent.width / 16.0), std::ceil(extent.height / 16.0), 1);
 }

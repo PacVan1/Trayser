@@ -95,6 +95,18 @@ using ModelResource = int;
 
 const std::string kModelResourceStr = GetNullSeparated<ModelResource_>();
 
+enum TonemapMode_
+{
+	TonemapMode_None,
+	TonemapMode_Reinhard,
+	TonemapMode_ACES,
+    TonemapMode_PBRNeutral,
+	kTonemapModeCount
+};
+using TonemapMode = int;
+
+const std::string kTonemapModeStr = GetNullSeparated<TonemapMode_>();
+
 const std::string kModelPaths[kModelResourceCount] =
 {
     "../../assets/Khronos/CompareAmbientOcclusion/glTF-Binary/CompareAmbientOcclusion.glb",

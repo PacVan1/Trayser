@@ -14,6 +14,7 @@ class SlangCompiler
 public:
     void Init();
     void LoadVertexFragmentShader(const char* slangFileName, Slang::ComPtr<slang::IBlob>& vsSpirv, Slang::ComPtr<slang::IBlob>& fsSpirv);
+    void LoadComputeShader(const char* slangFileName, Slang::ComPtr<slang::IBlob>& spirv);
     bool LoadShaderModule(const char* spirvFileName, VkShaderModule& outModule);
     std::string FindExistingFile(const char* fileName);
 
@@ -58,6 +59,25 @@ class BackgroundPipeline final : public Pipeline
 {
 public:
     BackgroundPipeline();
+    virtual void Load() override;
+    virtual void Update() override;
+};
+
+class TonemapPipeline final : public Pipeline
+{
+public:
+    struct PushConstantComp
+    {
+        int tonemapMode;
+        int padding[3];
+    };
+
+private:
+	VkDescriptorSetLayout m_descriptorSetLayout;
+    VkDescriptorSet       m_descriptorSet;
+
+public:
+    TonemapPipeline();
     virtual void Load() override;
     virtual void Update() override;
 };

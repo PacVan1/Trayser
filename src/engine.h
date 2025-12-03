@@ -11,6 +11,7 @@
 #include <resources.h>
 #include <pipelines.h>
 #include <device.h>
+#include <gbuffer.h>
 
 static constexpr char const*	kEngineName	= "Trayser";
 static constexpr unsigned int	kFrameCount	= 2;
@@ -19,6 +20,7 @@ enum PipelineType
 {
 	PipelineType_Background,
 	PipelineType_PBR,
+	PipelineType_Tonemap,
 	kPipelineTypeCount,
 };
 
@@ -68,7 +70,10 @@ public:
 	Scene			m_scene;
 	Camera			m_camera;
 	Device			m_device;
+	GBuffer			m_gBuffer;
+
 	RenderMode		m_renderMode = RenderMode_FinalColor;
+	TonemapMode		m_tonemapMode = TonemapMode_PBRNeutral;
 
 	std::vector<Pipeline*> m_pipelines;
 
@@ -77,37 +82,16 @@ public:
 	VkDescriptorSetLayout		m_renderImageDescriptorLayout;
 
 	vkutil::DeletionQueue		m_deletionQueue;
-
-	AllocatedImage				m_renderImage;
-	AllocatedImage				m_depthImage;
-	VkExtent2D					m_renderExtent;
-
 	u32							m_graphicsQueueFamily;
-	u32							m_frameIdx{0};
 
-	bool						m_isInitialized{false};
-	bool						m_stopRendering{false};
 	VkExtent2D					m_windowExtent{1700, 900};
-	bool						m_resizeRequested = false;
-
-
 	VkDescriptorSetLayout		m_singleImageDescriptorLayout;
-
-
-	VkSampler m_defaultSamplerLinear;
-	VkSampler m_defaultSamplerNearest;
-
+	VkSampler m_sampler;
 	Material m_defaultMaterial;
 
 private:
 	gpu::SceneData m_sceneData;
 	VkDescriptorSetLayout m_gpuSceneDataDescriptorLayout;
-
-	AllocatedImage m_whiteImage;
-	AllocatedImage m_blackImage;
-	AllocatedImage m_greyImage;
-
-
 };
 
 extern Engine g_engine;

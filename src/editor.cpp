@@ -170,4 +170,5 @@ void trayser::InspectorWindow::Update()
 void trayser::RenderSettingsWindow::Update()
 {
 	ImGui::Combo("Render Mode", &g_engine.m_renderMode, kRenderModeStr.c_str());
+	ImGui::Combo("Tonemap Mode", &g_engine.m_tonemapMode, kTonemapModeStr.c_str());
 }
