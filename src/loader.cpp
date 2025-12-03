@@ -233,38 +233,50 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
 {
     // Indexing is already being processed during loading,
     // so the amount of indices equals the amount of vertices
-    vertexCount = Model::TotalIndexCountInMesh(loaded, loadedMesh);
-    if (vertexCount == 0)
+    indexCount = Model::TotalIndexCountInMesh(loaded, loadedMesh);
+    if (indexCount == 0)
     {
         printf("Model loader: mesh misses indices");
         return;
     }
 
+    vertexCount = Model::TotalVertexCountInMesh(loaded, loadedMesh);
+    if (vertexCount == 0)
+    {
+        printf("Model loader: mesh misses vertices");
+        return;
+    }
+
     // NEW /////////////////////////////////////////////////////////
     const size_t vertexBufferSize = vertexCount * sizeof(Vertex);
-    const size_t indexBufferSize = 16 * sizeof(u32);
+    const size_t indexBufferSize = indexCount * sizeof(u32);
 
     //create vertex buffer
     vertexBuffer = engine->CreateBuffer(vertexBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
         VMA_MEMORY_USAGE_GPU_ONLY);
 
     //find the adress of the vertex buffer
-    VkBufferDeviceAddressInfo deviceAdressInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,.buffer = vertexBuffer.buffer };
-    vertexBufferAddr = vkGetBufferDeviceAddress(engine->m_device.m_device, &deviceAdressInfo);
+    //VkBufferDeviceAddressInfo deviceAdressInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,.buffer = vertexBuffer.buffer };
+    //vertexBufferAddr = vkGetBufferDeviceAddress(engine->m_device.m_device, &deviceAdressInfo);
 
     //create index buffer
     indexBuffer = engine->CreateBuffer(indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         VMA_MEMORY_USAGE_GPU_ONLY);
 
-    AllocatedBuffer staging = engine->CreateBuffer(vertexBufferSize + indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+    AllocatedBuffer vertexStaging = engine->CreateBuffer(vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+    AllocatedBuffer indexStaging = engine->CreateBuffer(indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
 
     VmaAllocationInfo info;
-    vmaGetAllocationInfo(engine->m_device.m_allocator, staging.allocation, &info);
+    vmaGetAllocationInfo(engine->m_device.m_allocator, vertexStaging.allocation, &info);
     Vertex* vertices = (Vertex*)info.pMappedData;
+
+    vmaGetAllocationInfo(engine->m_device.m_allocator, indexStaging.allocation, &info);
+    u32* indices = (u32*)info.pMappedData;
     ////////////////////////////////////////////////////////////////
 
     bool missesTangents = false;
     int verticesProcessed = 0;
+    int indicesProcessed = 0;
 
     for (const auto& prim : loadedMesh.primitives)
     {
@@ -280,33 +292,34 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
         view = &loaded.bufferViews[accessor->bufferView];
         buffer = &loaded.buffers[view->buffer];
         const uint8_t* indexData = buffer->data.data() + view->byteOffset + accessor->byteOffset;
-        uint32_t indexCount = accessor->count, vertexCount = accessor->count;
+        uint32_t indexCount = accessor->count;
 
         // Temporarily convert all the indices to uint32_t
-        std::vector<uint32_t> indices(indexCount);
-        for (size_t i = 0; i < vertexCount; i++)
+        for (size_t i = 0; i < indexCount; i++)
         {
             switch (accessor->componentType)
             {
             case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
-                indices[i] = static_cast<uint32_t>(*(uint8_t*)(indexData + i * sizeof(uint8_t)));
+                indices[indicesProcessed + i] = static_cast<uint32_t>(*(uint8_t*)(indexData + i * sizeof(uint8_t)));
                 break;
             case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
-                indices[i] = static_cast<uint32_t>(*(uint16_t*)(indexData + i * sizeof(uint16_t)));
+                indices[indicesProcessed + i] = static_cast<uint32_t>(*(uint16_t*)(indexData + i * sizeof(uint16_t)));
                 break;
             case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
-                indices[i] = static_cast<uint32_t>(*(uint32_t*)(indexData + i * sizeof(uint32_t)));
+                indices[indicesProcessed + i] = static_cast<uint32_t>(*(uint32_t*)(indexData + i * sizeof(uint32_t)));
                 break;
             default:
                 printf("Unsupported index component type\n");
                 break;
             }
         }
+		indicesProcessed += indexCount;
 
         // Create new primitive
         Primitive& newPrim = primitives.emplace_back();
         newPrim.baseVertex = verticesProcessed;
         newPrim.vertexCount = vertexCount;
+		newPrim.indexCount = indexCount;
 
         // Positions -------------------------------------------------------------------
         accessorIdx = attribs.at("POSITION");
@@ -317,9 +330,9 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
         assert(accessor->type == TINYGLTF_TYPE_VEC3);
 
         // Convert positionData to my format
-        for (size_t i = 0; i < indexCount; i++)
+        for (size_t i = 0; i < vertexCount; i++)
         {
-            float* pos = (float*)(positionData + indices[i] * sizeof(float) * 3);
+            float* pos = (float*)(positionData + i * sizeof(float) * 3);
             vertices[verticesProcessed + i].position = glm::vec3(pos[0], pos[1], pos[2]);
         }
 
@@ -335,9 +348,9 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
             assert(accessor->type == TINYGLTF_TYPE_VEC3);
 
             // Convert normalData to my format
-            for (size_t i = 0; i < indexCount; i++)
+            for (size_t i = 0; i < vertexCount; i++)
             {
-                float* normal = (float*)(normalData + indices[i] * sizeof(float) * 3);
+                float* normal = (float*)(normalData + i * sizeof(float) * 3);
                 vertices[verticesProcessed + i].normal = glm::vec3(normal[0], normal[1], normal[2]);
             }
         }
@@ -370,9 +383,9 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
             assert(accessor->type == TINYGLTF_TYPE_VEC2);
 
             // Convert texCoordData to my format
-            for (size_t i = 0; i < indexCount; i++)
+            for (size_t i = 0; i < vertexCount; i++)
             {
-                float* texCoord = (float*)(texCoordData + indices[i] * sizeof(float) * 2);
+                float* texCoord = (float*)(texCoordData + i * sizeof(float) * 2);
                 vertices[verticesProcessed + i].uvX = texCoord[0];
                 vertices[verticesProcessed + i].uvY = texCoord[1];
             }
@@ -389,9 +402,9 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
             const uint8_t* tangentData = buffer->data.data() + view->byteOffset + accessor->byteOffset;
             assert(accessor->type == TINYGLTF_TYPE_VEC4);
 
-            for (size_t i = 0; i < indexCount; i++)
+            for (size_t i = 0; i < vertexCount; i++)
             {
-                float* tangent = (float*)(tangentData + indices[i] * sizeof(float) * 4);
+                float* tangent = (float*)(tangentData + i * sizeof(float) * 4);
                 vertices[verticesProcessed + i].tangent = glm::vec4(tangent[0], tangent[1], tangent[2], tangent[3]);
             }
         }
@@ -419,7 +432,9 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
 
     LoadingMesh loadingMesh{};
     loadingMesh.vertexCount = vertexCount;
+    loadingMesh.indexCount = indexCount;
     loadingMesh.vertices = vertices;
+    loadingMesh.indices = indices;
     
     if (missesTangents)
     {
@@ -435,18 +450,18 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
     vertexCopy.srcOffset = 0;
     vertexCopy.size = vertexBufferSize;
 
-    vkCmdCopyBuffer(cmd, staging.buffer, vertexBuffer.buffer, 1, &vertexCopy);
+    vkCmdCopyBuffer(cmd, vertexStaging.buffer, vertexBuffer.buffer, 1, &vertexCopy);
 
     VkBufferCopy indexCopy{ 0 };
     indexCopy.dstOffset = 0;
-    indexCopy.srcOffset = vertexBufferSize;
+    indexCopy.srcOffset = 0;
     indexCopy.size = indexBufferSize;
 
-    vkCmdCopyBuffer(cmd, staging.buffer, indexBuffer.buffer, 1, &indexCopy);
+    vkCmdCopyBuffer(cmd, indexStaging.buffer, indexBuffer.buffer, 1, &indexCopy);
 
 	engine->m_device.EndOneTimeSubmit();
 
-    engine->DestroyBuffer(staging);
+    engine->DestroyBuffer(vertexStaging);
     //////////////////////////////////////////////////////////////
 }
 
@@ -563,8 +578,8 @@ void trayser::Model::MikkTSpaceCalc(LoadingMesh* mesh)
 int trayser::Model::MikkTSpaceGetNumFaces(const SMikkTSpaceContext* context)
 {
     LoadingMesh* mesh = static_cast<LoadingMesh*>(context->m_pUserData);
-    float fSize = (float)mesh->vertexCount / 3.f;
-    int iSize = (int)mesh->vertexCount / 3;
+    float fSize = (float)mesh->indexCount / 3.f;
+    int iSize = (int)mesh->indexCount / 3;
     assert((fSize - (float)iSize) == 0.f);
     return iSize;
 }
@@ -629,12 +644,13 @@ void trayser::Model::MikkTSpaceSetTSpaceBasic(
     vertices[index].tangent.x = tangentu[0];
     vertices[index].tangent.y = tangentu[1];
     vertices[index].tangent.z = tangentu[2];
-    vertices[index].tangent.w = -fSign;
+    vertices[index].handedness = -fSign;
 }
 
 int trayser::Model::MikkTSpaceGetVertexIndex(const SMikkTSpaceContext* context, int iFace, int iVert)
 {
-    return iFace * MikkTSpaceGetNumVerticesOfFace(context, iFace) + iVert;
+    auto mesh = static_cast<LoadingMesh*>(context->m_pUserData);
+    return mesh->indices[iFace * 3 + iVert];
 }
 
 void trayser::Model::MikkTSpaceInit()

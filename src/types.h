@@ -149,7 +149,8 @@ struct Vertex
     glm::vec3 normal;
     float uvY;
     glm::vec4 color;
-    glm::vec4 tangent;
+    glm::vec3 tangent;
+    float handedness;
 
     static VkVertexInputBindingDescription GetBindingDescription()
     {

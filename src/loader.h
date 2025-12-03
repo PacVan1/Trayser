@@ -50,13 +50,16 @@ struct Primitive
 {
     u32 baseVertex;
     u32 vertexCount;
+    u32 indexCount;
     u32 materialId;
 };
 
 struct LoadingMesh
 {
     Vertex* vertices;
+    u32*    indices;
     u32     vertexCount;
+    u32     indexCount;
 };
 
 struct Instance
@@ -73,6 +76,7 @@ struct Mesh
     AllocatedBuffer         vertexBuffer;
     VkDeviceAddress         vertexBufferAddr;
 	u32                     vertexCount;
+	u32                     indexCount;
 
     Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mesh& loadedMesh, const std::string& folder);
     void LoadMaterial(const tinygltf::Model&, const tinygltf::Material&, const std::string& folder, Material&);
@@ -127,6 +131,23 @@ public:
         }
 
         return indexCount;
+    }
+    static int TotalVertexCountInMesh(const tinygltf::Model& loaded, const tinygltf::Mesh& loadedMesh)
+    {
+        int vertexCount = 0;
+
+        for (const auto& prim : loadedMesh.primitives)
+        {
+            auto it = prim.attributes.find("POSITION");
+            if (it != prim.attributes.end())
+            {   // Has vertices
+                int accessorIdx = it->second;
+                const tinygltf::Accessor& accessor = loaded.accessors[accessorIdx];
+                vertexCount += accessor.count;
+            }
+        }
+
+        return vertexCount;
     }
 
 public:
