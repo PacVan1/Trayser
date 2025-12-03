@@ -1,47 +1,17 @@
+file(GLOB_RECURSE HEADER_FILES
+    "${PROJECT_SOURCE_DIR}/src/*.h"
+    "${PROJECT_SOURCE_DIR}/src/*.hpp"
+    )
+
+file(GLOB_RECURSE SOURCE_FILES
+    "${PROJECT_SOURCE_DIR}/src/*.cc"
+    "${PROJECT_SOURCE_DIR}/src/*.cpp"
+)
 
 # Add source to this project's executable.
 add_executable (engine 
-  main.cpp
-  gbuffer.h
-  gbuffer.cpp
-  staging.h
-  staging.cpp
-  ray_tracing.h
-  ray_tracing.cpp
-  device.h
-  device.cpp
-  mikktspace.h
-  mikktspace.cpp
-  tinygltf/tiny_gltf.cc
-  vk_mem_alloc.cpp
-  types.h
-  resources.h
-  resources.cpp
-  scene.h
-  scene.cpp
-  components.h
-  components.cpp
-  input.h
-  input.cpp
-  util.h
-  util.cpp
-  editor.h
-  editor.cpp
-  pch.h
-  initializers.cpp
-  initializers.h
-  images.h
-  images.cpp 
-  descriptors.h
-  descriptors.cpp
-  pipelines.h
-  pipelines.cpp
-  engine.h
-  engine.cpp
-  loader.h
-  loader.cpp
-  camera.cpp
-  camera.h
+    ${HEADER_FILES}
+    ${SOURCE_FILES}
 )
 
 set_property(TARGET engine PROPERTY CXX_STANDARD 20)
