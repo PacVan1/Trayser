@@ -65,22 +65,26 @@ VkResult trayser::Device::CreateBuffer(Buffer& outBuffer,
     VmaAllocationCreateFlags  flags,
     std::span<const uint32_t> queueFamilies)
 {
-    const VkBufferUsageFlags2CreateInfo bufferUsageFlags2CreateInfo{
-        .sType = VK_STRUCTURE_TYPE_BUFFER_USAGE_FLAGS_2_CREATE_INFO,
-        .usage = usage | VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_2_TRANSFER_DST_BIT,
-    };
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.pNext = nullptr; // no Flags2 chain
+    bufferInfo.size = size;
+    bufferInfo.usage =
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+        VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
-    const VkBufferCreateInfo bufferInfo{
-        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .pNext = &bufferUsageFlags2CreateInfo,
-        .size = size,
-        .usage = 0,
-        .sharingMode = queueFamilies.empty() ? VK_SHARING_MODE_EXCLUSIVE : VK_SHARING_MODE_CONCURRENT,
-        .queueFamilyIndexCount = static_cast<uint32_t>(queueFamilies.size()),
-        .pQueueFamilyIndices = queueFamilies.data(),
-    };
+    bufferInfo.sharingMode = queueFamilies.empty()
+        ? VK_SHARING_MODE_EXCLUSIVE
+        : VK_SHARING_MODE_CONCURRENT;
 
-    VmaAllocationCreateInfo allocInfo = { .flags = flags, .usage = memoryUsage };
+    bufferInfo.queueFamilyIndexCount = static_cast<uint32_t>(queueFamilies.size());
+    bufferInfo.pQueueFamilyIndices = queueFamilies.empty() ? nullptr : queueFamilies.data();
+
+    VmaAllocationCreateInfo allocInfo{};
+    allocInfo.flags = flags;
+    allocInfo.usage = memoryUsage;
 
     return CreateBuffer(outBuffer, bufferInfo, allocInfo, minAlignment);
 }
@@ -92,11 +96,10 @@ VkResult trayser::Device::CreateBuffer(Buffer& outBuffer,
 {
     outBuffer = {};
 
-    // Create the buffer
-    VmaAllocationInfo allocInfoOut{};
+    assert(minAlignment != 0 && (minAlignment & (minAlignment - 1)) == 0);
 
     VkResult result = vmaCreateBufferWithAlignment(m_allocator, &bufferInfo, &allocInfo, minAlignment,
-        &outBuffer.buffer, &outBuffer.allocation, &allocInfoOut);
+        &outBuffer.buffer, &outBuffer.allocation, &outBuffer.info);
 
     if (result != VK_SUCCESS)
     {
@@ -104,8 +107,6 @@ VkResult trayser::Device::CreateBuffer(Buffer& outBuffer,
         printf("Failed to create buffer");
         return result;
     }
-
-    outBuffer.info = allocInfoOut;
 
     // Get the GPU address of the buffer
     const VkBufferDeviceAddressInfo info = { .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, .buffer = outBuffer.buffer };
@@ -157,20 +158,19 @@ VkResult trayser::Device::CreateAccelerationStructure(AccelerationStructure& out
     outAccelStruct = {};
     VkAccelerationStructureCreateInfoKHR accelStruct = createInfo;
 
-    const VkBufferUsageFlags2CreateInfo bufferUsageFlags2CreateInfo{
-        .sType = VK_STRUCTURE_TYPE_BUFFER_USAGE_FLAGS_2_CREATE_INFO,
-        .usage = VK_BUFFER_USAGE_2_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT,
-    };
-
-    const VkBufferCreateInfo bufferInfo{
-        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .pNext = &bufferUsageFlags2CreateInfo,
-        .size = accelStruct.size,
-        .usage = 0,
-        .sharingMode = queueFamilies.empty() ? VK_SHARING_MODE_EXCLUSIVE : VK_SHARING_MODE_CONCURRENT,
-        .queueFamilyIndexCount = static_cast<uint32_t>(queueFamilies.size()),
-        .pQueueFamilyIndices = queueFamilies.data(),
-    };
+    // Use legacy usage flags directly
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.pNext = nullptr; // no Flags2 chain
+    bufferInfo.size = accelStruct.size;
+    bufferInfo.usage =
+        VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
+        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+    bufferInfo.sharingMode = queueFamilies.empty()
+        ? VK_SHARING_MODE_EXCLUSIVE
+        : VK_SHARING_MODE_CONCURRENT;
+    bufferInfo.queueFamilyIndexCount = static_cast<uint32_t>(queueFamilies.size());
+    bufferInfo.pQueueFamilyIndices = queueFamilies.empty() ? nullptr : queueFamilies.data();
 
     // Step 1: Create the buffer to hold the acceleration structure
     VkResult result = CreateBuffer(outAccelStruct.buffer, bufferInfo, allocInfo);
@@ -272,11 +272,11 @@ void trayser::Device::PrimitiveToGeometry(const Mesh& mesh,
     VkAccelerationStructureGeometryTrianglesDataKHR triangles{
         .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR,
         .vertexFormat = VK_FORMAT_R32G32B32_SFLOAT,  // vec3 vertex position data
-        .vertexData = {.deviceAddress = VkDeviceAddress(mesh.vertexBuffer.buffer) + offsetof(Vertex, position)},
+        .vertexData = {.deviceAddress = mesh.vertexBufferAddr + offsetof(Vertex, position) },
         .vertexStride = sizeof(Vertex),
         .maxVertex = mesh.vertexCount - 1,
         .indexType = VK_INDEX_TYPE_UINT32,  // Index type (VK_INDEX_TYPE_UINT16 or VK_INDEX_TYPE_UINT32)
-        .indexData = {.deviceAddress = VkDeviceAddress(mesh.indexBuffer.buffer) },
+        .indexData = {.deviceAddress = mesh.indexBufferAddr },
     };
 
     // Identify the above data as containing opaque triangles.
@@ -572,7 +572,7 @@ void trayser::Device::Init()
     InitSyncStructures();
     InitImGui();
 
-    //InitRayTracing();
+    InitRayTracing();
 
     m_rtFuncs.Init();
 }

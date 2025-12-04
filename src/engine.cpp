@@ -45,8 +45,8 @@ void trayser::Engine::Init()
     auto model = m_resources.Create<Model>(kModelPaths[ModelResource_DamagedHelmet], kModelPaths[ModelResource_DamagedHelmet], this);
     m_scene.CreateModel(model);
 
-    //m_device.CreateBottomLevelAs();
-    //m_device.CreateTopLevelAs();
+    m_device.CreateBottomLevelAs();
+    m_device.CreateTopLevelAs();
 }
 
 void trayser::Engine::Cleanup()

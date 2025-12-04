@@ -75,6 +75,7 @@ struct Mesh
     AllocatedBuffer         indexBuffer;
     AllocatedBuffer         vertexBuffer;
     VkDeviceAddress         vertexBufferAddr;
+    VkDeviceAddress         indexBufferAddr;
 	u32                     vertexCount;
 	u32                     indexCount;
 
