@@ -7,7 +7,6 @@
 #include <fstream>
 
 #include "engine.h"
-#include "initializers.h"
 #include "types.h"
 #include <images.h>
 #include <glm/gtx/quaternion.hpp>

@@ -29,6 +29,6 @@ void trayser::Camera::Input()
 	m_up		= glm::normalize(glm::cross(m_right, m_ahead));
 
 	m_view = glm::lookAt(m_position, m_position + m_ahead, glm::vec3(0.0f, 1.0f, 0.0f));
-	VkExtent2D extent = { g_engine.m_gBuffer.colorBuffer.imageExtent.width, g_engine.m_gBuffer.colorBuffer.imageExtent.height };
+	VkExtent2D extent = { g_engine.m_gBuffer.colorImage.imageExtent.width, g_engine.m_gBuffer.colorImage.imageExtent.height };
 	m_proj = glm::perspective(glm::radians(m_fov), (float)extent.width / (float)extent.height, 10000.0f, 0.1f);
 }

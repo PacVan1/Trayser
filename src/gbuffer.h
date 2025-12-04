@@ -7,8 +7,10 @@ namespace trayser
 
 struct GBuffer
 {
-	AllocatedImage colorBuffer;
-	AllocatedImage depthBuffer;
+	void Init(u32 width, u32 height);
+
+	AllocatedImage colorImage;
+	AllocatedImage depthImage;
 };
 
 } // namespace trayser

@@ -3,7 +3,6 @@
 #include <device.h>
 #include <engine.h>
 #include <types.h>
-#include <initializers.h>
 #include <staging.h>
 #include <images.h>
 
@@ -236,9 +235,9 @@ void trayser::Device::CreateAccelerationStructure(VkAccelerationStructureTypeKHR
 
     // Create the scratch buffer to store the temporary data for the build
     Buffer scratchBuffer;
-    CreateBuffer(scratchBuffer, scratchSize,
+    VK_CHECK(CreateBuffer(scratchBuffer, scratchSize,
         VK_BUFFER_USAGE_2_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT
-        | VK_BUFFER_USAGE_2_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR, m_asProperties.minAccelerationStructureScratchOffsetAlignment);
+        | VK_BUFFER_USAGE_2_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR, m_asProperties.minAccelerationStructureScratchOffsetAlignment));
 
     // Create the acceleration structure
     VkAccelerationStructureCreateInfoKHR createInfo{
@@ -246,7 +245,7 @@ void trayser::Device::CreateAccelerationStructure(VkAccelerationStructureTypeKHR
         .size = asBuildSize.accelerationStructureSize,  // The size of the acceleration structure
         .type = type,  // The type of acceleration structure (BLAS or TLAS)
     };
-    CreateAccelerationStructure(outAccelStruct, createInfo);
+    VK_CHECK(CreateAccelerationStructure(outAccelStruct, createInfo));
 
     // Build the acceleration structure
     {
@@ -276,8 +275,8 @@ void trayser::Device::PrimitiveToGeometry(const Mesh& mesh,
         .vertexData = {.deviceAddress = VkDeviceAddress(mesh.vertexBuffer.buffer) + offsetof(Vertex, position)},
         .vertexStride = sizeof(Vertex),
         .maxVertex = mesh.vertexCount - 1,
-        .indexType = VK_INDEX_TYPE_NONE_KHR,  // Index type (VK_INDEX_TYPE_UINT16 or VK_INDEX_TYPE_UINT32)
-        .indexData = {.deviceAddress = 0 },
+        .indexType = VK_INDEX_TYPE_UINT32,  // Index type (VK_INDEX_TYPE_UINT16 or VK_INDEX_TYPE_UINT32)
+        .indexData = {.deviceAddress = VkDeviceAddress(mesh.indexBuffer.buffer) },
     };
 
     // Identify the above data as containing opaque triangles.
@@ -288,7 +287,7 @@ void trayser::Device::PrimitiveToGeometry(const Mesh& mesh,
         .flags = VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR | VK_GEOMETRY_OPAQUE_BIT_KHR,
     };
 
-    rangeInfo = VkAccelerationStructureBuildRangeInfoKHR{ .primitiveCount = mesh.vertexCount / 3 };
+    rangeInfo = VkAccelerationStructureBuildRangeInfoKHR{ .primitiveCount = mesh.indexCount / 3 };
 }
 
 void trayser::Device::BeginOneTimeSubmit(VkCommandBuffer& outCmd) const
@@ -296,7 +295,10 @@ void trayser::Device::BeginOneTimeSubmit(VkCommandBuffer& outCmd) const
     VK_CHECK(vkResetFences(m_device, 1, &m_oneTimeFence));
     VK_CHECK(vkResetCommandBuffer(m_oneTimeCommandBuffer, 0));
 
-    VkCommandBufferBeginInfo cmdBeginInfo = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+    VkCommandBufferBeginInfo cmdBeginInfo = CommandBufferBeginInfo();
+    cmdBeginInfo.pInheritanceInfo = nullptr;
+    cmdBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
     VK_CHECK(vkBeginCommandBuffer(m_oneTimeCommandBuffer, &cmdBeginInfo));
 
     outCmd = m_oneTimeCommandBuffer;
@@ -306,9 +308,19 @@ void trayser::Device::EndOneTimeSubmit() const
 {
     VK_CHECK(vkEndCommandBuffer(m_oneTimeCommandBuffer));
 
-    VkCommandBufferSubmitInfo cmdSubmitInfo = vkinit::command_buffer_submit_info(m_oneTimeCommandBuffer);
-    VkSubmitInfo2 submit = vkinit::submit_info(&cmdSubmitInfo, nullptr, nullptr);
-    VK_CHECK(vkQueueSubmit2(m_graphicsQueue, 1, &submit, m_oneTimeFence));
+    VkCommandBufferSubmitInfo cmdSubmitInfo = CommandBufferSubmitInfo();
+	cmdSubmitInfo.commandBuffer = m_oneTimeCommandBuffer;
+    cmdSubmitInfo.deviceMask = 0;
+
+    VkSubmitInfo2 submitInfo            = SubmitInfo2();
+	submitInfo.pSignalSemaphoreInfos    = nullptr;
+	submitInfo.signalSemaphoreInfoCount = 0;
+	submitInfo.pWaitSemaphoreInfos      = nullptr;
+	submitInfo.waitSemaphoreInfoCount   = 0;
+	submitInfo.pCommandBufferInfos      = &cmdSubmitInfo;
+	submitInfo.commandBufferInfoCount   = 1;
+
+    VK_CHECK(vkQueueSubmit2(m_graphicsQueue, 1, &submitInfo, m_oneTimeFence));
     VK_CHECK(vkWaitForFences(m_device, 1, &m_oneTimeFence, true, 9999999999));
 }
 
@@ -352,16 +364,33 @@ void trayser::Device::EndFrame()
     // Prepare the submission to the queue. 
     // We want to wait on the _presentSemaphore, as that semaphore is signaled when the swapchain is ready
     // We will signal the _renderSemaphore, to signal that rendering has finished
-    VkCommandBufferSubmitInfo cmdInfo = vkinit::command_buffer_submit_info(GetCmd());
+    VkCommandBufferSubmitInfo cmdSubmitInfo = CommandBufferSubmitInfo();
+	cmdSubmitInfo.commandBuffer = GetCmd();
+    cmdSubmitInfo.deviceMask    = 0;
 
-    VkSemaphoreSubmitInfo waitInfo = vkinit::semaphore_submit_info(VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR, m_swapchain.GetFrame().swapchainSemaphore);
-    VkSemaphoreSubmitInfo signalInfo = vkinit::semaphore_submit_info(VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, m_swapchain.GetFrame().renderSemaphore);
+    VkSemaphoreSubmitInfo waitInfo = SemaphoreSubmitInfo();
+	waitInfo.semaphore = m_swapchain.GetFrame().swapchainSemaphore;
+    waitInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
+    waitInfo.deviceIndex = 0;
+    waitInfo.value = 1;
 
-    VkSubmitInfo2 submit = vkinit::submit_info(&cmdInfo, &signalInfo, &waitInfo);
+    VkSemaphoreSubmitInfo signalInfo = SemaphoreSubmitInfo();
+    signalInfo.semaphore = m_swapchain.GetFrame().renderSemaphore;
+    signalInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT;
+    signalInfo.deviceIndex = 0;
+    signalInfo.value = 1;
+
+    VkSubmitInfo2 submitInfo            = SubmitInfo2();
+    submitInfo.pWaitSemaphoreInfos      = &waitInfo;
+    submitInfo.waitSemaphoreInfoCount   = 1;
+	submitInfo.pSignalSemaphoreInfos    = &signalInfo;
+    submitInfo.signalSemaphoreInfoCount = 1;
+    submitInfo.pCommandBufferInfos      = &cmdSubmitInfo;
+	submitInfo.commandBufferInfoCount   = 1;
 
     // Submit command buffer to the queue and execute it.
     // _renderFence will now block until the graphic commands finish execution
-    VK_CHECK(vkQueueSubmit2(m_graphicsQueue, 1, &submit, m_swapchain.GetFence()));
+    VK_CHECK(vkQueueSubmit2(m_graphicsQueue, 1, &submitInfo, m_swapchain.GetFence()));
 
     // Prepare present
     // This will put the image we just rendered to into the visible window.
@@ -542,6 +571,8 @@ void trayser::Device::Init()
     InitCommands();
     InitSyncStructures();
     InitImGui();
+
+    //InitRayTracing();
 
     m_rtFuncs.Init();
 }
@@ -865,22 +896,41 @@ void trayser::Device::InitSwapchain()
     m_swapchain.m_imageViews.resize(imageCount);
     for (int i = 0; i < m_swapchain.m_images.size(); i++)
     {
-        VkImageViewCreateInfo createInfo = vkinit::imageview_create_info(m_swapchain.m_format, m_swapchain.m_images[i], VK_IMAGE_ASPECT_COLOR_BIT);
+        VkImageViewCreateInfo createInfo = ImageViewCreateInfo();
+        createInfo.viewType                         = VK_IMAGE_VIEW_TYPE_2D;
+        createInfo.format                           = m_swapchain.m_format;
+        createInfo.image                            = m_swapchain.m_images[i];
+        createInfo.subresourceRange.baseMipLevel    = 0;
+        createInfo.subresourceRange.levelCount      = 1;
+        createInfo.subresourceRange.baseArrayLayer  = 0;
+        createInfo.subresourceRange.layerCount      = 1;
+        createInfo.subresourceRange.aspectMask      = VK_IMAGE_ASPECT_COLOR_BIT;
+
         VK_CHECK(vkCreateImageView(m_device, &createInfo, nullptr, &m_swapchain.m_imageViews[i]));
     }
 }
 
 void trayser::Device::InitCommands()
 {
-    VkCommandPoolCreateInfo poolCreateInfo = vkinit::command_pool_create_info(m_graphicsQueueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+    VkCommandPoolCreateInfo poolCreateInfo = CommandPoolCreateInfo();
+    poolCreateInfo.queueFamilyIndex = m_graphicsQueueFamily;
+    poolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+
     VK_CHECK(vkCreateCommandPool(m_device, &poolCreateInfo, nullptr, &m_oneTimeCommandPool));
-    VkCommandBufferAllocateInfo bufferAllocInfo = vkinit::command_buffer_allocate_info(m_oneTimeCommandPool, 1);
-    VK_CHECK(vkAllocateCommandBuffers(m_device, &bufferAllocInfo, &m_oneTimeCommandBuffer));
+
+    VkCommandBufferAllocateInfo cmdAllocInfo = CommandBufferAllocateInfo();
+    cmdAllocInfo.commandPool = m_oneTimeCommandPool;
+    cmdAllocInfo.commandBufferCount = 1;
+    cmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+
+    VK_CHECK(vkAllocateCommandBuffers(m_device, &cmdAllocInfo, &m_oneTimeCommandBuffer));
 }
 
 void trayser::Device::InitSyncStructures()
 {
-    VkFenceCreateInfo createInfo = vkinit::fence_create_info(VK_FENCE_CREATE_SIGNALED_BIT);
+    VkFenceCreateInfo createInfo = FenceCreateInfo();
+    createInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
     VK_CHECK(vkCreateFence(m_device, &createInfo, nullptr, &m_oneTimeFence));
 }
 
@@ -947,11 +997,31 @@ void trayser::Device::InitImGui()
     ImGui_ImplVulkan_CreateFontsTexture();
 }
 
+void trayser::Device::InitRayTracing() const
+{
+    VkPhysicalDeviceProperties2 prop2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
+    m_rtProperties.pNext = &m_asProperties;
+    prop2.pNext = &m_rtProperties;
+    vkGetPhysicalDeviceProperties2(m_physDevice, &prop2);
+}
+
 void trayser::Device::RenderImGui() const
 {
     ImGui::Render();
-    VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(m_swapchain.GetImageView(), nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-    VkRenderingInfo renderInfo = vkinit::rendering_info(m_swapchain.m_extent, &colorAttachment, nullptr);
+    VkRenderingAttachmentInfo colorAttachment = RenderingAttachmentInfo();
+    colorAttachment.imageView   = m_swapchain.GetImageView();
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.loadOp      = VK_ATTACHMENT_LOAD_OP_LOAD;
+    colorAttachment.storeOp     = VK_ATTACHMENT_STORE_OP_STORE;
+
+    VkRenderingInfo renderInfo = RenderingInfo();
+    renderInfo.renderArea = VkRect2D{ VkOffset2D { 0, 0 }, m_swapchain.m_extent };
+    renderInfo.pColorAttachments = &colorAttachment;
+    renderInfo.pStencilAttachment = nullptr;
+    renderInfo.pDepthAttachment = nullptr;
+    renderInfo.colorAttachmentCount = 1;
+    renderInfo.layerCount = 1;
+    
     vkCmdBeginRendering(GetCmd(), &renderInfo);
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), GetCmd());
     vkCmdEndRendering(GetCmd());
@@ -1163,19 +1233,28 @@ void trayser::Swapchain::Init(VkDevice device)
 {
 	// Initialize command pools/buffers for each frame
     u32 graphicsQueueFamily = 0; // TODO temp
-    VkCommandPoolCreateInfo commandPoolInfo = vkinit::command_pool_create_info(graphicsQueueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+    VkCommandPoolCreateInfo commandPoolInfo = CommandPoolCreateInfo();
+    commandPoolInfo.queueFamilyIndex = graphicsQueueFamily;
+    commandPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
     for (int i = 0; i < kFrameCount; i++)
     {
         VK_CHECK(vkCreateCommandPool(device, &commandPoolInfo, nullptr, &m_frames[i].commandPool));
 
-        VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(m_frames[i].commandPool, 1);
+        VkCommandBufferAllocateInfo cmdAllocInfo = CommandBufferAllocateInfo();
+        cmdAllocInfo.commandPool = m_frames[i].commandPool;
+        cmdAllocInfo.commandBufferCount = 1;
+        cmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+
         VK_CHECK(vkAllocateCommandBuffers(device, &cmdAllocInfo, &m_frames[i].commandBuffer));
     }
 
 	// Create synchronization structures
-    VkFenceCreateInfo fenceCreateInfo = vkinit::fence_create_info(VK_FENCE_CREATE_SIGNALED_BIT);
-    VkSemaphoreCreateInfo semaphoreCreateInfo = vkinit::semaphore_create_info();
+    VkFenceCreateInfo fenceCreateInfo = FenceCreateInfo();
+    fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+    VkSemaphoreCreateInfo semaphoreCreateInfo = SemaphoreCreateInfo();
+    semaphoreCreateInfo.flags = 0;
 
     for (int i = 0; i < kFrameCount; i++)
     {

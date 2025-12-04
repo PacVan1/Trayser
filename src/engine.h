@@ -12,7 +12,6 @@
 #include <pipelines.h>
 #include <device.h>
 #include <gbuffer.h>
-#include <model_loader.h>
 
 static constexpr char const*	kEngineName	= "Trayser";
 static constexpr unsigned int	kFrameCount	= 2;
@@ -59,7 +58,6 @@ private:
 	void InitImGuiStyle();
 	void InitDefaultData();
 	void InitDefaultMaterial();
-	void CreateSwapchainImageView();
 	void DestroySwapchain();
 	void BeginRecording(VkCommandBuffer cmd);
 	void ResizeSwapchain();
@@ -72,7 +70,6 @@ public:
 	Camera			m_camera;
 	Device			m_device;
 	GBuffer			m_gBuffer;
-	ModelLoader		m_modelLoader;
 
 	RenderMode		m_renderMode = RenderMode_FinalColor;
 	TonemapMode		m_tonemapMode = TonemapMode_PBRNeutral;

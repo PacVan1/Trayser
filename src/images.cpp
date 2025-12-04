@@ -1,7 +1,6 @@
 #include <pch.h>
 #include <images.h>
 
-#include <initializers.h>
 
 void vkutil::TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout)
 {
@@ -17,7 +16,11 @@ void vkutil::TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout c
     imageBarrier.newLayout = newLayout;
 
     VkImageAspectFlags aspectMask = (newLayout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
-    imageBarrier.subresourceRange = vkinit::image_subresource_range(aspectMask);
+	imageBarrier.subresourceRange.aspectMask = aspectMask;
+	imageBarrier.subresourceRange.baseMipLevel = 0;
+	imageBarrier.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+	imageBarrier.subresourceRange.baseArrayLayer = 0;
+	imageBarrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
     imageBarrier.image = image;
 
     VkDependencyInfo depInfo{};

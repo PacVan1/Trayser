@@ -1,7 +1,7 @@
 ﻿#include <pch.h>
 #include <pipelines.h>
 #include <fstream>
-#include <initializers.h>
+//#include <initializers.h>
 #include <engine.h>
 #include <filesystem>
 
@@ -260,12 +260,13 @@ void trayser::PBRPipeline::Load()
     pushConst.size = sizeof(gpu::PushConstants);
     pushConst.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
-    VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
-    pipeline_layout_info.pPushConstantRanges = &pushConst;
-    pipeline_layout_info.pushConstantRangeCount = 2;
-    pipeline_layout_info.pSetLayouts = &g_engine.m_singleImageDescriptorLayout;
-    pipeline_layout_info.setLayoutCount = 1;
-    VK_CHECK(vkCreatePipelineLayout(g_engine.m_device.m_device, &pipeline_layout_info, nullptr, &m_layout));
+    VkPipelineLayoutCreateInfo pipLayoutInfo = PipelineLayoutCreateInfo();
+    pipLayoutInfo.flags = 0;
+    pipLayoutInfo.setLayoutCount = 1;
+    pipLayoutInfo.pSetLayouts = &g_engine.m_singleImageDescriptorLayout;
+    pipLayoutInfo.pushConstantRangeCount = 2;
+    pipLayoutInfo.pPushConstantRanges = &pushConst;
+    VK_CHECK(vkCreatePipelineLayout(g_engine.m_device.m_device, &pipLayoutInfo, nullptr, &m_layout));
 
     VkPipelineVertexInputStateCreateInfo vertexInput{};
     auto bindingDescription = Vertex::GetBindingDescription();
@@ -316,8 +317,8 @@ void trayser::PBRPipeline::Load()
     VkPipelineRenderingCreateInfo rendering{};
     rendering.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     rendering.colorAttachmentCount = 1;
-    rendering.pColorAttachmentFormats = &g_engine.m_gBuffer.colorBuffer.imageFormat;
-    rendering.depthAttachmentFormat = g_engine.m_gBuffer.depthBuffer.imageFormat;
+    rendering.pColorAttachmentFormats = &g_engine.m_gBuffer.colorImage.imageFormat;
+    rendering.depthAttachmentFormat = g_engine.m_gBuffer.depthImage.imageFormat;
 
     VkPipelineShaderStageCreateInfo vsStage{};
     vsStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -383,13 +384,29 @@ void trayser::PBRPipeline::Update()
 {
     auto cmd = g_engine.m_device.GetCmd();
 
-    VkExtent2D extent = { g_engine.m_gBuffer.colorBuffer.imageExtent.width, g_engine.m_gBuffer.colorBuffer.imageExtent.height };
+    VkExtent2D extent = { g_engine.m_gBuffer.colorImage.imageExtent.width, g_engine.m_gBuffer.colorImage.imageExtent.height };
 
-    VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(g_engine.m_gBuffer.colorBuffer.imageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-    VkRenderingAttachmentInfo depthAttachment = vkinit::depth_attachment_info(g_engine.m_gBuffer.depthBuffer.imageView, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+    VkRenderingAttachmentInfo colorAttachment = RenderingAttachmentInfo();
+    colorAttachment.imageView   = g_engine.m_gBuffer.colorImage.imageView;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.loadOp      = VK_ATTACHMENT_LOAD_OP_LOAD;
+    colorAttachment.storeOp     = VK_ATTACHMENT_STORE_OP_STORE;
 
-    VkRenderingInfo renderInfo = vkinit::rendering_info(extent, &colorAttachment, &depthAttachment);
-    vkCmdBeginRendering(cmd, &renderInfo);
+    VkRenderingAttachmentInfo depthAttachment = RenderingAttachmentInfo();
+    depthAttachment.imageView   = g_engine.m_gBuffer.depthImage.imageView;
+    depthAttachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+    depthAttachment.loadOp      = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depthAttachment.storeOp     = VK_ATTACHMENT_STORE_OP_STORE;
+    depthAttachment.clearValue.depthStencil.depth = 0.f;
+
+    VkRenderingInfo renderingInfo = RenderingInfo();
+    renderingInfo.renderArea = VkRect2D{ VkOffset2D { 0, 0 }, extent };
+    renderingInfo.layerCount = 1;
+    renderingInfo.colorAttachmentCount = 1;
+    renderingInfo.pColorAttachments = &colorAttachment;
+    renderingInfo.pDepthAttachment = &depthAttachment;
+    renderingInfo.pStencilAttachment = nullptr;
+    vkCmdBeginRendering(cmd, &renderingInfo);
 
     //set dynamic viewport and scissor
     VkViewport viewport = {};
@@ -521,7 +538,7 @@ void trayser::BackgroundPipeline::Update()
 
     vkCmdPushConstants(cmd, m_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ComputePushConstants), &pc);
 
-    VkExtent2D extent = { g_engine.m_gBuffer.colorBuffer.imageExtent.width, g_engine.m_gBuffer.colorBuffer.imageExtent.height };
+    VkExtent2D extent = { g_engine.m_gBuffer.colorImage.imageExtent.width, g_engine.m_gBuffer.colorImage.imageExtent.height };
 
     // execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
     vkCmdDispatch(cmd, std::ceil(extent.width / 16.0), std::ceil(extent.height / 16.0), 1);
@@ -547,8 +564,8 @@ void trayser::TonemapPipeline::Load()
     m_descriptorSet = g_engine.m_globalDescriptorAllocator.Allocate(g_engine.m_device.m_device, m_descriptorSetLayout);
 
     DescriptorWriter writer;
-    writer.WriteImage(0, g_engine.m_gBuffer.colorBuffer.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-    writer.WriteImage(1, g_engine.m_gBuffer.colorBuffer.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    writer.WriteImage(0, g_engine.m_gBuffer.colorImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    writer.WriteImage(1, g_engine.m_gBuffer.colorImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
     writer.UpdateSet(g_engine.m_device.m_device, m_descriptorSet);
 
     // ---------------------
@@ -611,7 +628,7 @@ void trayser::TonemapPipeline::Update()
 
     vkCmdPushConstants(cmd, m_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(PushConstantComp), &pc);
 
-    VkExtent2D extent = { g_engine.m_gBuffer.colorBuffer.imageExtent.width, g_engine.m_gBuffer.colorBuffer.imageExtent.height };
+    VkExtent2D extent = { g_engine.m_gBuffer.colorImage.imageExtent.width, g_engine.m_gBuffer.colorImage.imageExtent.height };
 
     // execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
     vkCmdDispatch(cmd, std::ceil(extent.width / 16.0), std::ceil(extent.height / 16.0), 1);
