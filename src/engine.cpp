@@ -36,7 +36,6 @@ void trayser::Engine::Init()
     m_gBuffer.Init(kInitWindowWidth, kInitWindowHeight);
 
     InitDescriptors();
-    InitPipelines();
     InitDefaultData();
     InitImGuiStyle();
 
@@ -45,8 +44,10 @@ void trayser::Engine::Init()
     auto model = m_resources.Create<Model>(kModelPaths[ModelResource_DamagedHelmet], kModelPaths[ModelResource_DamagedHelmet], this);
     m_scene.CreateModel(model);
 
-    m_device.CreateBottomLevelAs();
-    m_device.CreateTopLevelAs();
+    //m_device.CreateBottomLevelAs();
+    //m_device.CreateTopLevelAs();
+
+    InitPipelines();
 }
 
 void trayser::Engine::Cleanup()

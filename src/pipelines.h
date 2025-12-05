@@ -9,26 +9,6 @@
 namespace trayser
 {
 
-class SlangCompiler
-{
-public:
-    void Init();
-    void LoadVertexFragmentShader(const char* slangFileName, Slang::ComPtr<slang::IBlob>& vsSpirv, Slang::ComPtr<slang::IBlob>& fsSpirv);
-    void LoadComputeShader(const char* slangFileName, Slang::ComPtr<slang::IBlob>& spirv);
-    bool LoadShaderModule(const char* spirvFileName, VkShaderModule& outModule);
-    std::string FindExistingFile(const char* fileName);
-
-private:
-    void CreateSlangSession(Slang::ComPtr<slang::ISession>& session) const;
-    slang::IModule* LoadModule(const char* slangFileName, Slang::ComPtr<slang::ISession>& session);
-
-public:
-	Slang::ComPtr<slang::IGlobalSession> m_slangGlobalSession;
-    slang::SessionDesc                   m_sessionDesc;
-    slang::TargetDesc                    m_targetDesc;
-	std::vector<const char*>             m_searchPaths;
-};
-
 class Pipeline
 {
 public:
@@ -72,14 +52,40 @@ public:
         int padding[3];
     };
 
-private:
-	VkDescriptorSetLayout m_descriptorSetLayout;
-    VkDescriptorSet       m_descriptorSet;
-
 public:
     TonemapPipeline();
     virtual void Load() override;
     virtual void Update() override;
+
+private:
+	VkDescriptorSetLayout m_descriptorSetLayout;
+    VkDescriptorSet       m_descriptorSet;
+};
+
+class RayTracingPipeline final : public Pipeline
+{
+public:
+    enum BindingPoints
+    {
+        BindingPoints_TLAS,
+        BindingPoints_OutImage,
+    };
+
+public:
+    RayTracingPipeline();
+    virtual void Load() override;
+    virtual void Update() override;
+
+private:
+    VkDescriptorSetLayout   m_descriptorSetLayout;
+    VkDescriptorSet         m_descriptorSet;
+    std::vector<u8>         m_shaderHandles;
+    //Buffer                  m_sbtBuffer;
+
+    VkStridedDeviceAddressRegionKHR m_raygenRegion;    // Ray generation shader region
+    VkStridedDeviceAddressRegionKHR m_missRegion;      // Miss shader region
+    VkStridedDeviceAddressRegionKHR m_hitRegion;       // Hit shader region
+    VkStridedDeviceAddressRegionKHR m_callableRegion;  // Callable shader region
 };
 
 } // namespace trayser

@@ -3,197 +3,9 @@
 #include <fstream>
 //#include <initializers.h>
 #include <engine.h>
+#include <compiler.h>
 #include <filesystem>
-
-static void Diagnose(Slang::ComPtr<slang::IBlob> blob)
-{
-    if (blob != nullptr)
-    {
-        printf("%s", (const char*)blob->getBufferPointer());
-    }
-}
-
-VkShaderModule CreateShaderModule(VkDevice device, const Slang::ComPtr<slang::IBlob>& blob)
-{
-    VkShaderModuleCreateInfo ci{ VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
-    ci.codeSize = blob->getBufferSize();
-    ci.pCode = reinterpret_cast<const uint32_t*>(blob->getBufferPointer());
-
-    VkShaderModule module = VK_NULL_HANDLE;
-    VkResult vr = vkCreateShaderModule(device, &ci, nullptr, &module);
-    if (vr != VK_SUCCESS) { printf("Failed to create shader module"); }
-    return module;
-}
-
-void trayser::SlangCompiler::Init()
-{
-    SlangResult result{};
-    result = slang::createGlobalSession(m_slangGlobalSession.writeRef());
-    if (SLANG_FAILED(result))
-    {
-        fmt::println("Failed to create Slang global session");
-        return;
-    }
-
-    m_searchPaths =
-    {
-        "shaders"
-        "../shaders",
-        "../../shaders",
-        "../../../shaders",
-    };
-}
-
-void trayser::SlangCompiler::LoadVertexFragmentShader(const char* slangFileName, Slang::ComPtr<slang::IBlob>& vsSpirv, Slang::ComPtr<slang::IBlob>& fsSpirv)
-{
-    Slang::ComPtr<slang::ISession> session;
-    CreateSlangSession(session);
-
-    slang::IModule* module = LoadModule(slangFileName, session);
-    if (!module)
-        return;
-
-    Slang::ComPtr<slang::IEntryPoint> vsEntryPoint;
-    module->findEntryPointByName("vsMain", vsEntryPoint.writeRef());
-    Slang::ComPtr<slang::IEntryPoint> fsEntryPoint;
-    module->findEntryPointByName("fsMain", fsEntryPoint.writeRef());
-
-    std::vector<slang::IComponentType*> componentTypes;
-    componentTypes.push_back(module);
-    componentTypes.push_back(vsEntryPoint);
-    componentTypes.push_back(fsEntryPoint);
-
-    Slang::ComPtr<slang::IComponentType> composedProgram;
-    {
-        Slang::ComPtr<slang::IBlob> diagnosticsBlob;
-        SlangResult result = session->createCompositeComponentType(
-            componentTypes.data(),
-            componentTypes.size(),
-            composedProgram.writeRef(),
-            diagnosticsBlob.writeRef());
-        if (result == SLANG_FAIL)
-        {
-            return;
-        }
-    }
-
-    Slang::ComPtr<slang::IBlob> diagnosticBlob;
-    composedProgram->getEntryPointCode(0, 0, vsSpirv.writeRef(), diagnosticBlob.writeRef());
-    Diagnose(diagnosticBlob);
-
-    diagnosticBlob = nullptr;
-    composedProgram->getEntryPointCode(1, 0, fsSpirv.writeRef(), diagnosticBlob.writeRef());
-    Diagnose(diagnosticBlob);
-}
-
-void trayser::SlangCompiler::LoadComputeShader(const char* slangFileName, Slang::ComPtr<slang::IBlob>& spirv)
-{
-    Slang::ComPtr<slang::ISession> session;
-    CreateSlangSession(session);
-
-    slang::IModule* module = LoadModule(slangFileName, session);
-    if (!module)
-        return;
-
-    Slang::ComPtr<slang::IEntryPoint> entryPoint;
-    module->findEntryPointByName("csMain", entryPoint.writeRef());
-
-    std::vector<slang::IComponentType*> componentTypes;
-    componentTypes.push_back(module);
-    componentTypes.push_back(entryPoint);
-
-    Slang::ComPtr<slang::IComponentType> composedProgram;
-    {
-        Slang::ComPtr<slang::IBlob> diagnosticsBlob;
-        SlangResult result = session->createCompositeComponentType(
-            componentTypes.data(),
-            componentTypes.size(),
-            composedProgram.writeRef(),
-            diagnosticsBlob.writeRef());
-        if (result == SLANG_FAIL)
-        {
-            return;
-        }
-    }
-
-    Slang::ComPtr<slang::IBlob> diagnosticBlob;
-    composedProgram->getEntryPointCode(0, 0, spirv.writeRef(), diagnosticBlob.writeRef());
-    Diagnose(diagnosticBlob);
-}
-
-bool trayser::SlangCompiler::LoadShaderModule(const char* spirvFileName, VkShaderModule& outModule)
-{
-    std::string filePath = FindExistingFile((std::string(spirvFileName) + ".spv").c_str());
-
-    if (filePath.empty())
-    {
-        return false;
-    }
-
-    // open the file. With cursor at the end
-    std::ifstream file(filePath, std::ios::ate | std::ios::binary);
-
-    if (!file.is_open())
-    {
-        return false;
-    }
-
-    size_t fileSize = (size_t)file.tellg();
-    std::vector<u32> buffer(fileSize / sizeof(u32));
-    file.seekg(0);
-    file.read((char*)buffer.data(), fileSize);
-    file.close();
-    VkShaderModuleCreateInfo createInfo = {};
-    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    createInfo.pNext = nullptr;
-    createInfo.codeSize = buffer.size() * sizeof(u32);
-    createInfo.pCode = buffer.data();
-    VkShaderModule shaderModule;
-    if (vkCreateShaderModule(g_engine.m_device.m_device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
-    {
-        return false;
-    }
-
-    outModule = shaderModule;
-    return true;
-}
-
-void trayser::SlangCompiler::CreateSlangSession(Slang::ComPtr<slang::ISession>& session) const
-{
-    slang::TargetDesc targetDesc{};
-    targetDesc.format = SLANG_SPIRV;
-    targetDesc.profile = m_slangGlobalSession->findProfile("spirv_1_3");
-    targetDesc.flags = 0;
-
-    slang::SessionDesc sessionDesc{};
-    sessionDesc.targets = &targetDesc;
-    sessionDesc.targetCount = 1;
-    sessionDesc.compilerOptionEntryCount = 0;
-    sessionDesc.searchPaths = m_searchPaths.data();
-    sessionDesc.searchPathCount = m_searchPaths.size();
-
-    m_slangGlobalSession->createSession(sessionDesc, session.writeRef());
-}
-
-slang::IModule* trayser::SlangCompiler::LoadModule(const char* slangFileName, Slang::ComPtr<slang::ISession>& session)
-{
-    slang::IModule* module = nullptr;
-    Slang::ComPtr<slang::IBlob> diagnosticBlob;
-    module = session->loadModule(slangFileName, diagnosticBlob.writeRef());
-    Diagnose(diagnosticBlob);
-    return module;
-}
-
-std::string trayser::SlangCompiler::FindExistingFile(const char* fileName)
-{
-    for (auto& path : m_searchPaths)
-    {
-        std::string fullPath = std::string(path) + "/" + fileName;
-        if (std::filesystem::exists(fullPath))
-            return fullPath;
-    }
-    return "";
-}
+#include <array>
 
 void trayser::Pipeline::Init()
 {
@@ -243,17 +55,20 @@ trayser::PBRPipeline::PBRPipeline()
 
 void trayser::PBRPipeline::Load()
 {
-    Slang::ComPtr<slang::IBlob> vsSpirv, fsSpirv;
-	g_engine.m_compiler.LoadVertexFragmentShader(m_name.c_str(), vsSpirv, fsSpirv);
+    std::array<VkShaderModule, 2> modules;
+    const char* entryPointNames[] = { "vsMain", "fsMain" };
 
-	if (!vsSpirv || !fsSpirv)
-	{
-		fmt::println("Failed to load PBR shaders");
-		return;
-	}
+    SlangCompileInfo compileInfo{};
+    compileInfo.fileName        = m_name.c_str();
+    compileInfo.entryPointNames = entryPointNames;
+    compileInfo.entryPointCount = 2;
+	g_engine.m_compiler.Compile(compileInfo, modules.data());
 
-    VkShaderModule vsModule = CreateShaderModule(g_engine.m_device.m_device, vsSpirv);
-    VkShaderModule fsModule = CreateShaderModule(g_engine.m_device.m_device, fsSpirv);
+	//if (!spirv[0] || !spirv[1])
+	//{
+	//	fmt::println("Failed to load PBR shaders");
+	//	return;
+	//}
 
     VkPushConstantRange pushConst{};
     pushConst.offset = 0;
@@ -323,13 +138,13 @@ void trayser::PBRPipeline::Load()
     VkPipelineShaderStageCreateInfo vsStage{};
     vsStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vsStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    vsStage.module = vsModule;
+    vsStage.module = modules[0];
     vsStage.pName = "main";
 
     VkPipelineShaderStageCreateInfo fsStage{};
     fsStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     fsStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    fsStage.module = fsModule;
+    fsStage.module = modules[1];
     fsStage.pName = "main";
 
     VkPipelineViewportStateCreateInfo viewportState{};
@@ -376,8 +191,8 @@ void trayser::PBRPipeline::Load()
         return;
     }
 
-    vkDestroyShaderModule(g_engine.m_device.m_device, vsModule, nullptr);
-    vkDestroyShaderModule(g_engine.m_device.m_device, fsModule, nullptr);
+    vkDestroyShaderModule(g_engine.m_device.m_device, modules[0], nullptr);
+    vkDestroyShaderModule(g_engine.m_device.m_device, modules[1], nullptr);
 }
 
 void trayser::PBRPipeline::Update()
@@ -586,22 +401,20 @@ void trayser::TonemapPipeline::Load()
 
     VK_CHECK(vkCreatePipelineLayout(g_engine.m_device.m_device, &computeLayout, nullptr, &m_layout));
 
-    Slang::ComPtr<slang::IBlob> spirv;
-    g_engine.m_compiler.LoadComputeShader(m_name.c_str(), spirv);
+    std::array<VkShaderModule, 1> modules;
+    const char* entryPointNames[] = { "csMain" };
 
-    if (!spirv)
-    {
-        fmt::println("Failed to load tonemap shaders");
-        return;
-    }
-
-    VkShaderModule module = CreateShaderModule(g_engine.m_device.m_device, spirv);
+    SlangCompileInfo compileInfo{};
+    compileInfo.fileName        = m_name.c_str();
+    compileInfo.entryPointNames = entryPointNames;
+    compileInfo.entryPointCount = 1;
+    g_engine.m_compiler.Compile(compileInfo, modules.data());
 
     VkPipelineShaderStageCreateInfo stageinfo{};
     stageinfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     stageinfo.pNext = nullptr;
     stageinfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-    stageinfo.module = module;
+    stageinfo.module = modules[0];
     stageinfo.pName = "main";
 
     VkComputePipelineCreateInfo computePipelineCreateInfo{};
@@ -612,7 +425,7 @@ void trayser::TonemapPipeline::Load()
 
     VK_CHECK(vkCreateComputePipelines(g_engine.m_device.m_device, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &m_pipeline));
 
-    vkDestroyShaderModule(g_engine.m_device.m_device, module, nullptr);
+    vkDestroyShaderModule(g_engine.m_device.m_device, modules[0], nullptr);
 }
 
 void trayser::TonemapPipeline::Update()
@@ -632,4 +445,175 @@ void trayser::TonemapPipeline::Update()
 
     // execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
     vkCmdDispatch(cmd, std::ceil(extent.width / 16.0), std::ceil(extent.height / 16.0), 1);
+}
+
+trayser::RayTracingPipeline::RayTracingPipeline() :
+    m_descriptorSetLayout(VK_NULL_HANDLE),
+    m_descriptorSet(VK_NULL_HANDLE)
+{
+    m_name = "ray_tracing";
+    m_canHotReload = true;
+}
+
+void trayser::RayTracingPipeline::Load()
+{
+    //   // Descriptor set layout
+    //   
+    //   DescriptorLayoutBuilder builder;
+    //   builder.AddBinding(BindingPoints_TLAS, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
+    //   builder.AddBinding(BindingPoints_OutImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    //   m_descriptorSetLayout = builder.Build(g_engine.m_device.m_device, VK_SHADER_STAGE_ALL);
+    //   
+    //   m_descriptorSet = g_engine.m_globalDescriptorAllocator.Allocate(g_engine.m_device.m_device, m_descriptorSetLayout);
+    //   
+    //   // ---------------------
+    //   
+    //   // For re-creation
+    //   vkDestroyPipeline(m_app->getDevice(), m_rtPipeline, nullptr);
+    //   vkDestroyPipelineLayout(m_app->getDevice(), m_rtPipelineLayout, nullptr);
+    //   
+    //   // Creating all shaders
+    //   enum StageIndices
+    //   {
+    //       eRaygen,
+    //       eMiss,
+    //       eClosestHit,
+    //       eShaderGroupCount
+    //   };
+    //   std::array<VkPipelineShaderStageCreateInfo, eShaderGroupCount> stages{};
+    //   for (auto& s : stages)
+    //       s.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    //   
+    //   // Compile shader, fallback to pre-compiled
+    //   VkShaderModuleCreateInfo shaderCode = compileSlangShader("rtbasic.slang", rtbasic_slang);
+    //   
+    //   stages[eRaygen].pNext = &shaderCode;
+    //   stages[eRaygen].pName = "rgenMain";
+    //   stages[eRaygen].stage = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+    //   stages[eMiss].pNext = &shaderCode;
+    //   stages[eMiss].pName = "rmissMain";
+    //   stages[eMiss].stage = VK_SHADER_STAGE_MISS_BIT_KHR;
+    //   stages[eClosestHit].pNext = &shaderCode;
+    //   stages[eClosestHit].pName = "rchitMain";
+    //   stages[eClosestHit].stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+    //   
+    //   // Shader groups
+    //   VkRayTracingShaderGroupCreateInfoKHR group{ VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR };
+    //   group.anyHitShader = VK_SHADER_UNUSED_KHR;
+    //   group.closestHitShader = VK_SHADER_UNUSED_KHR;
+    //   group.generalShader = VK_SHADER_UNUSED_KHR;
+    //   group.intersectionShader = VK_SHADER_UNUSED_KHR;
+    //   
+    //   std::vector<VkRayTracingShaderGroupCreateInfoKHR> shader_groups;
+    //   // Raygen
+    //   group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+    //   group.generalShader = eRaygen;
+    //   shader_groups.push_back(group);
+    //   
+    //   // Miss
+    //   group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+    //   group.generalShader = eMiss;
+    //   shader_groups.push_back(group);
+    //   
+    //   // closest hit shader
+    //   group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+    //   group.generalShader = VK_SHADER_UNUSED_KHR;
+    //   group.closestHitShader = eClosestHit;
+    //   shader_groups.push_back(group);
+    //   
+    //   // Push constant: we want to be able to update constants used by the shaders
+    //   const VkPushConstantRange push_constant{ VK_SHADER_STAGE_ALL, 0, sizeof(shaderio::TutoPushConstant) };
+    //   
+    //   VkPipelineLayoutCreateInfo pipeline_layout_create_info{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+    //   pipeline_layout_create_info.pushConstantRangeCount = 1;
+    //   pipeline_layout_create_info.pPushConstantRanges = &push_constant;
+    //   
+    //   // Descriptor sets: one specific to ray tracing, and one shared with the rasterization pipeline
+    //   std::array<VkDescriptorSetLayout, 2> layouts = ;
+    //   pipeline_layout_create_info.setLayoutCount = uint32_t(layouts.size());
+    //   pipeline_layout_create_info.pSetLayouts = layouts.data();
+    //   vkCreatePipelineLayout(m_app->getDevice(), &pipeline_layout_create_info, nullptr, &m_rtPipelineLayout);
+    //   //NVVK_DBG_NAME(m_rtPipelineLayout);
+    //   
+    //   // Assemble the shader stages and recursion depth info into the ray tracing pipeline
+    //   VkRayTracingPipelineCreateInfoKHR rtPipelineInfo{ VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR };
+    //   rtPipelineInfo.stageCount = static_cast<uint32_t>(stages.size());
+    //   rtPipelineInfo.pStages = stages.data();
+    //   rtPipelineInfo.groupCount = static_cast<uint32_t>(shader_groups.size());
+    //   rtPipelineInfo.pGroups = shader_groups.data();
+    //   rtPipelineInfo.maxPipelineRayRecursionDepth = std::max(3U, m_rtProperties.maxRayRecursionDepth);
+    //   rtPipelineInfo.layout = m_rtPipelineLayout;
+    //   vkCreateRayTracingPipelinesKHR(m_app->getDevice(), {}, {}, 1, &rtPipelineInfo, nullptr, &m_rtPipeline);
+    //   //NVVK_DBG_NAME(m_rtPipeline);
+    //   
+    //   //LOGI("Ray tracing pipeline created successfully\n");
+    //   
+    //   // Shader binding table
+    //   
+    //   //m_allocator.destroyBuffer(m_sbtBuffer);  // Cleanup when re-creating
+    //   
+    //   VkDevice device = g_engine.m_device.m_device;
+    //   uint32_t handleSize = m_rtProperties.shaderGroupHandleSize;
+    //   uint32_t handleAlignment = m_rtProperties.shaderGroupHandleAlignment;
+    //   uint32_t baseAlignment = m_rtProperties.shaderGroupBaseAlignment;
+    //   uint32_t groupCount = rtPipelineInfo.groupCount;
+    //   
+    //   // Get shader group handles
+    //   size_t dataSize = handleSize * groupCount;
+    //   m_shaderHandles.resize(dataSize);
+    //   VK_CHECK(vkGetRayTracingShaderGroupHandlesKHR(device, m_pipeline, 0, groupCount, dataSize, m_shaderHandles.data()));
+    //   
+    //   // Calculate SBT buffer size with proper alignment
+    //   auto     alignUp = [](uint32_t size, uint32_t alignment) { return (size + alignment - 1) & ~(alignment - 1); };
+    //   uint32_t raygenSize = alignUp(handleSize, handleAlignment);
+    //   uint32_t missSize = alignUp(handleSize, handleAlignment);
+    //   uint32_t hitSize = alignUp(handleSize, handleAlignment);
+    //   uint32_t callableSize = 0;  // No callable shaders in this tutorial
+    //   
+    //   // Ensure each region starts at a baseAlignment boundary
+    //   uint32_t raygenOffset = 0;
+    //   uint32_t missOffset = alignUp(raygenSize, baseAlignment);
+    //   uint32_t hitOffset = alignUp(missOffset + missSize, baseAlignment);
+    //   uint32_t callableOffset = alignUp(hitOffset + hitSize, baseAlignment);
+    //   
+    //   size_t bufferSize = callableOffset + callableSize;
+    //   
+    //   // Create SBT buffer
+    //   VK_CHECK(g_engine.m_device.CreateBuffer(m_sbtBuffer, bufferSize, VK_BUFFER_USAGE_2_SHADER_BINDING_TABLE_BIT_KHR, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+    //       VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT));
+    //   //NVVK_DBG_NAME(m_sbtBuffer.buffer);
+    //   
+    //   // Populate SBT buffer
+    //   uint8_t* pData = static_cast<uint8_t*>(m_sbtBuffer.mapping);
+    //   
+    //   // Ray generation shader (group 0)
+    //   memcpy(pData + raygenOffset, m_shaderHandles.data() + 0 * handleSize, handleSize);
+    //   m_raygenRegion.deviceAddress = m_sbtBuffer.address + raygenOffset;
+    //   m_raygenRegion.stride = raygenSize;
+    //   m_raygenRegion.size = raygenSize;
+    //   
+    //   // Miss shader (group 1)
+    //   memcpy(pData + missOffset, m_shaderHandles.data() + 1 * handleSize, handleSize);
+    //   m_missRegion.deviceAddress = m_sbtBuffer.address + missOffset;
+    //   m_missRegion.stride = missSize;
+    //   m_missRegion.size = missSize;
+    //   
+    //   // Hit shader (group 2)
+    //   memcpy(pData + hitOffset, m_shaderHandles.data() + 2 * handleSize, handleSize);
+    //   m_hitRegion.deviceAddress = m_sbtBuffer.address + hitOffset;
+    //   m_hitRegion.stride = hitSize;
+    //   m_hitRegion.size = hitSize;
+    //   
+    //   // Callable shaders (none in this tutorial)
+    //   m_callableRegion.deviceAddress = 0;
+    //   m_callableRegion.stride = 0;
+    //   m_callableRegion.size = 0;
+    //   
+    //   
+    //   ///////////////////////
+}
+
+void trayser::RayTracingPipeline::Update()
+{
+
 }

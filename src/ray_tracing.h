@@ -6,11 +6,11 @@
 namespace trayser
 {
 
-class RayTracingPipeline : public Pipeline
-{
-public:
-    virtual void Load() override;
-    virtual void Update() override;
-};
+//class RayTracingPipeline : public Pipeline
+//{
+//public:
+//    virtual void Load() override;
+//    virtual void Update() override;
+//};
 
 } // namespace trayser
