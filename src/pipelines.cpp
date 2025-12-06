@@ -49,7 +49,7 @@ void trayser::Pipeline::ReloadIfChanged()
 
 trayser::PBRPipeline::PBRPipeline()
 {
-	m_name = "pbr";
+	m_name = "rasterized";
 	m_canHotReload = true;
 }
 
@@ -451,7 +451,7 @@ trayser::RayTracingPipeline::RayTracingPipeline() :
     m_descriptorSetLayout(VK_NULL_HANDLE),
     m_descriptorSet(VK_NULL_HANDLE)
 {
-    m_name = "ray_tracing";
+    m_name = "ray_traced";
     m_canHotReload = true;
 }
 
