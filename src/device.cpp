@@ -37,22 +37,17 @@ VkResult trayser::Device::CreateBuffer(Buffer& outBuffer,
     VmaAllocationCreateFlags    flags, 
     std::span<const uint32_t>   queueFamilies)
 {
-    const VkBufferUsageFlags2CreateInfo bufferUsageFlags2CreateInfo{
-    .sType = VK_STRUCTURE_TYPE_BUFFER_USAGE_FLAGS_2_CREATE_INFO,
-    .usage = usage | VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_2_TRANSFER_DST_BIT,
-    };
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = size;
+    bufferInfo.usage = usage | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    bufferInfo.sharingMode = queueFamilies.empty() ? VK_SHARING_MODE_EXCLUSIVE : VK_SHARING_MODE_CONCURRENT;
+    bufferInfo.queueFamilyIndexCount = static_cast<uint32_t>(queueFamilies.size());
+    bufferInfo.pQueueFamilyIndices = queueFamilies.data();
 
-    const VkBufferCreateInfo bufferInfo{
-        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .pNext = &bufferUsageFlags2CreateInfo,
-        .size = size,
-        .usage = 0,
-        .sharingMode = queueFamilies.empty() ? VK_SHARING_MODE_EXCLUSIVE : VK_SHARING_MODE_CONCURRENT,
-        .queueFamilyIndexCount = static_cast<uint32_t>(queueFamilies.size()),
-        .pQueueFamilyIndices = queueFamilies.data(),
-    };
-
-    VmaAllocationCreateInfo allocInfo = { .flags = flags, .usage = memoryUsage };
+    VmaAllocationCreateInfo allocInfo{};
+    allocInfo.flags = flags;
+    allocInfo.usage = memoryUsage;
 
     return CreateBuffer(outBuffer, bufferInfo, allocInfo);
 }
@@ -182,14 +177,7 @@ VkResult trayser::Device::CreateAccelerationStructure(AccelerationStructure& out
 
     // Step 2: Create the acceleration structure with the buffer
     accelStruct.buffer = outAccelStruct.buffer.buffer;
-    result = m_rtFuncs.vkCreateAccelerationStructureKHR(m_device, &accelStruct, nullptr, &outAccelStruct.accel);
-
-    if (result != VK_SUCCESS)
-    {
-        //destroyBuffer(resultAccel.buffer);
-        //LOGW("Failed to create acceleration structure");
-        return result;
-    }
+    VK_CHECK(m_rtFuncs.vkCreateAccelerationStructureKHR(m_device, &accelStruct, nullptr, &outAccelStruct.accel));
 
     {
         VkAccelerationStructureDeviceAddressInfoKHR info{ .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR,
@@ -531,6 +519,10 @@ void trayser::Device::CreateTopLevelAs()
 
         g_engine.m_device.EndOneTimeSubmit(); // ensure it waits for completion
 
+        VkBufferDeviceAddressInfo addrInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
+        addrInfo.buffer = tlasInstancesBuffer.buffer;
+        tlasInstancesBuffer.address = vkGetBufferDeviceAddress(g_engine.m_device.m_device, &addrInfo);
+
         // 5) Destroy staging buffer
         vmaDestroyBuffer(g_engine.m_device.m_allocator, staging.buffer, staging.allocation);
 
@@ -543,8 +535,13 @@ void trayser::Device::CreateTopLevelAs()
         VkAccelerationStructureBuildRangeInfoKHR asBuildRangeInfo{};
 
         // Convert the instance information to acceleration structure geometry, similar to primitiveToGeometry()
-        VkAccelerationStructureGeometryInstancesDataKHR geometryInstances{ .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR,
-                                                                          .data = {.deviceAddress = tlasInstancesBuffer.address} };
+        VkAccelerationStructureGeometryInstancesDataKHR geometryInstances
+        {
+            .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR,
+            .pNext = nullptr,
+            .arrayOfPointers = VK_FALSE,
+            .data = {.deviceAddress = tlasInstancesBuffer.address}
+        };
         asGeometry = { .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
                             .geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR,
                             .geometry = {.instances = geometryInstances} };
@@ -588,7 +585,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(
     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
     void* pUserData)
 {
-    std::cerr << "Validation layer: " << pCallbackData->pMessage << std::endl;
+    std::cerr << "Validation layer: " << pCallbackData->pMessage << std::endl << std::endl;
     return VK_FALSE;
 }
 
@@ -746,16 +743,40 @@ void trayser::Device::InitLogicalDevice()
         queueCreateInfos.push_back(queueCreateInfo);
     }
 
+    // Core features
     VkPhysicalDeviceFeatures deviceFeatures{};
     deviceFeatures.samplerAnisotropy = VK_TRUE;
 
+    // Extension features
+    VkPhysicalDeviceBufferDeviceAddressFeatures bufferDeviceAddressFeatures{};
+    bufferDeviceAddressFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
+    bufferDeviceAddressFeatures.bufferDeviceAddress = VK_TRUE;
+
+    VkPhysicalDeviceAccelerationStructureFeaturesKHR accelFeatures{};
+    accelFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
+    accelFeatures.accelerationStructure = VK_TRUE;
+    accelFeatures.pNext = &bufferDeviceAddressFeatures;
+
+    VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeatures{};
+    rtPipelineFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
+    rtPipelineFeatures.rayTracingPipeline = VK_TRUE;
+    rtPipelineFeatures.pNext = &accelFeatures;
+
+    VkPhysicalDeviceVulkan13Features features13{};
+    features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+    features13.dynamicRendering = VK_TRUE;      // required for pipelines without renderPass
+    features13.synchronization2 = VK_TRUE;      // you use vkCmdPipelineBarrier2 / vkQueueSubmit2
+    features13.pNext = &rtPipelineFeatures;     // chain (plus your ray tracing feature structs)
+
+    // Device create info
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     createInfo.pQueueCreateInfos = queueCreateInfos.data();
     createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
-    createInfo.pEnabledFeatures = &deviceFeatures;
+    createInfo.pEnabledFeatures = &deviceFeatures; // core features
     createInfo.enabledExtensionCount = static_cast<uint32_t>(kPhysDeviceExtensions.size());
     createInfo.ppEnabledExtensionNames = kPhysDeviceExtensions.data();
+    createInfo.pNext = &features13; // chain extension features
 
     if (kUseValidationLayers)
     {
@@ -997,12 +1018,18 @@ void trayser::Device::InitImGui()
     ImGui_ImplVulkan_CreateFontsTexture();
 }
 
-void trayser::Device::InitRayTracing() const
+void trayser::Device::InitRayTracing()
 {
-    VkPhysicalDeviceProperties2 prop2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
+    m_rtProperties = VkPhysicalDeviceRayTracingPipelinePropertiesKHR{};
+    m_rtProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
+
+    m_asProperties = VkPhysicalDeviceAccelerationStructurePropertiesKHR{};
+    m_asProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR;
+
+    VkPhysicalDeviceProperties2 properties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
+    properties.pNext = &m_rtProperties;
     m_rtProperties.pNext = &m_asProperties;
-    prop2.pNext = &m_rtProperties;
-    vkGetPhysicalDeviceProperties2(m_physDevice, &prop2);
+    vkGetPhysicalDeviceProperties2(m_physDevice, &properties);
 }
 
 void trayser::Device::RenderImGui() const
@@ -1227,6 +1254,15 @@ void trayser::RuntimeFuncs::Init()
 
     vkGetAccelerationStructureBuildSizesKHR =
         (PFN_vkGetAccelerationStructureBuildSizesKHR)vkGetDeviceProcAddr(g_engine.m_device.m_device, "vkGetAccelerationStructureBuildSizesKHR");
+
+    vkCreateRayTracingPipelinesKHR =
+        (PFN_vkCreateRayTracingPipelinesKHR)vkGetDeviceProcAddr(g_engine.m_device.m_device, "vkCreateRayTracingPipelinesKHR");
+
+    vkGetRayTracingShaderGroupHandlesKHR =
+        (PFN_vkGetRayTracingShaderGroupHandlesKHR)vkGetDeviceProcAddr(g_engine.m_device.m_device, "vkGetRayTracingShaderGroupHandlesKHR");
+
+    vkCmdTraceRaysKHR =
+        (PFN_vkCmdTraceRaysKHR)vkGetDeviceProcAddr(g_engine.m_device.m_device, "vkCmdTraceRaysKHR");
 }
 
 void trayser::Swapchain::Init(VkDevice device)

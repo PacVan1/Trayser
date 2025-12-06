@@ -5,6 +5,7 @@
 #include <slang/slang.h>
 #include <slang/slang-com-ptr.h>
 #include <vector>
+#include <device.h>
 
 namespace trayser
 {
@@ -71,6 +72,12 @@ public:
         BindingPoints_OutImage,
     };
 
+    struct PushConstants
+    {
+        glm::mat4 viewInvMatrix;
+        glm::mat4 projInvMatrix;
+    };
+
 public:
     RayTracingPipeline();
     virtual void Load() override;
@@ -80,7 +87,7 @@ private:
     VkDescriptorSetLayout   m_descriptorSetLayout;
     VkDescriptorSet         m_descriptorSet;
     std::vector<u8>         m_shaderHandles;
-    //Buffer                  m_sbtBuffer;
+    Buffer                  m_sbtBuffer;
 
     VkStridedDeviceAddressRegionKHR m_raygenRegion;    // Ray generation shader region
     VkStridedDeviceAddressRegionKHR m_missRegion;      // Miss shader region

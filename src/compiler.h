@@ -13,9 +13,9 @@ namespace trayser
 
 struct SlangCompileInfo
 {
-    const char* fileName;
-    const char** entryPointNames;
-    uint32_t entryPointCount;
+    const char*     fileName;
+    const char**    entryPointNames;
+    uint32_t        entryPointCount;
 };
 
 class SlangCompiler
@@ -24,6 +24,7 @@ public:
     void Init();
     bool LoadShaderModule(const char* spirvFileName, VkShaderModule& outModule);
     void Compile(SlangCompileInfo& info, VkShaderModule* modules);
+    void Compile(SlangCompileInfo& info, VkShaderModuleCreateInfo* moduleCreateInfos);
     std::string FindExistingFile(const char* fileName);
 
 private:

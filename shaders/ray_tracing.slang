@@ -1,12 +1,16 @@
-// clang-format off
-// Push constants containing scene information and camera data
-[[vk::push_constant]]                           ConstantBuffer<TutoPushConstant> pushConst;
+[[vk::push_constant]]
+cbuffer PushConstants
+{
+    [[vk::offset(0)]]   column_major float4x4 viewInvMatrix;
+    [[vk::offset(64)]]   column_major float4x4 projInvMatrix;
+};
+
 // Texture array for material textures
-[[vk::binding(BindingPoints::eTextures, 0)]]    Sampler2D textures[];
+//[[vk::binding(BindingPoints::eTextures, 0)]]    Sampler2D textures[];
 // Top-level acceleration structure containing the scene geometry
-[[vk::binding(BindingPoints::eTlas, 1)]]        RaytracingAccelerationStructure topLevelAS;
+[[vk::binding(0, 0)]] RaytracingAccelerationStructure topLevelAS;
 // Output image where the final rendered result will be stored
-[[vk::binding(BindingPoints::eOutImage, 1)]]    RWTexture2D<float4> outImage;
+[[vk::binding(1, 0)]] RWTexture2D<float4> outImage;
 // clang-format on
 
 // Ray payload structure - carries data through the ray tracing pipeline
@@ -19,14 +23,11 @@ struct HitPayload
 
 // Ray generation shader - entry point for each pixel
 [shader("raygeneration")]
-void rgenMain()
+void rgMain()
 {
     // Get the current pixel coordinates and image dimensions
     float2 launchID = (float2)DispatchRaysIndex().xy;     // Current pixel (x,y)
     float2 launchSize = (float2)DispatchRaysDimensions().xy; // Image size (width,height)
-
-    // Retrieve scene information from push constants
-    GltfSceneInfo sceneInfo = pushConst.sceneInfoAddress[0];
 
     // Set ray tracing flags (0 = no special flags)
     const uint rayFlags = 0;
@@ -36,16 +37,16 @@ void rgenMain()
     const float2 clipCoords = launchID / launchSize * 2.0 - 1.0;
     
     // Transform from NDC to view space using inverse projection matrix
-    const float4 viewCoords = mul(float4(clipCoords, 1.0, 1.0), sceneInfo.projInvMatrix);
+    const float4 viewCoords = mul(float4(clipCoords, 1.0, 1.0), projInvMatrix);
 
     // Create the primary ray
     RayDesc ray;
     // Transform camera origin (0,0,0) from view space to world space
-    ray.Origin = mul(float4(0.0, 0.0, 0.0, 1.0), sceneInfo.viewInvMatrix).xyz;
+    ray.Origin = mul(float4(0.0, 0.0, 0.0, 1.0), viewInvMatrix).xyz;
     // Transform ray direction from view space to world space
-    ray.Direction = mul(float4(normalize(viewCoords.xyz), 0.0), sceneInfo.viewInvMatrix).xyz;
+    ray.Direction = mul(float4(normalize(viewCoords.xyz), 0.0), viewInvMatrix).xyz;
     ray.TMin = 0.001;    // Minimum distance to avoid self-intersection
-    ray.TMax = INFINITE; // Maximum distance (infinite for primary rays)
+    ray.TMax = 100.0; // Maximum distance (infinite for primary rays)
 
     // Initialize ray payload with default values
     HitPayload payload;
@@ -66,24 +67,24 @@ void rgenMain()
 
 // Closest hit shader - called when ray hits geometry
 [shader("closesthit")]
-void rchitMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes attr)
+void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
     // For now, just set a simple solid red color for all hits
     // In a full implementation, this would:
     // 1. Sample material properties (albedo, normal, etc.)
     // 2. Calculate lighting (direct + indirect)
     // 3. Potentially cast secondary rays (reflection, refraction)
-    payload.color = float3(1, 0, 0); // Red color
+    payload.color = float3(0.2, 0, 0); // Red color
 }
 
 // Miss shader - called when ray doesn't hit any geometry
 [shader("miss")]
-void rmissMain(inout HitPayload payload)
+void mMain(inout HitPayload payload)
 {
     // Set background color when ray misses all geometry
     // In a full implementation, this could sample from:
     // - Skybox textures
     // - Procedural sky gradients
     // - Environment maps
-    payload.color = float3(0.5, 0.5, 0.5); // Gray background
+    payload.color = float3(0.0, 0.0, 0.2); // Gray background
 }

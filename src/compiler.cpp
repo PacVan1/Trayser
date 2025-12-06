@@ -128,6 +128,56 @@ void trayser::SlangCompiler::Compile(SlangCompileInfo& info, VkShaderModule* mod
     }
 }
 
+void trayser::SlangCompiler::Compile(SlangCompileInfo& info, VkShaderModuleCreateInfo* moduleCreateInfos)
+{
+    Slang::ComPtr<slang::ISession> session;
+    CreateSlangSession(session);
+
+    slang::IModule* module = LoadModule(info.fileName, session);
+    if (!module)
+        return;
+
+    std::vector<slang::IComponentType*> componentTypes;
+    componentTypes.reserve(info.entryPointCount + 1);
+    componentTypes.push_back(module);
+
+    for (int i = 0; i < info.entryPointCount; i++)
+    {
+        Slang::ComPtr<slang::IEntryPoint> entryPoint;
+        module->findEntryPointByName(info.entryPointNames[i], entryPoint.writeRef());
+        componentTypes.push_back(entryPoint);
+    }
+
+    Slang::ComPtr<slang::IComponentType> composedProgram;
+    {
+        Slang::ComPtr<slang::IBlob> diagnosticsBlob;
+        SlangResult result = session->createCompositeComponentType(
+            componentTypes.data(),
+            componentTypes.size(),
+            composedProgram.writeRef(),
+            diagnosticsBlob.writeRef());
+
+        Diagnose(diagnosticsBlob);
+        if (result == SLANG_FAIL)
+            return;
+    }
+
+    Slang::ComPtr<slang::IBlob> diagnosticBlob;
+    std::vector< Slang::ComPtr<slang::IBlob>> spirv;
+    spirv.resize(info.entryPointCount);
+    for (int i = 0; i < info.entryPointCount; i++)
+    {
+        composedProgram->getEntryPointCode(i, 0, spirv[i].writeRef(), diagnosticBlob.writeRef());
+        Diagnose(diagnosticBlob);
+    }
+
+    for (int i = 0; i < info.entryPointCount; i++)
+    {
+        moduleCreateInfos[i].codeSize = spirv[i]->getBufferSize();
+        moduleCreateInfos[i].pCode = reinterpret_cast<const uint32_t*>(spirv[i]->getBufferPointer());
+    }
+}
+
 void trayser::SlangCompiler::CreateSlangSession(Slang::ComPtr<slang::ISession>& session) const
 {
     slang::TargetDesc targetDesc{};

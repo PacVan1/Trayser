@@ -68,6 +68,7 @@ struct DescriptorWriter
     VkDescriptorImageInfo bindlessImageInfos[kMaxImages];
 
     void WriteBindlessImage(int imageIdx, VkImageView image, VkSampler sampler, VkImageLayout layout, VkDescriptorType type);
+    void WriteAccelStruct(int binding, VkAccelerationStructureKHR& accelStruct);
     void WriteImage(int binding, VkImageView image, VkSampler sampler, VkImageLayout layout, VkDescriptorType type);
     void WriteBuffer(int binding, VkBuffer buffer, size_t size, size_t offset, VkDescriptorType type);
 

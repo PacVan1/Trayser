@@ -23,12 +23,6 @@ static constexpr u32 kFrameCount			= 2;
 static constexpr u32 kInitWindowWidth		= 1700;
 static constexpr u32 kInitWindowHeight		= 900;
 
-// Ray Tracing Properties
-static VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties{
-	VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR };
-static VkPhysicalDeviceAccelerationStructurePropertiesKHR m_asProperties{
-	VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR };
-
 struct Buffer
 {
 	VkBuffer            buffer;
@@ -81,6 +75,9 @@ struct RuntimeFuncs
 	PFN_vkCmdBuildAccelerationStructuresKHR vkCmdBuildAccelerationStructuresKHR;
 	PFN_vkGetAccelerationStructureDeviceAddressKHR vkGetAccelerationStructureDeviceAddressKHR;
 	PFN_vkGetAccelerationStructureBuildSizesKHR vkGetAccelerationStructureBuildSizesKHR;
+	PFN_vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR;
+	PFN_vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandlesKHR;
+	PFN_vkCmdTraceRaysKHR vkCmdTraceRaysKHR;
 };
 
 class Swapchain
@@ -181,7 +178,7 @@ private:
 	void InitImGui();
 
 	// Testing
-	void InitRayTracing() const;
+	void InitRayTracing();
 
 	void RenderImGui() const;
 	void ProcessSDLEvents();
@@ -237,6 +234,8 @@ public:
 	// Ray tracing test
 	std::vector<AccelerationStructure> m_blasAccel;     // Bottom-level acceleration structures
 	AccelerationStructure              m_tlasAccel;     // Top-level acceleration structure
+	VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties;
+	VkPhysicalDeviceAccelerationStructurePropertiesKHR m_asProperties;
 };
 
 [[nodiscard]] inline VkCommandPoolCreateInfo			CommandPoolCreateInfo(const void* pNext = nullptr);

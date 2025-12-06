@@ -22,6 +22,7 @@ enum PipelineType
 	PipelineType_Background,
 	PipelineType_PBR,
 	PipelineType_Tonemap,
+	PipelineType_RayTracing,
 	kPipelineTypeCount,
 };
 

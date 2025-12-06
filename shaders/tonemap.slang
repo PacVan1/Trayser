@@ -13,8 +13,7 @@ static constexpr float kPi = 3.14159265359;
 [[vk::push_constant]]
 cbuffer PushConstants
 {
-    [[vk::offset(0)]] int tonemapMode;
-    [[vk::offset(4)]] int3 padding;
+    [[vk::offset(0)]] int4 tonemapMode;
 };
 
 [[vk::binding(0, 0)]] RWTexture2D<float4> srcImage;
@@ -66,7 +65,7 @@ float3 TonemapFilmic(float3 color)
 [numthreads(16, 16, 1)]
 void csMain(uint3 dtID: SV_DispatchThreadID)    
 {
-    switch (tonemapMode)
+    switch (tonemapMode.x)
     {
     case TonemapMode.None: break;
 

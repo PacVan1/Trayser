@@ -25,7 +25,6 @@ VkDescriptorSetLayout DescriptorLayoutBuilder::Build(VkDevice device, VkShaderSt
 
     VkDescriptorSetLayoutCreateInfo info = { .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
     info.pNext = pNext;
-
     info.pBindings = m_bindings.data();
     info.bindingCount = (uint32_t)m_bindings.size();
     info.flags = flags;
@@ -206,6 +205,29 @@ void DescriptorWriter::WriteBindlessImage(int imageIdx, VkImageView image, VkSam
 	writes.push_back(write);
 }
 
+static VkAccelerationStructureKHR g_accelHandle{};
+static VkWriteDescriptorSetAccelerationStructureKHR g_asInfo{};
+
+void DescriptorWriter::WriteAccelStruct(int binding, VkAccelerationStructureKHR& accelStruct)
+{
+    g_accelHandle = accelStruct;
+
+    g_asInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
+    g_asInfo.accelerationStructureCount = 1;
+    g_asInfo.pAccelerationStructures = &g_accelHandle; // your VkAccelerationStructureKHR handle
+
+    VkWriteDescriptorSet write{};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet = VK_NULL_HANDLE;
+    write.dstBinding = binding;
+    write.dstArrayElement = 0;
+    write.descriptorCount = 1;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+    write.pNext = &g_asInfo; // chain the AS info
+
+    writes.push_back(write);
+}
+
 void DescriptorWriter::WriteImage(int binding, VkImageView image, VkSampler sampler, VkImageLayout layout, VkDescriptorType type)
 {
     VkDescriptorImageInfo& info = imageInfos.emplace_back(VkDescriptorImageInfo{
@@ -253,8 +275,17 @@ void DescriptorWriter::Clear()
 
 void DescriptorWriter::UpdateSet(VkDevice device, VkDescriptorSet set)
 {
+    assert(set != VK_NULL_HANDLE);
+
     for (VkWriteDescriptorSet& write : writes) {
         write.dstSet = set;
+    }
+
+    if (writes[0].descriptorType == VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR)
+    {
+        printf("asInfo ptr: %p, pAccelerationStructures: %p\n", (void*)&g_asInfo, (void*)g_asInfo.pAccelerationStructures);
+        assert(writes[0].pNext == &g_asInfo);
+        assert(g_asInfo.pAccelerationStructures != nullptr);
     }
 
     vkUpdateDescriptorSets(device, (uint32_t)writes.size(), writes.data(), 0, nullptr);

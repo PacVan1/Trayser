@@ -44,8 +44,8 @@ void trayser::Engine::Init()
     auto model = m_resources.Create<Model>(kModelPaths[ModelResource_DamagedHelmet], kModelPaths[ModelResource_DamagedHelmet], this);
     m_scene.CreateModel(model);
 
-    //m_device.CreateBottomLevelAs();
-    //m_device.CreateTopLevelAs();
+    m_device.CreateBottomLevelAs();
+    m_device.CreateTopLevelAs();
 
     InitPipelines();
 }
@@ -81,12 +81,13 @@ void trayser::Engine::Render()
     VkCommandBuffer cmd = m_device.GetCmd();
     BeginRecording(cmd);
 
-    vkutil::TransitionImage(cmd, m_gBuffer.colorImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    //vkutil::TransitionImage(cmd, m_gBuffer.colorImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     vkutil::TransitionImage(cmd, m_gBuffer.depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 
     m_pipelines[PipelineType_Background]->Update();
-    m_pipelines[PipelineType_PBR]->Update();
-    m_pipelines[PipelineType_Tonemap]->Update();
+    //m_pipelines[PipelineType_PBR]->Update();
+    m_pipelines[PipelineType_RayTracing]->Update();
+    //m_pipelines[PipelineType_Tonemap]->Update();
 
     // Transition the draw image and the swapchain image into their correct transfer layouts
     vkutil::TransitionImage(cmd, m_gBuffer.colorImage.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
@@ -118,7 +119,8 @@ void trayser::Engine::InitDescriptors()
     // Create a descriptor pool that will hold 10 sets with 1 image each
     std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> sizes =
     {
-        { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 }
+        { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
+        { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 }
     };
 
     m_globalDescriptorAllocator.Init(m_device.m_device, 20, sizes);
@@ -187,6 +189,7 @@ void trayser::Engine::InitPipelines()
 	m_pipelines.push_back(new BackgroundPipeline());
 	m_pipelines.push_back(new PBRPipeline());
 	m_pipelines.push_back(new TonemapPipeline());
+	m_pipelines.push_back(new RayTracingPipeline());
 
 	for (auto& pipeline : m_pipelines)
 	{
