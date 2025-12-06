@@ -2,7 +2,9 @@
 cbuffer PushConstants
 {
     [[vk::offset(0)]]   column_major float4x4 viewInvMatrix;
-    [[vk::offset(64)]]   column_major float4x4 projInvMatrix;
+    [[vk::offset(64)]]  column_major float4x4 projInvMatrix;
+    [[vk::offset(128)]] float4 camPos;
+    [[vk::offset(144)]] int4 renderMode;
 };
 
 // Texture array for material textures
@@ -14,7 +16,7 @@ cbuffer PushConstants
 // clang-format on
 
 static const float kMinT = 0.001f;
-static const float kMaxT = 5.0f;
+static const float kMaxT = 100.0f;
 
 // Ray payload structure - carries data through the ray tracing pipeline
 struct HitPayload
@@ -29,54 +31,47 @@ struct HitPayload
 [shader("raygeneration")]
 void rgMain()
 {
-    float2 launchID = (float2)DispatchRaysIndex().xy;
-    float2 launchSize = (float2)DispatchRaysDimensions().xy;
+    // Get the current pixel coordinates and image dimensions
+    float2 launchID = (float2)DispatchRaysIndex().xy;     // Current pixel (x,y)
+    float2 launchSize = (float2)DispatchRaysDimensions().xy; // Image size (width,height)
 
-    // Normalized device coordinates [-1,1]
-    float2 ndc = (launchID / launchSize) * 2.0 - 1.0;
+    // Set ray tracing flags (0 = no special flags)
+    const uint rayFlags = 0;
+    
+    // Convert pixel coordinates to normalized device coordinates (NDC)
+    // Range: [-1,1] for both x and y
+    const float2 clipCoords = launchID / launchSize * 2.0 - 1.0;
 
-    // Hardcoded camera setup
-    float3 camPos = float3(3.0, 0.0, 0.0); // camera 3 units off center
-    float3 target = float3(0.0, 0.0, 0.0); // look at origin
-    float3 up = float3(0.0, 1.0, 0.0);     // world up
-    float fovY = radians(60.0);            // vertical field of view
+    // Transform from NDC to view space using inverse projection matrix
+    const float4 viewCoords = mul(projInvMatrix, float4(clipCoords, 1.0, 1.0));
 
-    // Build camera basis
-    float3 forward = normalize(target - camPos);
-    float3 right = normalize(cross(up, forward));
-    float3 camUp = cross(forward, right);
-
-    // Aspect ratio
-    float aspect = launchSize.x / launchSize.y;
-
-    // Scale NDC by FOV
-    float px = ndc.x * aspect * tan(fovY * 0.5);
-    float py = -ndc.y * tan(fovY * 0.5);
-
-    // Ray direction in world space
-    float3 dir = normalize(forward + px * right + py * camUp);
-
-    // Build ray
+    // Create the primary ray
     RayDesc ray;
-    ray.Origin = camPos;
-    ray.Direction = dir;
-    ray.TMin = kMinT;
-    ray.TMax = kMaxT;
+    // Transform camera origin (0,0,0) from view space to world space
+    ray.Origin = mul(viewInvMatrix, float4(0.0, 0.0, 0.0, 1.0)).xyz;
+    // Transform ray direction from view space to world space
+    ray.Direction = mul(viewInvMatrix, float4(normalize(viewCoords.xyz), 0.0)).xyz;
+    ray.TMin = kMinT; // Minimum distance to avoid self-intersection
+    ray.TMax = kMaxT; // Maximum distance (infinite for primary rays)
 
-    // Payload init
+    // Initialize ray payload with default values
     HitPayload payload;
-    payload.color = float3(0, 0, 0);
-    payload.weight = 1;
+    payload.color = float3(0, 0, 0);  // Start with black
+    payload.weight = 1;               // Full weight for primary rays
     payload.distance = -1.0f;
-    payload.depth = 0;
+    payload.depth = 0;                // Start at depth 0
 
-    TraceRay(topLevelAS, 0, 0xff, 0, 0, 0, ray, payload);
+    // Cast the ray into the scene using the acceleration structure
+    // Parameters: AS, flags, instance mask, sbt offset, sbt stride, miss offset, ray, payload
+    TraceRay(topLevelAS, rayFlags, 0xff, 0, 0, 0, ray, payload);
 
+    // Get the final color from the ray tracing result
     float3 color = float3(payload.distance / kMaxT);
-
+    
     if (payload.depth == 0)
         return;
 
+    // Write the result to the output image
     outImage[int2(launchID)] = float4(color, 1.0);
 }
 

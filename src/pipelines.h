@@ -72,12 +72,6 @@ public:
         BindingPoints_OutImage,
     };
 
-    struct PushConstants
-    {
-        glm::mat4 viewInvMatrix;
-        glm::mat4 projInvMatrix;
-    };
-
 public:
     RayTracingPipeline();
     virtual void Load() override;

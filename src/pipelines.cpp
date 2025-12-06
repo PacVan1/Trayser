@@ -540,12 +540,14 @@ void trayser::RayTracingPipeline::Load()
     group.closestHitShader = eClosestHit;
     shader_groups.push_back(group);
     
-    // Push constant: we want to be able to update constants used by the shaders
-    const VkPushConstantRange push_constant{ VK_SHADER_STAGE_ALL, 0, sizeof(PushConstants) };
-    
+    VkPushConstantRange pushConst{};
+    pushConst.offset = 0;
+    pushConst.size = sizeof(gpu::PushConstants);
+    pushConst.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+
     VkPipelineLayoutCreateInfo pipeline_layout_create_info{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
     pipeline_layout_create_info.pushConstantRangeCount = 1;
-    pipeline_layout_create_info.pPushConstantRanges = &push_constant;
+    pipeline_layout_create_info.pPushConstantRanges = &pushConst;
     
     // Descriptor sets: one specific to ray tracing, and one shared with the rasterization pipeline
     pipeline_layout_create_info.setLayoutCount = 1;
@@ -665,15 +667,21 @@ void trayser::RayTracingPipeline::Update()
     vkCmdBindDescriptorSets(g_engine.m_device.GetCmd(), VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_layout, 0, 1, &m_descriptorSet, 0, nullptr);
 
     // Push constant information
-    PushConstants pushValues{};
-    pushValues.projInvMatrix = glm::inverse(g_engine.m_camera.m_proj);
-    pushValues.viewInvMatrix = glm::inverse(g_engine.m_camera.m_view);
+    gpu::PushConstants pushValues{};
+
+    glm::mat4 projection = g_engine.m_camera.m_proj;
+    projection[1][1] *= -1;
+
+    pushValues.model        = glm::inverse(projection);
+    pushValues.viewProj     = glm::inverse(g_engine.m_camera.m_view);
+    pushValues.camPos       = glm::vec4(g_engine.m_camera.m_transform.translation, 1.0f);
+    pushValues.renderMode.x = g_engine.m_renderMode;
 
     vkCmdPushConstants(g_engine.m_device.GetCmd(), 
         m_layout,
         VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 
         0, 
-        sizeof(PushConstants),
+        sizeof(gpu::PushConstants),
         &pushValues);
 
     // Ray trace
