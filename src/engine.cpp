@@ -7,6 +7,7 @@
 #include <types.h>
 #include <images.h>
 #include <pipelines.h>
+#include <tonemap_pipeline.h>
 
 #include "VkBootstrap.h"
 
