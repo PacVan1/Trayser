@@ -13,11 +13,15 @@ cbuffer PushConstants
 [[vk::binding(1, 0)]] RWTexture2D<float4> outImage;
 // clang-format on
 
+static const float kMinT = 0.001f;
+static const float kMaxT = 5.0f;
+
 // Ray payload structure - carries data through the ray tracing pipeline
 struct HitPayload
 {
     float3 color;   // Accumulated color along the ray path
     float  weight;  // Weight/importance of this ray (for importance sampling)
+    float  distance;
     int    depth;   // Current recursion depth (for limiting bounces)
 };
 
@@ -25,43 +29,54 @@ struct HitPayload
 [shader("raygeneration")]
 void rgMain()
 {
-    // Get the current pixel coordinates and image dimensions
-    float2 launchID = (float2)DispatchRaysIndex().xy;     // Current pixel (x,y)
-    float2 launchSize = (float2)DispatchRaysDimensions().xy; // Image size (width,height)
+    float2 launchID = (float2)DispatchRaysIndex().xy;
+    float2 launchSize = (float2)DispatchRaysDimensions().xy;
 
-    // Set ray tracing flags (0 = no special flags)
-    const uint rayFlags = 0;
-    
-    // Convert pixel coordinates to normalized device coordinates (NDC)
-    // Range: [-1,1] for both x and y
-    const float2 clipCoords = launchID / launchSize * 2.0 - 1.0;
-    
-    // Transform from NDC to view space using inverse projection matrix
-    const float4 viewCoords = mul(float4(clipCoords, 1.0, 1.0), projInvMatrix);
+    // Normalized device coordinates [-1,1]
+    float2 ndc = (launchID / launchSize) * 2.0 - 1.0;
 
-    // Create the primary ray
+    // Hardcoded camera setup
+    float3 camPos = float3(3.0, 0.0, 0.0); // camera 3 units off center
+    float3 target = float3(0.0, 0.0, 0.0); // look at origin
+    float3 up = float3(0.0, 1.0, 0.0);     // world up
+    float fovY = radians(60.0);            // vertical field of view
+
+    // Build camera basis
+    float3 forward = normalize(target - camPos);
+    float3 right = normalize(cross(up, forward));
+    float3 camUp = cross(forward, right);
+
+    // Aspect ratio
+    float aspect = launchSize.x / launchSize.y;
+
+    // Scale NDC by FOV
+    float px = ndc.x * aspect * tan(fovY * 0.5);
+    float py = -ndc.y * tan(fovY * 0.5);
+
+    // Ray direction in world space
+    float3 dir = normalize(forward + px * right + py * camUp);
+
+    // Build ray
     RayDesc ray;
-    // Transform camera origin (0,0,0) from view space to world space
-    ray.Origin = mul(float4(0.0, 0.0, 0.0, 1.0), viewInvMatrix).xyz;
-    // Transform ray direction from view space to world space
-    ray.Direction = mul(float4(normalize(viewCoords.xyz), 0.0), viewInvMatrix).xyz;
-    ray.TMin = 0.001;    // Minimum distance to avoid self-intersection
-    ray.TMax = 100.0; // Maximum distance (infinite for primary rays)
+    ray.Origin = camPos;
+    ray.Direction = dir;
+    ray.TMin = kMinT;
+    ray.TMax = kMaxT;
 
-    // Initialize ray payload with default values
+    // Payload init
     HitPayload payload;
-    payload.color = float3(0, 0, 0);  // Start with black
-    payload.weight = 1;               // Full weight for primary rays
-    payload.depth = 0;                // Start at depth 0
+    payload.color = float3(0, 0, 0);
+    payload.weight = 1;
+    payload.distance = -1.0f;
+    payload.depth = 0;
 
-    // Cast the ray into the scene using the acceleration structure
-    // Parameters: AS, flags, instance mask, sbt offset, sbt stride, miss offset, ray, payload
-    TraceRay(topLevelAS, rayFlags, 0xff, 0, 0, 0, ray, payload);
-    
-    // Get the final color from the ray tracing result
-    float3 color = payload.color;
-    
-    // Write the result to the output image
+    TraceRay(topLevelAS, 0, 0xff, 0, 0, 0, ray, payload);
+
+    float3 color = float3(payload.distance / kMaxT);
+
+    if (payload.depth == 0)
+        return;
+
     outImage[int2(launchID)] = float4(color, 1.0);
 }
 
@@ -75,6 +90,8 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     // 2. Calculate lighting (direct + indirect)
     // 3. Potentially cast secondary rays (reflection, refraction)
     payload.color = float3(0.2, 0, 0); // Red color
+    payload.depth = 1;
+    payload.distance = RayTCurrent();
 }
 
 // Miss shader - called when ray doesn't hit any geometry

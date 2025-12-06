@@ -85,9 +85,16 @@ void trayser::Engine::Render()
     vkutil::TransitionImage(cmd, m_gBuffer.depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 
     m_pipelines[PipelineType_Background]->Update();
-    //m_pipelines[PipelineType_PBR]->Update();
-    m_pipelines[PipelineType_RayTracing]->Update();
-    //m_pipelines[PipelineType_Tonemap]->Update();
+
+    if (m_rayTraced)
+    {
+        m_pipelines[PipelineType_RayTraced]->Update();
+    }
+    else
+    {
+        m_pipelines[PipelineType_Rasterized]->Update();
+        m_pipelines[PipelineType_Tonemap]->Update();
+    }
 
     // Transition the draw image and the swapchain image into their correct transfer layouts
     vkutil::TransitionImage(cmd, m_gBuffer.colorImage.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);

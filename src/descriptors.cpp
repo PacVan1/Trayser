@@ -275,17 +275,8 @@ void DescriptorWriter::Clear()
 
 void DescriptorWriter::UpdateSet(VkDevice device, VkDescriptorSet set)
 {
-    assert(set != VK_NULL_HANDLE);
-
     for (VkWriteDescriptorSet& write : writes) {
         write.dstSet = set;
-    }
-
-    if (writes[0].descriptorType == VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR)
-    {
-        printf("asInfo ptr: %p, pAccelerationStructures: %p\n", (void*)&g_asInfo, (void*)g_asInfo.pAccelerationStructures);
-        assert(writes[0].pNext == &g_asInfo);
-        assert(g_asInfo.pAccelerationStructures != nullptr);
     }
 
     vkUpdateDescriptorSets(device, (uint32_t)writes.size(), writes.data(), 0, nullptr);

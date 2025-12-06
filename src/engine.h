@@ -17,15 +17,6 @@
 static constexpr char const*	kEngineName	= "Trayser";
 static constexpr unsigned int	kFrameCount	= 2;
 
-enum PipelineType
-{
-	PipelineType_Background,
-	PipelineType_PBR,
-	PipelineType_Tonemap,
-	PipelineType_RayTracing,
-	kPipelineTypeCount,
-};
-
 struct ComputePushConstants 
 {
 	glm::vec4 data1;
@@ -73,8 +64,11 @@ public:
 	Device			m_device;
 	GBuffer			m_gBuffer;
 
-	RenderMode		m_renderMode = RenderMode_FinalColor;
-	TonemapMode		m_tonemapMode = TonemapMode_PBRNeutral;
+	RenderMode		m_renderMode	= RenderMode_FinalColor;
+	TonemapMode		m_tonemapMode	= TonemapMode_ACES;
+	PipelineMode	m_pipelineMode	= PipelineMode_Rasterized;
+
+	bool			m_rayTraced = false;
 
 	std::vector<Pipeline*> m_pipelines;
 

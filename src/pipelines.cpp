@@ -100,7 +100,7 @@ void trayser::PBRPipeline::Load()
     VkPipelineRasterizationStateCreateInfo rasterization{};
     rasterization.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     rasterization.polygonMode = VK_POLYGON_MODE_FILL;
-    rasterization.cullMode = VK_CULL_MODE_FRONT_BIT;
+    rasterization.cullMode = VK_CULL_MODE_NONE;
     rasterization.frontFace = VK_FRONT_FACE_CLOCKWISE;
     rasterization.lineWidth = 1.0f;
 
@@ -268,7 +268,7 @@ void trayser::PBRPipeline::Update()
             glm::mat4 projection = g_engine.m_camera.m_proj;
             projection[1][1] *= -1;
             pushConst.renderMode = glm::ivec4(g_engine.m_renderMode, 0, 0, 0);
-            pushConst.camPos = glm::vec4(g_engine.m_camera.m_position, 1.0f);
+            pushConst.camPos = glm::vec4(g_engine.m_camera.m_transform.translation, 1.0f);
 
             pushConst.viewProj = projection * g_engine.m_camera.m_view;
             pushConst.model = tf.matrix;
@@ -669,12 +669,6 @@ void trayser::RayTracingPipeline::Update()
     pushValues.projInvMatrix = glm::inverse(g_engine.m_camera.m_proj);
     pushValues.viewInvMatrix = glm::inverse(g_engine.m_camera.m_view);
 
-    const VkPushConstantsInfo pushInfo{ .sType = VK_STRUCTURE_TYPE_PUSH_CONSTANTS_INFO,
-                                       .layout = m_layout,
-                                       .stageFlags = VK_SHADER_STAGE_ALL,
-                                       .size = sizeof(PushConstants),
-                                       .pValues = &pushValues };
-    //vkCmdPushConstants2(g_engine.m_device.GetCmd(), &pushInfo);
     vkCmdPushConstants(g_engine.m_device.GetCmd(), 
         m_layout,
         VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 

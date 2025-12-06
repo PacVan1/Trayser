@@ -10,12 +10,12 @@ void trayser::Camera::Input()
 
 	float mod = input.IsKeyDown(KeyboardKey_LeftShift) ? 2.0f : 1.0f;
 	float vel = m_speed * mod;
-	if (input.IsKeyDown(KeyboardKey_D))	m_position += m_right * vel;
-	if (input.IsKeyDown(KeyboardKey_W))	m_position += m_ahead * vel;
-	if (input.IsKeyDown(KeyboardKey_R))	m_position += m_up * vel;
-	if (input.IsKeyDown(KeyboardKey_A))	m_position -= m_right * vel;
-	if (input.IsKeyDown(KeyboardKey_S))	m_position -= m_ahead * vel;
-	if (input.IsKeyDown(KeyboardKey_F))	m_position -= m_up * vel;
+	if (input.IsKeyDown(KeyboardKey_D))	m_transform.translation += m_right * vel;
+	if (input.IsKeyDown(KeyboardKey_W))	m_transform.translation += m_ahead * vel;
+	if (input.IsKeyDown(KeyboardKey_R))	m_transform.translation += m_up * vel;
+	if (input.IsKeyDown(KeyboardKey_A))	m_transform.translation -= m_right * vel;
+	if (input.IsKeyDown(KeyboardKey_S))	m_transform.translation -= m_ahead * vel;
+	if (input.IsKeyDown(KeyboardKey_F))	m_transform.translation -= m_up * vel;
 
 	m_yaw	+= input.GetMouseDeltaPos().x * m_sensitivity;
 	m_pitch -= input.GetMouseDeltaPos().y * m_sensitivity;
@@ -28,7 +28,7 @@ void trayser::Camera::Input()
 	m_right		= glm::normalize(glm::cross(m_ahead, glm::vec3(0.0f, 1.0f, 0.0f)));
 	m_up		= glm::normalize(glm::cross(m_right, m_ahead));
 
-	m_view = glm::lookAt(m_position, m_position + m_ahead, glm::vec3(0.0f, 1.0f, 0.0f));
+	m_view = glm::lookAt(m_transform.translation, m_transform.translation + m_ahead, glm::vec3(0.0f, 1.0f, 0.0f));
 	VkExtent2D extent = { g_engine.m_gBuffer.colorImage.imageExtent.width, g_engine.m_gBuffer.colorImage.imageExtent.height };
 	m_proj = glm::perspective(glm::radians(m_fov), (float)extent.width / (float)extent.height, 10000.0f, 0.1f);
 }

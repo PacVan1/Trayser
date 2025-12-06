@@ -3,6 +3,56 @@
 #include "engine.h"
 #include "imgui.h"
 
+namespace trayser
+{
+
+static void EditLocalTransform(LocalTransform& transform)
+{
+	ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(150, 50, 50, 255));
+	ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(180, 70, 70, 255));
+	ImGui::PushStyleColor(ImGuiCol_FrameBgActive, IM_COL32(200, 90, 90, 255));
+	if (ImGui::DragFloat3("##Translation", glm::value_ptr(transform.translation), 0.001f)) transform.dirty = true;
+	ImGui::PopStyleColor(3);
+	ImGui::SameLine();
+	if (ImGui::Button("-##Button0", ImVec2(ImGui::GetFrameHeight(), ImGui::GetFrameHeight())))
+	{
+		transform.translation = glm::vec3(0.0f);
+		transform.dirty = true;
+	}
+	ImGui::SameLine();
+	ImGui::Text("Translation");
+
+	ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(50, 150, 50, 255));
+	ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(70, 180, 70, 255));
+	ImGui::PushStyleColor(ImGuiCol_FrameBgActive, IM_COL32(90, 200, 90, 255));
+	if (ImGui::DragFloat4("##Orientation", &transform.orientation.x, 0.01f)) transform.dirty = true;
+	ImGui::PopStyleColor(3);
+	ImGui::SameLine();
+	if (ImGui::Button("-##Button1", ImVec2(ImGui::GetFrameHeight(), ImGui::GetFrameHeight())))
+	{
+		transform.orientation = glm::quat();
+		transform.dirty = true;
+	}
+	ImGui::SameLine();
+	ImGui::Text("Orientation");
+
+	ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(50, 50, 150, 255));
+	ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(70, 70, 180, 255));
+	ImGui::PushStyleColor(ImGuiCol_FrameBgActive, IM_COL32(90, 90, 200, 255));
+	if (ImGui::DragFloat3("##Scale", glm::value_ptr(transform.scale), 0.01f)) transform.dirty = true;
+	ImGui::PopStyleColor(3);
+	ImGui::SameLine();
+	if (ImGui::Button("-##Button2", ImVec2(ImGui::GetFrameHeight(), ImGui::GetFrameHeight())))
+	{
+		transform.scale = glm::vec3(1.0f);
+		transform.dirty = true;
+	}
+	ImGui::SameLine();
+	ImGui::Text("Scale");
+}
+
+} // namespace trayser
+
 trayser::Editor::Editor()
 {
 	AddWindow(0, new CameraWindow(), "Camera", ImGuiWindowFlags_AlwaysAutoResize);
@@ -63,6 +113,10 @@ void trayser::CameraWindow::Update()
 	ImGui::DragFloat("FOV", &cam.m_fov, 0.05f);
 	ImGui::DragFloat("Speed", &cam.m_speed, 0.01f);
 	ImGui::DragFloat("Sensitivity", &cam.m_sensitivity, 0.002f);
+
+	ImGui::SeparatorText("Transform");
+
+	EditLocalTransform(cam.m_transform);
 }
 
 void trayser::InspectorWindow::EditNode(Entity ent)
@@ -123,52 +177,12 @@ void trayser::InspectorWindow::Update()
 	ImGui::SeparatorText("Transform");
 
 	auto& tf = scene.m_registry.get<LocalTransform>(selected);
-
-	ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(150, 50, 50, 255));
-	ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(180, 70, 70, 255));
-	ImGui::PushStyleColor(ImGuiCol_FrameBgActive, IM_COL32(200, 90, 90, 255));
-	if (ImGui::DragFloat3("##Translation", glm::value_ptr(tf.translation), 0.01f)) tf.dirty = true;
-	ImGui::PopStyleColor(3);
-	ImGui::SameLine();
-	if (ImGui::Button("-##Button0", ImVec2(ImGui::GetFrameHeight(), ImGui::GetFrameHeight())))
-	{
-		tf.translation = glm::vec3(0.0f);
-		tf.dirty = true;
-	}
-	ImGui::SameLine();
-	ImGui::Text("Translation");
-
-	ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(50, 150, 50, 255));
-	ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(70, 180, 70, 255));
-	ImGui::PushStyleColor(ImGuiCol_FrameBgActive, IM_COL32(90, 200, 90, 255));
-	if (ImGui::DragFloat4("##Orientation", &tf.orientation.x, 0.01f)) tf.dirty = true;
-	ImGui::PopStyleColor(3);
-	ImGui::SameLine();
-	if (ImGui::Button("-##Button1", ImVec2(ImGui::GetFrameHeight(), ImGui::GetFrameHeight())))
-	{
-		tf.orientation = glm::quat();
-		tf.dirty = true;
-	}
-	ImGui::SameLine();
-	ImGui::Text("Orientation");
-
-	ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(50, 50, 150, 255));
-	ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(70, 70, 180, 255));
-	ImGui::PushStyleColor(ImGuiCol_FrameBgActive, IM_COL32(90, 90, 200, 255));
-	if (ImGui::DragFloat3("##Scale", glm::value_ptr(tf.scale), 0.01f)) tf.dirty = true;
-	ImGui::PopStyleColor(3);
-	ImGui::SameLine();
-	if (ImGui::Button("-##Button2", ImVec2(ImGui::GetFrameHeight(), ImGui::GetFrameHeight())))
-	{
-		tf.scale = glm::vec3(1.0f);
-		tf.dirty = true;
-	}
-	ImGui::SameLine();
-	ImGui::Text("Scale");
+	EditLocalTransform(tf);
 };
 
 void trayser::RenderSettingsWindow::Update()
 {
 	ImGui::Combo("Render Mode", &g_engine.m_renderMode, kRenderModeStr.c_str());
 	ImGui::Combo("Tonemap Mode", &g_engine.m_tonemapMode, kTonemapModeStr.c_str());
+	ImGui::Checkbox("Pipeline Mode", &g_engine.m_rayTraced);
 }

@@ -107,6 +107,23 @@ using TonemapMode = int;
 
 const std::string kTonemapModeStr = GetNullSeparated<TonemapMode_>();
 
+enum PipelineType
+{
+    PipelineType_Background,
+    PipelineType_Rasterized,
+    PipelineType_Tonemap,
+    PipelineType_RayTraced,
+    kPipelineTypeCount,
+};
+
+enum PipelineMode_
+{
+    PipelineMode_Rasterized = PipelineType_Rasterized,
+    PipelineMode_RayTraced = PipelineType_RayTraced,
+    kPipelineModeCount,
+};
+using PipelineMode = int;
+
 const std::string kModelPaths[kModelResourceCount] =
 {
     "../../assets/Khronos/CompareAmbientOcclusion/glTF-Binary/CompareAmbientOcclusion.glb",
