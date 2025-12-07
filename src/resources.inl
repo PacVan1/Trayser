@@ -54,6 +54,7 @@ inline trayser::ResourceHandle trayser::ResourcePool<T, Capacity>::Create(const 
 	new (&m_resources[handle]) T(std::forward<Args>(args)...);
 
 	m_handleToHash[handle] = hash;
+	m_takenSpots[handle] = true;
 	m_hashToHandle[hash] = handle;
 
 	return handle;
@@ -80,6 +81,7 @@ inline void trayser::ResourcePool<T, Capacity>::Free(const std::string& hashable
 
 	m_resources[handle].~T();
 	m_freeSpots.push_back(handle);
+	m_takenSpots[handle] = false;
 }
 
 template<typename T, size_t Capacity>
@@ -88,6 +90,7 @@ inline void trayser::ResourcePool<T, Capacity>::Free(ResourceHandle& handle)
 	m_hashToHandle.erase(m_handleToHash[handle]);
 	m_freeSpots.push_back(handle);
 	m_resources[handle].~T();
+	m_takenSpots[handle] = false;
 
 	handle = ResourceHandle_Invalid;
 }

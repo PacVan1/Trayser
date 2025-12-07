@@ -32,8 +32,11 @@ public:
 	void Free(const std::string& hashable);
 	void Free(ResourceHandle& handle);
 
-private:
+public:
 	std::array<T, Capacity>						m_resources;
+	std::array<bool, Capacity>					m_takenSpots;
+
+private:
 	std::vector<ResourceHandle>					m_freeSpots;
 	std::vector<Hash>							m_handleToHash;
 	std::unordered_map<Hash, ResourceHandle>	m_hashToHandle;

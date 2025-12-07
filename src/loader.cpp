@@ -182,13 +182,13 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
             switch (accessor->componentType)
             {
             case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
-                indices[indicesProcessed + i] = static_cast<uint32_t>(*(uint8_t*)(indexData + i * sizeof(uint8_t)));
+                indices[indicesProcessed + i] = verticesProcessed + static_cast<uint32_t>(*(uint8_t*)(indexData + i * sizeof(uint8_t)));
                 break;
             case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
-                indices[indicesProcessed + i] = static_cast<uint32_t>(*(uint16_t*)(indexData + i * sizeof(uint16_t)));
+                indices[indicesProcessed + i] = verticesProcessed + static_cast<uint32_t>(*(uint16_t*)(indexData + i * sizeof(uint16_t)));
                 break;
             case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
-                indices[indicesProcessed + i] = static_cast<uint32_t>(*(uint32_t*)(indexData + i * sizeof(uint32_t)));
+                indices[indicesProcessed + i] = verticesProcessed + static_cast<uint32_t>(*(uint32_t*)(indexData + i * sizeof(uint32_t)));
                 break;
             default:
                 printf("Unsupported index component type\n");

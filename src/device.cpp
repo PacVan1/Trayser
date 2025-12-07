@@ -411,23 +411,25 @@ bool trayser::Device::ShouldQuit() const
 
 void trayser::Device::CreateBottomLevelAs()
 {
+    m_blasAccel.resize(120);
+
     // One BLAS per primitive
-    int primitiveCount = 0;
-    auto view = g_engine.m_scene.m_registry.view<RenderComponent>();
-    for (const auto& [entity, render] : view.each())
+    for (int i = 0; i < g_engine.m_meshPool.m_resources.size(); i++)
     {
-        const Mesh& mesh = g_engine.m_meshPool.Get(render.mesh);
+        if (g_engine.m_meshPool.m_takenSpots[i])
+        {
+            const Mesh& mesh = g_engine.m_meshPool.Get(i);
 
-        VkAccelerationStructureGeometryKHR       asGeometry{};
-        VkAccelerationStructureBuildRangeInfoKHR asBuildRangeInfo{};
+            VkAccelerationStructureGeometryKHR       asGeometry{};
+            VkAccelerationStructureBuildRangeInfoKHR asBuildRangeInfo{};
 
-        // Convert the primitive information to acceleration structure geometry
-        PrimitiveToGeometry(mesh, asGeometry, asBuildRangeInfo);
+            // Convert the primitive information to acceleration structure geometry
+            PrimitiveToGeometry(mesh, asGeometry, asBuildRangeInfo);
 
-        m_blasAccel.emplace_back();
-        CreateAccelerationStructure(VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR, m_blasAccel[primitiveCount], asGeometry,
-            asBuildRangeInfo, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
-		primitiveCount++;
+            m_blasAccel.emplace_back();
+            CreateAccelerationStructure(VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR, m_blasAccel[i], asGeometry,
+                asBuildRangeInfo, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
+        }
     }
 }
 
@@ -443,18 +445,18 @@ void trayser::Device::CreateTopLevelAs()
     // First create the instance data for the TLAS
     std::vector<VkAccelerationStructureInstanceKHR> tlasInstances;
     auto view = g_engine.m_scene.m_registry.view<WorldTransform, RenderComponent>();
-    int primitiveCount = 0;
+    int i = 0;
     for (const auto& [entity, transform, render] : view.each())
     {
         VkAccelerationStructureInstanceKHR asInstance{};
         asInstance.transform = toTransformMatrixKHR(transform.matrix);  // Position of the instance
         asInstance.instanceCustomIndex = 0;                       // gl_InstanceCustomIndexEXT
-        asInstance.accelerationStructureReference = m_blasAccel[primitiveCount].address;  // Address of the BLAS
+        asInstance.accelerationStructureReference = m_blasAccel[render.mesh].address;  // Address of the BLAS
         asInstance.instanceShaderBindingTableRecordOffset = 0;  // We will use the same hit group for all objects
         asInstance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV;  // No culling - double sided
         asInstance.mask = 0xFF;
         tlasInstances.emplace_back(asInstance);
-        primitiveCount++;
+        i++;
     }
 
     // Then create the buffer with the instance data
@@ -545,7 +547,7 @@ void trayser::Device::CreateTopLevelAs()
         asGeometry = { .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
                             .geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR,
                             .geometry = {.instances = geometryInstances} };
-        asBuildRangeInfo = { .primitiveCount = static_cast<uint32_t>(primitiveCount) };
+        asBuildRangeInfo = { .primitiveCount = static_cast<uint32_t>(i) };
 
         CreateAccelerationStructure(VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR, m_tlasAccel, asGeometry,
             asBuildRangeInfo, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);

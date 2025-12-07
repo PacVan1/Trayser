@@ -224,7 +224,7 @@ void trayser::RasterizedPipeline::Update()
 
             vkCmdPushConstants(cmd, m_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(gpu::PushConstants), &pushConst);
 
-            vkCmdDrawIndexed(cmd, prim.indexCount, 1, prim.baseIndex, prim.baseVertex, 0);
+            vkCmdDrawIndexed(cmd, prim.indexCount, 1, prim.baseIndex, 0, 0);
         }
     }
 
