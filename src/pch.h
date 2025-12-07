@@ -16,8 +16,6 @@
 #include <assert.h>
 #include <fstream>
 #include <iostream>
-// temp
-#include <list>
 
 // Third-party
 #include <vulkan/vulkan.h>
@@ -41,7 +39,7 @@
 #include <slang/slang.h>
 #include <slang/slang-com-ptr.h>
 
-// Engine
+// Custom
 #include <types.h>
 #include <input.h>
-#include <compiler.h>
+#include <slang_compiler.h>

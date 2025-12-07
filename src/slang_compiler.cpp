@@ -1,25 +1,30 @@
 #include <pch.h>
 
-#include <compiler.h>
+#include <slang_compiler.h>
 #include <engine.h>
+#include <filesystem>
 
 static void Diagnose(Slang::ComPtr<slang::IBlob> blob)
 {
     if (blob != nullptr)
     {
-        printf("%s", (const char*)blob->getBufferPointer());
+        fmt::println("Slang compiler: {}\n", (const char*)blob->getBufferPointer());
     }
 }
 
-VkShaderModule CreateShaderModule(VkDevice device, const Slang::ComPtr<slang::IBlob>& blob)
+static VkShaderModule CreateShaderModule(VkDevice device, const Slang::ComPtr<slang::IBlob>& blob)
 {
-    VkShaderModuleCreateInfo ci{ VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
-    ci.codeSize = blob->getBufferSize();
-    ci.pCode = reinterpret_cast<const uint32_t*>(blob->getBufferPointer());
+    VkShaderModuleCreateInfo createInfo{ VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
+    createInfo.codeSize = blob->getBufferSize();
+    createInfo.pCode = reinterpret_cast<const uint32_t*>(blob->getBufferPointer());
 
-    VkShaderModule module = VK_NULL_HANDLE;
-    VkResult vr = vkCreateShaderModule(device, &ci, nullptr, &module);
-    if (vr != VK_SUCCESS) { printf("Failed to create shader module"); }
+    VkShaderModule module;
+    if (vkCreateShaderModule(device, &createInfo, nullptr, &module) != VK_SUCCESS)
+    {
+        fmt::println("Slang compiler: Failed to create shader module.\n");
+        return VK_NULL_HANDLE;
+    }
+
     return module;
 }
 
@@ -29,7 +34,7 @@ void trayser::SlangCompiler::Init()
     result = slang::createGlobalSession(m_slangGlobalSession.writeRef());
     if (SLANG_FAILED(result))
     {
-        fmt::println("Failed to create Slang global session");
+        fmt::println("Slang compiler: Failed to create global session.\n");
         return;
     }
 
@@ -42,21 +47,20 @@ void trayser::SlangCompiler::Init()
     };
 }
 
-bool trayser::SlangCompiler::LoadShaderModule(const char* spirvFileName, VkShaderModule& outModule)
+VkShaderModule trayser::SlangCompiler::LoadSpirV(const char* fileName)
 {
-    std::string filePath = FindExistingFile((std::string(spirvFileName) + ".spv").c_str());
+    std::string filePath = FindExistingFile((std::string(fileName) + ".spv").c_str());
 
     if (filePath.empty())
     {
-        return false;
+        return VK_NULL_HANDLE;
     }
 
-    // open the file. With cursor at the end
     std::ifstream file(filePath, std::ios::ate | std::ios::binary);
 
     if (!file.is_open())
     {
-        return false;
+        return VK_NULL_HANDLE;
     }
 
     size_t fileSize = (size_t)file.tellg();
@@ -64,41 +68,45 @@ bool trayser::SlangCompiler::LoadShaderModule(const char* spirvFileName, VkShade
     file.seekg(0);
     file.read((char*)buffer.data(), fileSize);
     file.close();
+
     VkShaderModuleCreateInfo createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     createInfo.pNext = nullptr;
     createInfo.codeSize = buffer.size() * sizeof(u32);
     createInfo.pCode = buffer.data();
-    VkShaderModule shaderModule;
-    if (vkCreateShaderModule(g_engine.m_device.m_device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
+
+    VkShaderModule module;
+    if (vkCreateShaderModule(g_engine.m_device.m_device, &createInfo, nullptr, &module) != VK_SUCCESS)
     {
-        return false;
+        fmt::println("Slang compiler: Failed to create shader module.\n");
+        return VK_NULL_HANDLE;
     }
 
-    outModule = shaderModule;
-    return true;
+    return module;
 }
 
-void trayser::SlangCompiler::Compile(SlangCompileInfo& info, VkShaderModule* modules)
+VkShaderModule trayser::SlangCompiler::Compile(SlangCompileInfo& info)
 {
     Slang::ComPtr<slang::ISession> session;
     CreateSlangSession(session);
 
-    slang::IModule* module = LoadModule(info.fileName, session);
-    if (!module)
-        return;
+    // Load the Slang module (source file)
+    slang::IModule* slangModule = LoadModule(info.fileName, session);
+    if (!slangModule)
+        return VK_NULL_HANDLE;
 
+    // Collect module + entry points into a composite
     std::vector<slang::IComponentType*> componentTypes;
-    componentTypes.reserve(info.entryPointCount + 1);
-    componentTypes.push_back(module);
+    componentTypes.push_back(slangModule);
 
     for (int i = 0; i < info.entryPointCount; i++)
     {
         Slang::ComPtr<slang::IEntryPoint> entryPoint;
-        module->findEntryPointByName(info.entryPointNames[i], entryPoint.writeRef());
+        slangModule->findEntryPointByName(info.entryPointNames[i], entryPoint.writeRef());
         componentTypes.push_back(entryPoint);
     }
 
+    // Compose into a single program
     Slang::ComPtr<slang::IComponentType> composedProgram;
     {
         Slang::ComPtr<slang::IBlob> diagnosticsBlob;
@@ -110,44 +118,44 @@ void trayser::SlangCompiler::Compile(SlangCompileInfo& info, VkShaderModule* mod
 
         Diagnose(diagnosticsBlob);
         if (result == SLANG_FAIL)
-            return;
+            return VK_NULL_HANDLE;
     }
 
+    // Request SPIR-V target code for the whole program
+    Slang::ComPtr<slang::IBlob> spirvBlob;
     Slang::ComPtr<slang::IBlob> diagnosticBlob;
-    std::vector< Slang::ComPtr<slang::IBlob>> spirv;
-    spirv.resize(info.entryPointCount);
-    for (int i = 0; i < info.entryPointCount; i++)
-    {
-        composedProgram->getEntryPointCode(i, 0, spirv[i].writeRef(), diagnosticBlob.writeRef());
-        Diagnose(diagnosticBlob);
-    }
 
-    for (int i = 0; i < info.entryPointCount; i++)
-    {
-        modules[i] = CreateShaderModule(g_engine.m_device.m_device, spirv[i]);
-    }
+    SlangResult result = composedProgram->getTargetCode(0, spirvBlob.writeRef(), diagnosticBlob.writeRef());
+
+    Diagnose(diagnosticBlob);
+    if (result == SLANG_FAIL)
+        return VK_NULL_HANDLE;
+
+    return CreateShaderModule(g_engine.m_device.m_device, spirvBlob);
 }
 
-void trayser::SlangCompiler::Compile(SlangCompileInfo& info, VkShaderModuleCreateInfo* moduleCreateInfos)
+VkShaderModule trayser::SlangCompiler::CompileAll(const char* fileName)
 {
     Slang::ComPtr<slang::ISession> session;
     CreateSlangSession(session);
 
-    slang::IModule* module = LoadModule(info.fileName, session);
-    if (!module)
-        return;
+    slang::IModule* slangModule = LoadModule(fileName, session);
+    if (!slangModule)
+        return VK_NULL_HANDLE;
 
     std::vector<slang::IComponentType*> componentTypes;
-    componentTypes.reserve(info.entryPointCount + 1);
-    componentTypes.push_back(module);
+    componentTypes.push_back(slangModule);
 
-    for (int i = 0; i < info.entryPointCount; i++)
+    // Collect all entry points automatically
+    int entryPointCount = slangModule->getDefinedEntryPointCount();
+    for (int i = 0; i < entryPointCount; i++)
     {
         Slang::ComPtr<slang::IEntryPoint> entryPoint;
-        module->findEntryPointByName(info.entryPointNames[i], entryPoint.writeRef());
+        slangModule->getDefinedEntryPoint(i, entryPoint.writeRef());
         componentTypes.push_back(entryPoint);
     }
 
+    // Compose program
     Slang::ComPtr<slang::IComponentType> composedProgram;
     {
         Slang::ComPtr<slang::IBlob> diagnosticsBlob;
@@ -159,31 +167,30 @@ void trayser::SlangCompiler::Compile(SlangCompileInfo& info, VkShaderModuleCreat
 
         Diagnose(diagnosticsBlob);
         if (result == SLANG_FAIL)
-            return;
+            return VK_NULL_HANDLE;
     }
 
+    // Emit one SPIR-V blob with all entry points
+    Slang::ComPtr<slang::IBlob> spirvBlob;
     Slang::ComPtr<slang::IBlob> diagnosticBlob;
-    std::vector< Slang::ComPtr<slang::IBlob>> spirv;
-    spirv.resize(info.entryPointCount);
-    for (int i = 0; i < info.entryPointCount; i++)
-    {
-        composedProgram->getEntryPointCode(i, 0, spirv[i].writeRef(), diagnosticBlob.writeRef());
-        Diagnose(diagnosticBlob);
-    }
+    SlangResult result = composedProgram->getTargetCode(
+        0, // target index for SPIR-V
+        spirvBlob.writeRef(),
+        diagnosticBlob.writeRef());
 
-    for (int i = 0; i < info.entryPointCount; i++)
-    {
-        moduleCreateInfos[i].codeSize = spirv[i]->getBufferSize();
-        moduleCreateInfos[i].pCode = reinterpret_cast<const uint32_t*>(spirv[i]->getBufferPointer());
-    }
+    Diagnose(diagnosticBlob);
+    if (result == SLANG_FAIL)
+        return VK_NULL_HANDLE;
+
+    return CreateShaderModule(g_engine.m_device.m_device, spirvBlob);
 }
 
 void trayser::SlangCompiler::CreateSlangSession(Slang::ComPtr<slang::ISession>& session) const
 {
     slang::TargetDesc targetDesc{};
-    targetDesc.format = SLANG_SPIRV;
-    targetDesc.profile = m_slangGlobalSession->findProfile("spirv_1_3");
-    targetDesc.flags = 0;
+    targetDesc.format   = SLANG_SPIRV;
+    targetDesc.profile  = m_slangGlobalSession->findProfile(kSpirVProfileStr);
+    targetDesc.flags    = 0;
 
     slang::SessionDesc sessionDesc{};
     sessionDesc.targets = &targetDesc;
@@ -195,11 +202,11 @@ void trayser::SlangCompiler::CreateSlangSession(Slang::ComPtr<slang::ISession>& 
     m_slangGlobalSession->createSession(sessionDesc, session.writeRef());
 }
 
-slang::IModule* trayser::SlangCompiler::LoadModule(const char* slangFileName, Slang::ComPtr<slang::ISession>& session)
+slang::IModule* trayser::SlangCompiler::LoadModule(const char* fileName, Slang::ComPtr<slang::ISession>& session)
 {
     slang::IModule* module = nullptr;
     Slang::ComPtr<slang::IBlob> diagnosticBlob;
-    module = session->loadModule(slangFileName, diagnosticBlob.writeRef());
+    module = session->loadModule(fileName, diagnosticBlob.writeRef());
     Diagnose(diagnosticBlob);
     return module;
 }

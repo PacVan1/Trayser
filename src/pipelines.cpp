@@ -3,7 +3,7 @@
 #include <fstream>
 //#include <initializers.h>
 #include <engine.h>
-#include <compiler.h>
+#include <slang_compiler.h>
 #include <filesystem>
 #include <array>
 
@@ -55,20 +55,9 @@ trayser::PBRPipeline::PBRPipeline()
 
 void trayser::PBRPipeline::Load()
 {
-    std::array<VkShaderModule, 2> modules;
-    const char* entryPointNames[] = { "vsMain", "fsMain" };
-
-    SlangCompileInfo compileInfo{};
-    compileInfo.fileName        = m_name.c_str();
-    compileInfo.entryPointNames = entryPointNames;
-    compileInfo.entryPointCount = 2;
-	g_engine.m_compiler.Compile(compileInfo, modules.data());
-
-	//if (!spirv[0] || !spirv[1])
-	//{
-	//	fmt::println("Failed to load PBR shaders");
-	//	return;
-	//}
+    VkShaderModule module = g_engine.m_compiler.CompileAll(m_name.c_str());
+    if (module == VK_NULL_HANDLE)
+        return;
 
     VkPushConstantRange pushConst{};
     pushConst.offset = 0;
@@ -138,14 +127,14 @@ void trayser::PBRPipeline::Load()
     VkPipelineShaderStageCreateInfo vsStage{};
     vsStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vsStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    vsStage.module = modules[0];
-    vsStage.pName = "main";
+    vsStage.module = module;
+    vsStage.pName = "vsMain";
 
     VkPipelineShaderStageCreateInfo fsStage{};
     fsStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     fsStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    fsStage.module = modules[1];
-    fsStage.pName = "main";
+    fsStage.module = module;
+    fsStage.pName = "fsMain";
 
     VkPipelineViewportStateCreateInfo viewportState{};
     viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -191,8 +180,7 @@ void trayser::PBRPipeline::Load()
         return;
     }
 
-    vkDestroyShaderModule(g_engine.m_device.m_device, modules[0], nullptr);
-    vkDestroyShaderModule(g_engine.m_device.m_device, modules[1], nullptr);
+    vkDestroyShaderModule(g_engine.m_device.m_device, module, nullptr);
 }
 
 void trayser::PBRPipeline::Update()
@@ -314,17 +302,15 @@ void trayser::BackgroundPipeline::Load()
     VK_CHECK(vkCreatePipelineLayout(g_engine.m_device.m_device, &computeLayout, nullptr, &m_layout));
 
     // Layout code
-    VkShaderModule computeDrawShader;
-    if (!g_engine.m_compiler.LoadShaderModule(m_name.c_str(), computeDrawShader))
-    {
-        fmt::print("Error when building the compute shader \n");
-    }
+    VkShaderModule module = g_engine.m_compiler.LoadSpirV(m_name.c_str());
+    if (module == VK_NULL_HANDLE)
+        return;
 
     VkPipelineShaderStageCreateInfo stageinfo{};
     stageinfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     stageinfo.pNext = nullptr;
     stageinfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-    stageinfo.module = computeDrawShader;
+    stageinfo.module = module;
     stageinfo.pName = "main";
 
     VkComputePipelineCreateInfo computePipelineCreateInfo{};
@@ -335,7 +321,7 @@ void trayser::BackgroundPipeline::Load()
 
     VK_CHECK(vkCreateComputePipelines(g_engine.m_device.m_device, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &m_pipeline));
 
-    vkDestroyShaderModule(g_engine.m_device.m_device, computeDrawShader, nullptr);
+    vkDestroyShaderModule(g_engine.m_device.m_device, module, nullptr);
 }
 
 void trayser::BackgroundPipeline::Update()
@@ -405,28 +391,22 @@ void trayser::RayTracingPipeline::Load()
     for (auto& s : stages)
         s.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     
-    // Compile shader, fallback to pre-compiled
-    VkShaderModule shaderModules[3];
-    const char* entryPointNames[3] = { "rgMain", "mMain", "chMain" };
-    SlangCompileInfo compileInfo{};
-    compileInfo.entryPointCount = 3;
-    compileInfo.entryPointNames = entryPointNames;
-    compileInfo.fileName        = m_name.c_str();
-
-    g_engine.m_compiler.Compile(compileInfo, shaderModules);
+    VkShaderModule module = g_engine.m_compiler.CompileAll(m_name.c_str());
+    if (module == VK_NULL_HANDLE)
+        return;
     
     stages[eRaygen].pNext = nullptr;
-    stages[eRaygen].pName = "main";
+    stages[eRaygen].pName = "rgMain";
     stages[eRaygen].stage = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
-    stages[eRaygen].module = shaderModules[eRaygen];
+    stages[eRaygen].module = module;
     stages[eMiss].pNext = nullptr;
-    stages[eMiss].pName = "main";
+    stages[eMiss].pName = "mMain";
     stages[eMiss].stage = VK_SHADER_STAGE_MISS_BIT_KHR;
-    stages[eMiss].module = shaderModules[eMiss];
+    stages[eMiss].module = module;
     stages[eClosestHit].pNext = nullptr;
-    stages[eClosestHit].pName = "main";
+    stages[eClosestHit].pName = "chMain";
     stages[eClosestHit].stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-    stages[eClosestHit].module = shaderModules[eClosestHit];
+    stages[eClosestHit].module = module;
     
     // Shader groups
     VkRayTracingShaderGroupCreateInfoKHR group{ VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR };

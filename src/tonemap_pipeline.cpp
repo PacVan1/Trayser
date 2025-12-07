@@ -1,7 +1,7 @@
 #include <pch.h>
 
 #include <tonemap_pipeline.h>
-#include <compiler.h>
+#include <slang_compiler.h>
 #include <engine.h>
 
 trayser::TonemapPipeline::TonemapPipeline() :
@@ -46,20 +46,15 @@ void trayser::TonemapPipeline::Load()
 
     VK_CHECK(vkCreatePipelineLayout(g_engine.m_device.m_device, &computeLayout, nullptr, &m_layout));
 
-    std::array<VkShaderModule, 1> modules;
-    const char* entryPointNames[] = { "csMain" };
-
-    SlangCompileInfo compileInfo{};
-    compileInfo.fileName = m_name.c_str();
-    compileInfo.entryPointNames = entryPointNames;
-    compileInfo.entryPointCount = 1;
-    g_engine.m_compiler.Compile(compileInfo, modules.data());
+    VkShaderModule module = g_engine.m_compiler.CompileAll(m_name.c_str());
+    if (module == VK_NULL_HANDLE)
+        return;
 
     VkPipelineShaderStageCreateInfo stageinfo{};
     stageinfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     stageinfo.pNext = nullptr;
     stageinfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-    stageinfo.module = modules[0];
+    stageinfo.module = module;
     stageinfo.pName = "main";
 
     VkComputePipelineCreateInfo computePipelineCreateInfo{};
@@ -70,7 +65,7 @@ void trayser::TonemapPipeline::Load()
 
     VK_CHECK(vkCreateComputePipelines(g_engine.m_device.m_device, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &m_pipeline));
 
-    vkDestroyShaderModule(g_engine.m_device.m_device, modules[0], nullptr);
+    vkDestroyShaderModule(g_engine.m_device.m_device, module, nullptr);
 }
 
 void trayser::TonemapPipeline::Update()

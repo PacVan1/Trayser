@@ -12,7 +12,7 @@
 #include <pipelines.h>
 #include <device.h>
 #include <gbuffer.h>
-#include <compiler.h>
+#include <slang_compiler.h>
 
 static constexpr char const*	kEngineName	= "Trayser";
 static constexpr unsigned int	kFrameCount	= 2;

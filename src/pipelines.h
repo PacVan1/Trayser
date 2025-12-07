@@ -2,8 +2,6 @@
 
 #include <types.h>
 #include <chrono>
-#include <slang/slang.h>
-#include <slang/slang-com-ptr.h>
 #include <vector>
 #include <device.h>
 
