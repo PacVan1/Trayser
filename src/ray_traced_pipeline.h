@@ -13,6 +13,8 @@ public:
     {
         BindingPoints_TLAS,
         BindingPoints_OutImage,
+        BindingPoints_Vertices,
+        BindingPoints_Indices,
     };
 
 public:

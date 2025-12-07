@@ -18,12 +18,24 @@ void trayser::RayTracedPipeline::Load()
     DescriptorLayoutBuilder builder;
     builder.AddBinding(BindingPoints_TLAS, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
     builder.AddBinding(BindingPoints_OutImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    builder.AddBinding(BindingPoints_Vertices, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+    builder.AddBinding(BindingPoints_Indices, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
     m_descriptorSetLayout = builder.Build(g_engine.m_device.m_device, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
 
     m_descriptorSet = g_engine.m_globalDescriptorAllocator.Allocate(g_engine.m_device.m_device, m_descriptorSetLayout);
 
     DescriptorWriter writer;
     writer.WriteImage(1, g_engine.m_gBuffer.colorImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    writer.WriteBuffer(BindingPoints_Vertices,
+        g_engine.m_meshPool.m_resources.back().vertexBuffer.buffer, 
+        g_engine.m_meshPool.m_resources.back().vertexBuffer.info.size, 
+        VK_IMAGE_LAYOUT_GENERAL, 
+        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+    writer.WriteBuffer(BindingPoints_Indices,
+        g_engine.m_meshPool.m_resources.back().indexBuffer.buffer,
+        g_engine.m_meshPool.m_resources.back().indexBuffer.info.size,
+        VK_IMAGE_LAYOUT_GENERAL,
+        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
     writer.UpdateSet(g_engine.m_device.m_device, m_descriptorSet);
 
     for (auto& b : builder.m_bindings) {

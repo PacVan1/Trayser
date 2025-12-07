@@ -7,12 +7,26 @@ cbuffer PushConstants
     [[vk::offset(144)]] int4 renderMode;
 };
 
+struct Vertex
+{
+    float3 position;
+    float uvX;
+    float3 normal;
+    float uvY;
+    float4 color;
+    float3 tangent;
+    float handedness;
+}
+
 // Texture array for material textures
 //[[vk::binding(BindingPoints::eTextures, 0)]]    Sampler2D textures[];
 // Top-level acceleration structure containing the scene geometry
 [[vk::binding(0, 0)]] RaytracingAccelerationStructure topLevelAS;
 // Output image where the final rendered result will be stored
 [[vk::binding(1, 0)]] RWTexture2D<float4> outImage;
+
+[[vk::binding(2, 0)]] StructuredBuffer<Vertex> vertices;
+[[vk::binding(3, 0)]] StructuredBuffer<uint32_t> indices;
 // clang-format on
 
 static const float kMinT = 0.001f;
@@ -66,7 +80,7 @@ void rgMain()
     TraceRay(topLevelAS, rayFlags, 0xff, 0, 0, 0, ray, payload);
 
     // Get the final color from the ray tracing result
-    float3 color = float3(payload.distance / kMaxT);
+    float3 color = payload.color;
     
     if (payload.depth == 0)
         return;
@@ -79,12 +93,32 @@ void rgMain()
 [shader("closesthit")]
 void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
-    // For now, just set a simple solid red color for all hits
-    // In a full implementation, this would:
-    // 1. Sample material properties (albedo, normal, etc.)
-    // 2. Calculate lighting (direct + indirect)
-    // 3. Potentially cast secondary rays (reflection, refraction)
-    payload.color = float3(0.2, 0, 0); // Red color
+    // Triangle index inside the BLAS
+    uint triIndex = PrimitiveIndex() * 3;
+
+    // Fetch the three vertex indices
+    uint i0 = indices[triIndex + 0];
+    uint i1 = indices[triIndex + 1];
+    uint i2 = indices[triIndex + 2];
+
+    // Fetch the three vertices
+    Vertex v0 = vertices[i0];
+    Vertex v1 = vertices[i1];
+    Vertex v2 = vertices[i2];
+
+    // Interpolate attributes using barycentrics
+    float w0 = 1.0 - attr.barycentrics.x - attr.barycentrics.y;
+    float w1 = attr.barycentrics.x;
+    float w2 = attr.barycentrics.y;
+
+    float3 hitPos = v0.position * w0 + v1.position * w1 + v2.position * w2;
+    float3 hitNormal = normalize(v0.normal * w0 + v1.normal * w1 + v2.normal * w2);
+    float hitUVX = v0.uvX * w0 + v1.uvX * w1 + v2.uvX * w2;
+    float hitUVY = v0.uvY * w0 + v1.uvY * w1 + v2.uvY * w2;
+
+    // Use hitPos, hitNormal, hitUV for shading
+    payload.color = (float3(hitNormal) + 1.0) * 0.5; // example: encode UVs as color
+
     payload.depth = 1;
     payload.distance = RayTCurrent();
 }
