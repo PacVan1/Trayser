@@ -2,50 +2,59 @@
 
 #include <memory>
 #include <unordered_map>
+#include <numeric>
+
+namespace trayser
+{
+
+using ResourceHandle = size_t;
+
+enum
+{
+	ResourceHandle_Invalid = -1,
+};
+
+template <typename T, size_t Capacity>
+class ResourcePool
+{
+public:
+
+private:
+	using Hash = size_t;
+
+public:
+	void Init();
+
+	template <typename... Args>
+	[[nodiscard]] ResourceHandle Create(const std::string& hashable, Args&&... args);
+
+	[[nodiscard]] const T& Get(ResourceHandle handle) const;
+	void Free(const std::string& hashable);
+	void Free(ResourceHandle& handle);
+
+private:
+	std::array<T, Capacity>						m_resources;
+	std::vector<ResourceHandle>					m_freeSpots;
+	std::vector<Hash>							m_handleToHash;
+	std::unordered_map<Hash, ResourceHandle>	m_hashToHandle;
+};
 
 class Resources
 {
-public:
-	using ResourceID = size_t;
-
 public:
 	template <typename T, typename... Args>
 	std::shared_ptr<T> Create(const std::string& path, Args&&... args);
 
 	template <typename T>
-	std::shared_ptr<T> Get(ResourceID id);
+	std::shared_ptr<T> Get(ResourceHandle id);
 
 	template <typename T>
 	std::shared_ptr<T> Get(const std::string& hashable);
 
 private:
-	std::unordered_map<ResourceID, std::shared_ptr<void>> m_resources;
+	std::unordered_map<ResourceHandle, std::shared_ptr<void>> m_resources;
 };
 
-template <typename T, typename... Args>
-inline std::shared_ptr<T> Resources::Create(const std::string& hashable, Args&&... args)
-{	
-	ResourceID id = std::hash<std::string>()(hashable);
-	
-	std::shared_ptr<T> resource = Get<T>(id);
-	if (resource) return resource;
+} // namespace trayser
 
-	resource = std::make_shared<T>(std::forward<Args>(args)...);
-	m_resources[id] = resource;
-
-	return resource;
-}
-
-template <typename T>
-inline std::shared_ptr<T> Resources::Get(ResourceID id)
-{
-	auto it = m_resources.find(id);
-	if (it != m_resources.end()) return std::static_pointer_cast<T>(it->second);
-	return std::shared_ptr<T>();
-}
-
-template<typename T>
-inline std::shared_ptr<T> Resources::Get(const std::string& hashable)
-{
-	return Get<T>(std::hash<std::string>()(hashable));
-}
+#include <resources.inl>

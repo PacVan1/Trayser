@@ -42,15 +42,21 @@ void trayser::Engine::Init()
 
     Model::MikkTSpaceInit();
 
-    auto model = m_resources.Create<Model>(kModelPaths[ModelResource_DamagedHelmet], kModelPaths[ModelResource_DamagedHelmet], this);
-    m_scene.CreateModel(model);
+    //auto model = m_resources.Create<Model>(kModelPaths[ModelResource_DamagedHelmet], kModelPaths[ModelResource_DamagedHelmet], this);
 
-    m_scene.Update(1.0f);
 
-    m_device.CreateBottomLevelAs();
-    m_device.CreateTopLevelAs();
+    //m_device.CreateBottomLevelAs();
+    //m_device.CreateTopLevelAs();
 
     InitPipelines();
+
+    m_modelPool.Init();
+    m_meshPool.Init();
+    ModelHandle handle = m_modelPool.Create(kModelPaths[ModelResource_DamagedHelmet], kModelPaths[ModelResource_DamagedHelmet], this);
+    const Model& model1 = m_modelPool.Get(handle);
+    m_scene.CreateModel(model1);
+
+    m_scene.Update(1.0f);
 }
 
 void trayser::Engine::Cleanup()

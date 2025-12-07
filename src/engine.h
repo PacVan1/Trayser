@@ -68,6 +68,9 @@ public:
 	TonemapMode		m_tonemapMode	= TonemapMode_ACES;
 	PipelineMode	m_pipelineMode	= PipelineMode_Rasterized;
 
+	ResourcePool<Model, 10> m_modelPool;
+	ResourcePool<Mesh, 20> m_meshPool;
+
 	bool			m_rayTraced = false;
 
 	std::vector<Pipeline*> m_pipelines;

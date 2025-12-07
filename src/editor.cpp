@@ -151,8 +151,8 @@ void trayser::InspectorWindow::Update()
 
 	if (ImGui::Button("Create"))
 	{
-		auto model = g_engine.m_resources.Create<Model>(kModelPaths[selectedModel], kModelPaths[selectedModel], &g_engine);
-		scene.CreateModel(model);
+		ModelHandle handle = g_engine.m_modelPool.Create(kModelPaths[selectedModel], kModelPaths[selectedModel], &g_engine);
+		scene.CreateModel(g_engine.m_modelPool.Get(handle));
 	}
 	ImGui::SameLine();
 	ImGui::Combo("Model", &selectedModel, kModelResourceStr.c_str());

@@ -16,6 +16,7 @@
 #include <assert.h>
 #include <fstream>
 #include <iostream>
+#include <numeric>
 
 // Third-party
 #include <vulkan/vulkan.h>

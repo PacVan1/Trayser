@@ -416,7 +416,7 @@ void trayser::Device::CreateBottomLevelAs()
     auto view = g_engine.m_scene.m_registry.view<RenderComponent>();
     for (const auto& [entity, render] : view.each())
     {
-        Mesh& mesh = *render.mesh.get();
+        const Mesh& mesh = g_engine.m_meshPool.Get(render.mesh);
 
         VkAccelerationStructureGeometryKHR       asGeometry{};
         VkAccelerationStructureBuildRangeInfoKHR asBuildRangeInfo{};

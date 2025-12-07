@@ -4,9 +4,13 @@
 #include <unordered_map>
 #include <filesystem>
 #include <mikktspace.h>
+#include <resources.h>
 
 namespace trayser
 {
+
+using ModelHandle = ResourceHandle;
+using MeshHandle = ResourceHandle;
 
 class Engine;
 
@@ -68,6 +72,7 @@ struct Mesh
 	u32                     vertexCount;
 	u32                     indexCount;
 
+    Mesh() = default;
     Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mesh& loadedMesh, const std::string& folder);
     void LoadMaterial(const tinygltf::Model&, const tinygltf::Material&, const std::string& folder, Material&);
 };
@@ -77,7 +82,8 @@ struct Model
 public:
 struct Node
 {
-    std::shared_ptr<Mesh> mesh;
+    //std::shared_ptr<Mesh> mesh;
+    MeshHandle handle;
     std::vector<int> children;
     glm::vec3 translation = glm::vec3(0.0f);
     glm::quat orientation;
@@ -141,6 +147,7 @@ public:
     }
 
 public:
+    Model() = default;
     Model(std::string_view path, Engine* engine);
     void TraverseNode(tinygltf::Model&, const tinygltf::Node&, Node*, const std::string&);
 };

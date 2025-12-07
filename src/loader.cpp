@@ -99,7 +99,8 @@ void trayser::Model::TraverseNode(tinygltf::Model& loaded, const tinygltf::Node&
 
         auto& loadedMesh = loaded.meshes[loadedNode.mesh];
         auto& engine = g_engine;
-        node.mesh = engine.m_resources.Create<Mesh>(name, &engine, loaded, loadedMesh, folder);
+        //node.mesh = engine.m_resources.Create<Mesh>(name, &engine, loaded, loadedMesh, folder);
+        node.handle = engine.m_meshPool.Create(name, &engine, loaded, loadedMesh, folder);
     }
 
     for (int nodeIdx : loadedNode.children)

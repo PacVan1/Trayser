@@ -34,7 +34,8 @@ struct WorldTransform
 
 struct RenderComponent
 {
-    std::shared_ptr<Mesh> mesh;
+    //std::shared_ptr<Mesh> mesh;
+    MeshHandle mesh;
 };
 
 } // namespace components

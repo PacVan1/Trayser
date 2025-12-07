@@ -16,9 +16,9 @@ public:
     void    Update(float dt);
     Entity  CreateNode();
     Entity  CreateNode(Entity parent);
-    Entity  CreateModel(std::shared_ptr<Model> model);
-    Entity  CreateModel(std::shared_ptr<Model> model, Entity parent);
-    Entity  TraverseModel(std::shared_ptr<Model> model, int modelNodeIdx, SGNode* parent);
+    Entity  CreateModel(const Model& model);
+    Entity  CreateModel(const Model& model, Entity parent);
+    Entity  TraverseModel(const Model& model, int modelNodeIdx, SGNode* parent);
     void    AddNode(Entity child);
     void    AddNode(Entity parent, Entity child);
     void    Clear();

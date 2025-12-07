@@ -2,6 +2,7 @@
 
 #include <stack>
 #include <scene.h>
+#include <engine.h>
 
 trayser::Scene::Scene() :
     m_dirty(true)
@@ -72,9 +73,9 @@ Entity trayser::Scene::CreateNode(Entity parent)
     return child;
 }
 
-Entity trayser::Scene::TraverseModel(std::shared_ptr<Model> model, int modelNodeIdx, SGNode* parent)
+Entity trayser::Scene::TraverseModel(const Model& model, int modelNodeIdx, SGNode* parent)
 {
-    Model::Node* modelNode = &model->nodes[modelNodeIdx];
+    const Model::Node* modelNode = &model.nodes[modelNodeIdx];
 
     // Create child and components
     Entity child = m_registry.create();
@@ -83,9 +84,9 @@ Entity trayser::Scene::TraverseModel(std::shared_ptr<Model> model, int modelNode
     m_registry.emplace<WorldTransform>(child);
 
     // If the node has a mesh, add the render component
-    if (modelNode->mesh)
+    if (modelNode->handle != ResourceHandle_Invalid)
     {
-        m_registry.emplace<RenderComponent>(child, modelNode->mesh);
+        m_registry.emplace<RenderComponent>(child, modelNode->handle);
     }
 
     // Add new child to parent
@@ -110,15 +111,15 @@ Entity trayser::Scene::TraverseModel(std::shared_ptr<Model> model, int modelNode
     return child;
 }
 
-Entity trayser::Scene::CreateModel(std::shared_ptr<Model> model)
+Entity trayser::Scene::CreateModel(const Model& model)
 {
     return CreateModel(model, m_root);
 }
 
-Entity trayser::Scene::CreateModel(std::shared_ptr<Model> model, Entity parent)
+Entity trayser::Scene::CreateModel(const Model& model, Entity parent)
 {
     Entity node = entt::null;
-    for (auto rootNode : model->rootNodes)
+    for (auto rootNode : model.rootNodes)
     {
         node = TraverseModel(model, rootNode, &m_registry.get<SGNode>(parent));
     }

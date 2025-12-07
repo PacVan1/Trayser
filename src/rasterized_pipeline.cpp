@@ -191,22 +191,22 @@ void trayser::RasterizedPipeline::Update()
     auto view = g_engine.m_scene.m_registry.view<WorldTransform, RenderComponent>();
     for (const auto& [ent, tf, render] : view.each())
     {
-        VkBuffer vertexBuffers[] = { render.mesh->vertexBuffer.buffer };
+        VkBuffer vertexBuffers[] = { g_engine.m_meshPool.Get(render.mesh).vertexBuffer.buffer };
         VkDeviceSize offsets[] = { 0 };
-        vkCmdBindIndexBuffer(cmd, render.mesh->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindIndexBuffer(cmd, g_engine.m_meshPool.Get(render.mesh).indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
         vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
 
-        for (auto& prim : render.mesh->primitives)
+        for (auto& prim : g_engine.m_meshPool.Get(render.mesh).primitives)
         {
             //bind a texture
             VkDescriptorSet imageSet = g_engine.m_device.GetFrame().descriptors.Allocate(g_engine.m_device.m_device, g_engine.m_singleImageDescriptorLayout);
             {
                 DescriptorWriter writer;
-                writer.WriteImage(0, render.mesh->materials[prim.materialId].baseColor ? render.mesh->materials[prim.materialId].baseColor->imageView : g_engine.m_defaultMaterial.baseColor->imageView, g_engine.m_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-                writer.WriteImage(1, render.mesh->materials[prim.materialId].normalMap ? render.mesh->materials[prim.materialId].normalMap->imageView : g_engine.m_defaultMaterial.normalMap->imageView, g_engine.m_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-                writer.WriteImage(2, render.mesh->materials[prim.materialId].metallicRoughness ? render.mesh->materials[prim.materialId].metallicRoughness->imageView : g_engine.m_defaultMaterial.metallicRoughness->imageView, g_engine.m_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-                writer.WriteImage(3, render.mesh->materials[prim.materialId].occlusion ? render.mesh->materials[prim.materialId].occlusion->imageView : g_engine.m_defaultMaterial.occlusion->imageView, g_engine.m_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-                writer.WriteImage(4, render.mesh->materials[prim.materialId].emissive ? render.mesh->materials[prim.materialId].emissive->imageView : g_engine.m_defaultMaterial.emissive->imageView, g_engine.m_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+                writer.WriteImage(0, g_engine.m_meshPool.Get(render.mesh).materials[prim.materialId].baseColor ? g_engine.m_meshPool.Get(render.mesh).materials[prim.materialId].baseColor->imageView : g_engine.m_defaultMaterial.baseColor->imageView, g_engine.m_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+                writer.WriteImage(1, g_engine.m_meshPool.Get(render.mesh).materials[prim.materialId].normalMap ? g_engine.m_meshPool.Get(render.mesh).materials[prim.materialId].normalMap->imageView : g_engine.m_defaultMaterial.normalMap->imageView, g_engine.m_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+                writer.WriteImage(2, g_engine.m_meshPool.Get(render.mesh).materials[prim.materialId].metallicRoughness ? g_engine.m_meshPool.Get(render.mesh).materials[prim.materialId].metallicRoughness->imageView : g_engine.m_defaultMaterial.metallicRoughness->imageView, g_engine.m_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+                writer.WriteImage(3, g_engine.m_meshPool.Get(render.mesh).materials[prim.materialId].occlusion ? g_engine.m_meshPool.Get(render.mesh).materials[prim.materialId].occlusion->imageView : g_engine.m_defaultMaterial.occlusion->imageView, g_engine.m_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+                writer.WriteImage(4, g_engine.m_meshPool.Get(render.mesh).materials[prim.materialId].emissive ? g_engine.m_meshPool.Get(render.mesh).materials[prim.materialId].emissive->imageView : g_engine.m_defaultMaterial.emissive->imageView, g_engine.m_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
 
                 writer.UpdateSet(g_engine.m_device.m_device, imageSet);
             }
