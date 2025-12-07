@@ -191,6 +191,11 @@ void trayser::RasterizedPipeline::Update()
     auto view = g_engine.m_scene.m_registry.view<WorldTransform, RenderComponent>();
     for (const auto& [ent, tf, render] : view.each())
     {
+        VkBuffer vertexBuffers[] = { render.mesh->vertexBuffer.buffer };
+        VkDeviceSize offsets[] = { 0 };
+        vkCmdBindIndexBuffer(cmd, render.mesh->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
+
         for (auto& prim : render.mesh->primitives)
         {
             //bind a texture
@@ -217,16 +222,9 @@ void trayser::RasterizedPipeline::Update()
             pushConst.viewProj = projection * g_engine.m_camera.m_view;
             pushConst.model = tf.matrix;
 
-            VkBuffer vertexBuffers[] = { render.mesh->vertexBuffer.buffer };
-            VkDeviceSize offsets[] = { 0 };
-            vkCmdBindIndexBuffer(cmd, render.mesh->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-            vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
-
             vkCmdPushConstants(cmd, m_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(gpu::PushConstants), &pushConst);
-            //vkCmdBindIndexBuffer(cmd, render.mesh->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
 
-            vkCmdDrawIndexed(cmd, render.mesh->indexCount, 1, 0, 0, 0);
-            //vkCmdDraw(cmd, prim.vertexCount, 1, 0, 0);
+            vkCmdDrawIndexed(cmd, prim.indexCount, 1, prim.baseIndex, prim.baseVertex, 0);
         }
     }
 

@@ -205,16 +205,17 @@ void DescriptorWriter::WriteBindlessImage(int imageIdx, VkImageView image, VkSam
 	writes.push_back(write);
 }
 
-static VkAccelerationStructureKHR g_accelHandle{};
-static VkWriteDescriptorSetAccelerationStructureKHR g_asInfo{};
+static std::vector<VkAccelerationStructureKHR> g_accelHandles{};
+static std::vector<VkWriteDescriptorSetAccelerationStructureKHR> g_asInfos{};
 
 void DescriptorWriter::WriteAccelStruct(int binding, VkAccelerationStructureKHR& accelStruct)
 {
-    g_accelHandle = accelStruct;
+    g_accelHandles.push_back(accelStruct);
 
-    g_asInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
-    g_asInfo.accelerationStructureCount = 1;
-    g_asInfo.pAccelerationStructures = &g_accelHandle; // your VkAccelerationStructureKHR handle
+    g_asInfos.emplace_back();
+    g_asInfos.back().sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
+    g_asInfos.back().accelerationStructureCount = 1;
+    g_asInfos.back().pAccelerationStructures = &g_accelHandles.back(); // your VkAccelerationStructureKHR handle
 
     VkWriteDescriptorSet write{};
     write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -223,7 +224,7 @@ void DescriptorWriter::WriteAccelStruct(int binding, VkAccelerationStructureKHR&
     write.dstArrayElement = 0;
     write.descriptorCount = 1;
     write.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
-    write.pNext = &g_asInfo; // chain the AS info
+    write.pNext = &g_asInfos.back(); // chain the AS info
 
     writes.push_back(write);
 }
@@ -271,6 +272,9 @@ void DescriptorWriter::Clear()
     imageInfos.clear();
     writes.clear();
     bufferInfos.clear();
+
+    g_accelHandles.clear();
+    g_asInfos.clear();
 }
 
 void DescriptorWriter::UpdateSet(VkDevice device, VkDescriptorSet set)

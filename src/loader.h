@@ -10,18 +10,6 @@ namespace trayser
 
 class Engine;
 
-struct GeoSurface {
-    uint32_t startIndex;
-    uint32_t count;
-};
-
-struct MeshAsset {
-    std::string name;
-
-    std::vector<GeoSurface> surfaces;
-    gpu::MeshBuffers meshBuffers;
-};
-
 struct Image
 {
     VkImage         image;
@@ -50,6 +38,7 @@ struct Primitive
 {
     u32 baseVertex;
     u32 vertexCount;
+    u32 baseIndex;
     u32 indexCount;
     u32 materialId;
 };
@@ -155,10 +144,5 @@ public:
     Model(std::string_view path, Engine* engine);
     void TraverseNode(tinygltf::Model&, const tinygltf::Node&, Node*, const std::string&);
 };
-
-std::string ReadTextFile(const std::string& path);
-std::vector<char> ReadBinaryFile(const std::string& path);
-
-std::optional<std::vector<std::shared_ptr<MeshAsset>>> LoadglTF(Engine* engine, std::filesystem::path filePath);
 
 } // namespace trayser

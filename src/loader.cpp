@@ -50,126 +50,6 @@ std::vector<char> ReadBinaryFile(const std::string& path)
     return std::vector<char>();
 }
 
-std::optional<std::vector<std::shared_ptr<trayser::MeshAsset>>> trayser::LoadglTF(Engine* engine, std::filesystem::path filePath)
-{
-    std::cout << "Loading GLTF: " << filePath << std::endl;
-
-    fastgltf::GltfDataBuffer data;
-    data.loadFromFile(filePath);
-
-    constexpr auto gltfOptions = fastgltf::Options::LoadGLBBuffers
-        | fastgltf::Options::LoadExternalBuffers;
-
-    fastgltf::Asset gltf;
-    fastgltf::Parser parser{};
-
-    auto load = parser.loadBinaryGLTF(&data, filePath.parent_path(), gltfOptions);
-    if (load) {
-        gltf = std::move(load.get());
-    }
-    else {
-        fmt::print("Failed to load glTF: {} \n", fastgltf::to_underlying(load.error()));
-        return {};
-    }
-
-    std::vector<std::shared_ptr<MeshAsset>> meshes;
-
-    // use the same vectors for all meshes so that the memory doesnt reallocate as
-    // often
-    std::vector<uint32_t> indices;
-    std::vector<Vertex> vertices;
-    for (fastgltf::Mesh& mesh : gltf.meshes) {
-        MeshAsset newmesh;
-
-        newmesh.name = mesh.name;
-
-        // clear the mesh arrays each mesh, we dont want to merge them by error
-        indices.clear();
-        vertices.clear();
-
-        for (auto&& p : mesh.primitives) {
-            GeoSurface newSurface;
-            newSurface.startIndex = (uint32_t)indices.size();
-            newSurface.count = (uint32_t)gltf.accessors[p.indicesAccessor.value()].count;
-
-            size_t initial_vtx = vertices.size();
-
-            // load indexes
-            {
-                fastgltf::Accessor& indexaccessor = gltf.accessors[p.indicesAccessor.value()];
-                indices.reserve(indices.size() + indexaccessor.count);
-
-                fastgltf::iterateAccessor<std::uint32_t>(gltf, indexaccessor,
-                    [&](std::uint32_t idx) {
-                        indices.push_back(idx + initial_vtx);
-                    });
-            }
-
-            // load vertex positions
-            {
-                fastgltf::Accessor& posAccessor = gltf.accessors[p.findAttribute("POSITION")->second];
-                vertices.resize(vertices.size() + posAccessor.count);
-
-                fastgltf::iterateAccessorWithIndex<glm::vec3>(gltf, posAccessor,
-                    [&](glm::vec3 v, size_t index) {
-                        Vertex newvtx;
-                        newvtx.position = v;
-                        newvtx.normal = { 1, 0, 0 };
-                        newvtx.color = glm::vec4{ 1.f };
-                        newvtx.uvX = 0;
-                        newvtx.uvY = 0;
-                        vertices[initial_vtx + index] = newvtx;
-                    });
-            }
-
-            // load vertex normals
-            auto normals = p.findAttribute("NORMAL");
-            if (normals != p.attributes.end()) {
-
-                fastgltf::iterateAccessorWithIndex<glm::vec3>(gltf, gltf.accessors[(*normals).second],
-                    [&](glm::vec3 v, size_t index) {
-                        vertices[initial_vtx + index].normal = v;
-                    });
-            }
-
-            // load UVs
-            auto uv = p.findAttribute("TEXCOORD_0");
-            if (uv != p.attributes.end()) {
-
-                fastgltf::iterateAccessorWithIndex<glm::vec2>(gltf, gltf.accessors[(*uv).second],
-                    [&](glm::vec2 v, size_t index) {
-                        vertices[initial_vtx + index].uvX = v.x;
-                        vertices[initial_vtx + index].uvY = v.y;
-                    });
-            }
-
-            // load vertex colors
-            auto colors = p.findAttribute("COLOR_0");
-            if (colors != p.attributes.end()) {
-
-                fastgltf::iterateAccessorWithIndex<glm::vec4>(gltf, gltf.accessors[(*colors).second],
-                    [&](glm::vec4 v, size_t index) {
-                        vertices[initial_vtx + index].color = v;
-                    });
-            }
-            newmesh.surfaces.push_back(newSurface);
-        }
-
-        // display the vertex normals
-        constexpr bool OverrideColors = true;
-        if (OverrideColors) {
-            for (Vertex& vtx : vertices) {
-                vtx.color = glm::vec4(vtx.normal, 1.f);
-            }
-        }
-        newmesh.meshBuffers = engine->UploadMesh(indices, vertices);
-
-        meshes.emplace_back(std::make_shared<MeshAsset>(std::move(newmesh)));
-    }
-
-    return meshes;
-}
-
 void trayser::Model::TraverseNode(tinygltf::Model& loaded, const tinygltf::Node& loadedNode, Node* parent, const std::string& folder)
 {
     auto& node = nodes.emplace_back();
@@ -255,7 +135,7 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
         VMA_MEMORY_USAGE_GPU_ONLY);
 
     //create index buffer
-    indexBuffer = engine->CreateBuffer(indexBufferSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+    indexBuffer = engine->CreateBuffer(indexBufferSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
         VMA_MEMORY_USAGE_GPU_ONLY);
 
     //find the adress of the vertex and index buffer
@@ -314,13 +194,6 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
                 break;
             }
         }
-		indicesProcessed += indexCount;
-
-        // Create new primitive
-        Primitive& newPrim = primitives.emplace_back();
-        newPrim.baseVertex = verticesProcessed;
-        newPrim.vertexCount = vertexCount;
-		newPrim.indexCount = indexCount;
 
         // Positions -------------------------------------------------------------------
         accessorIdx = attribs.at("POSITION");
@@ -328,12 +201,22 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
         view = &loaded.bufferViews[accessor->bufferView];
         buffer = &loaded.buffers[view->buffer];
         const uint8_t* positionData = buffer->data.data() + view->byteOffset + accessor->byteOffset;
+        uint32_t vertexCount = accessor->count;
         assert(accessor->type == TINYGLTF_TYPE_VEC3);
 
+        // Create new primitive
+        Primitive& newPrim = primitives.emplace_back();
+        newPrim.baseVertex = verticesProcessed;
+        newPrim.vertexCount = vertexCount;
+        newPrim.baseIndex = indicesProcessed;
+		newPrim.indexCount = indexCount;
+
         // Convert positionData to my format
-        for (size_t i = 0; i < vertexCount; i++)
+        size_t stride = accessor->ByteStride(*view);
+        const uint8_t* ptr = positionData;
+        for (size_t i = 0; i < vertexCount; i++, ptr += stride)
         {
-            float* pos = (float*)(positionData + i * sizeof(float) * 3);
+            const float* pos = reinterpret_cast<const float*>(ptr);
             vertices[verticesProcessed + i].position = glm::vec3(pos[0], pos[1], pos[2]);
         }
 
@@ -419,6 +302,7 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
         // so we have to keep track of how many vertices are already
         // processed for correct indexing
         verticesProcessed += vertexCount;
+		indicesProcessed += indexCount;
 
         // Materials -----------------------------------------------------------------
         int matIdx = prim.material;
@@ -431,14 +315,15 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
         }
     }
 
-    LoadingMesh loadingMesh{};
-    loadingMesh.vertexCount = vertexCount;
-    loadingMesh.indexCount = indexCount;
-    loadingMesh.vertices = vertices;
-    loadingMesh.indices = indices;
     
     if (missesTangents)
     {
+        LoadingMesh loadingMesh{};
+        loadingMesh.vertexCount = vertexCount;
+        loadingMesh.indexCount = indexCount;
+        loadingMesh.vertices = vertices;
+        loadingMesh.indices = indices;
+
         Model::MikkTSpaceCalc(&loadingMesh);
     }
 
@@ -463,6 +348,7 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
 	engine->m_device.EndOneTimeSubmit();
 
     engine->DestroyBuffer(vertexStaging);
+    engine->DestroyBuffer(indexStaging);
     //////////////////////////////////////////////////////////////
 }
 

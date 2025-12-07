@@ -11,8 +11,10 @@ namespace trayser
 class Pipeline
 {
 public:
-	std::chrono::time_point <std::chrono::file_clock> m_lastWriteTime;
+    using file_clock = std::chrono::time_point <std::chrono::file_clock>;
+
     std::string         m_name;
+	file_clock          m_lastWriteTime;
     VkPipelineLayout    m_layout;
     VkPipeline          m_pipeline;
     bool                m_canHotReload = false;
