@@ -45,6 +45,8 @@ void trayser::Engine::Init()
     auto model = m_resources.Create<Model>(kModelPaths[ModelResource_DamagedHelmet], kModelPaths[ModelResource_DamagedHelmet], this);
     m_scene.CreateModel(model);
 
+    m_scene.Update(1.0f);
+
     m_device.CreateBottomLevelAs();
     m_device.CreateTopLevelAs();
 
@@ -195,9 +197,9 @@ void trayser::Engine::InitDescriptors()
 void trayser::Engine::InitPipelines()
 {
 	m_pipelines.push_back(new BackgroundPipeline());
-	m_pipelines.push_back(new PBRPipeline());
+	m_pipelines.push_back(new RasterizedPipeline());
 	m_pipelines.push_back(new TonemapPipeline());
-	m_pipelines.push_back(new RayTracingPipeline());
+	m_pipelines.push_back(new RayTracedPipeline());
 
 	for (auto& pipeline : m_pipelines)
 	{

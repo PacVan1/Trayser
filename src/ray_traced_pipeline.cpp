@@ -1,0 +1,243 @@
+#include <pch.h>
+
+#include <ray_traced_pipeline.h>
+#include <engine.h>
+
+trayser::RayTracedPipeline::RayTracedPipeline() :
+    m_descriptorSetLayout(VK_NULL_HANDLE),
+    m_descriptorSet(VK_NULL_HANDLE)
+{
+    m_name = "ray_traced";
+    m_canHotReload = true;
+}
+
+void trayser::RayTracedPipeline::Load()
+{
+    // Descriptor set layout
+
+    DescriptorLayoutBuilder builder;
+    builder.AddBinding(BindingPoints_TLAS, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
+    builder.AddBinding(BindingPoints_OutImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    m_descriptorSetLayout = builder.Build(g_engine.m_device.m_device, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
+
+    m_descriptorSet = g_engine.m_globalDescriptorAllocator.Allocate(g_engine.m_device.m_device, m_descriptorSetLayout);
+
+    DescriptorWriter writer;
+    writer.WriteImage(1, g_engine.m_gBuffer.colorImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    writer.UpdateSet(g_engine.m_device.m_device, m_descriptorSet);
+
+    for (auto& b : builder.m_bindings) {
+        printf("binding=%u type=%u count=%u stageFlags=0x%x\n",
+            b.binding, b.descriptorType, b.descriptorCount, b.stageFlags);
+    }
+
+    // ---------------------
+
+    // For re-creation
+    //vkDestroyPipeline(m_app->getDevice(), m_rtPipeline, nullptr);
+    //vkDestroyPipelineLayout(m_app->getDevice(), m_rtPipelineLayout, nullptr);
+
+    // Creating all shaders
+    enum StageIndices
+    {
+        eRaygen,
+        eMiss,
+        eClosestHit,
+        eShaderGroupCount
+    };
+    std::array<VkPipelineShaderStageCreateInfo, eShaderGroupCount> stages{};
+    for (auto& s : stages)
+        s.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+
+    VkShaderModule module = g_engine.m_compiler.CompileAll(m_name.c_str());
+    if (module == VK_NULL_HANDLE)
+        return;
+
+    stages[eRaygen].pNext = nullptr;
+    stages[eRaygen].pName = "rgMain";
+    stages[eRaygen].stage = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+    stages[eRaygen].module = module;
+    stages[eMiss].pNext = nullptr;
+    stages[eMiss].pName = "mMain";
+    stages[eMiss].stage = VK_SHADER_STAGE_MISS_BIT_KHR;
+    stages[eMiss].module = module;
+    stages[eClosestHit].pNext = nullptr;
+    stages[eClosestHit].pName = "chMain";
+    stages[eClosestHit].stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+    stages[eClosestHit].module = module;
+
+    // Shader groups
+    VkRayTracingShaderGroupCreateInfoKHR group{ VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR };
+    group.anyHitShader = VK_SHADER_UNUSED_KHR;
+    group.closestHitShader = VK_SHADER_UNUSED_KHR;
+    group.generalShader = VK_SHADER_UNUSED_KHR;
+    group.intersectionShader = VK_SHADER_UNUSED_KHR;
+
+    std::vector<VkRayTracingShaderGroupCreateInfoKHR> shader_groups;
+    // Raygen
+    group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+    group.generalShader = eRaygen;
+    shader_groups.push_back(group);
+
+    // Miss
+    group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+    group.generalShader = eMiss;
+    shader_groups.push_back(group);
+
+    // closest hit shader
+    group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+    group.generalShader = VK_SHADER_UNUSED_KHR;
+    group.closestHitShader = eClosestHit;
+    shader_groups.push_back(group);
+
+    VkPushConstantRange pushConst{};
+    pushConst.offset = 0;
+    pushConst.size = sizeof(gpu::PushConstants);
+    pushConst.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+
+    VkPipelineLayoutCreateInfo pipeline_layout_create_info{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+    pipeline_layout_create_info.pushConstantRangeCount = 1;
+    pipeline_layout_create_info.pPushConstantRanges = &pushConst;
+
+    // Descriptor sets: one specific to ray tracing, and one shared with the rasterization pipeline
+    pipeline_layout_create_info.setLayoutCount = 1;
+    pipeline_layout_create_info.pSetLayouts = &m_descriptorSetLayout;
+    VK_CHECK(vkCreatePipelineLayout(g_engine.m_device.m_device, &pipeline_layout_create_info, nullptr, &m_layout));
+    //NVVK_DBG_NAME(m_rtPipelineLayout);
+
+    // Assemble the shader stages and recursion depth info into the ray tracing pipeline
+    VkRayTracingPipelineCreateInfoKHR rtPipelineInfo{ VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR };
+    rtPipelineInfo.stageCount = static_cast<uint32_t>(stages.size());
+    rtPipelineInfo.pStages = stages.data();
+    rtPipelineInfo.groupCount = static_cast<uint32_t>(shader_groups.size());
+    rtPipelineInfo.pGroups = shader_groups.data();
+    rtPipelineInfo.maxPipelineRayRecursionDepth = std::max(3U, g_engine.m_device.m_rtProperties.maxRayRecursionDepth);
+    rtPipelineInfo.layout = m_layout;
+    VK_CHECK(g_engine.m_device.m_rtFuncs.vkCreateRayTracingPipelinesKHR(g_engine.m_device.m_device, {}, {}, 1, &rtPipelineInfo, nullptr, &m_pipeline));
+    //NVVK_DBG_NAME(m_rtPipeline);
+
+    //LOGI("Ray tracing pipeline created successfully\n");
+
+    // Shader binding table
+
+    //m_allocator.destroyBuffer(m_sbtBuffer);  // Cleanup when re-creating
+
+    VkDevice device = g_engine.m_device.m_device;
+    uint32_t handleSize = g_engine.m_device.m_rtProperties.shaderGroupHandleSize;
+    uint32_t handleAlignment = g_engine.m_device.m_rtProperties.shaderGroupHandleAlignment;
+    uint32_t baseAlignment = g_engine.m_device.m_rtProperties.shaderGroupBaseAlignment;
+    uint32_t groupCount = rtPipelineInfo.groupCount;
+
+    // Get shader group handles
+    size_t dataSize = handleSize * groupCount;
+    m_shaderHandles.resize(dataSize);
+    VK_CHECK(g_engine.m_device.m_rtFuncs.vkGetRayTracingShaderGroupHandlesKHR(device, m_pipeline, 0, groupCount, dataSize, m_shaderHandles.data()));
+
+    // Calculate SBT buffer size with proper alignment
+    auto     alignUp = [](uint32_t size, uint32_t alignment) { return (size + alignment - 1) & ~(alignment - 1); };
+    uint32_t raygenSize = alignUp(handleSize, handleAlignment);
+    uint32_t missSize = alignUp(handleSize, handleAlignment);
+    uint32_t hitSize = alignUp(handleSize, handleAlignment);
+    uint32_t callableSize = 0;  // No callable shaders in this tutorial
+
+    // Ensure each region starts at a baseAlignment boundary
+    uint32_t raygenOffset = 0;
+    uint32_t missOffset = alignUp(raygenSize, baseAlignment);
+    uint32_t hitOffset = alignUp(missOffset + missSize, baseAlignment);
+    uint32_t callableOffset = alignUp(hitOffset + hitSize, baseAlignment);
+
+    size_t bufferSize = callableOffset + callableSize;
+
+    // Create SBT buffer
+    VK_CHECK(g_engine.m_device.CreateBuffer(m_sbtBuffer, bufferSize, VK_BUFFER_USAGE_2_SHADER_BINDING_TABLE_BIT_KHR, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+        VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT));
+    //NVVK_DBG_NAME(m_sbtBuffer.buffer);
+
+    // Populate SBT buffer
+    uint8_t* pData = static_cast<uint8_t*>(m_sbtBuffer.info.pMappedData);
+
+    // Ray generation shader (group 0)
+    memcpy(pData + raygenOffset, m_shaderHandles.data() + 0 * handleSize, handleSize);
+    m_raygenRegion.deviceAddress = m_sbtBuffer.address + raygenOffset;
+    m_raygenRegion.stride = raygenSize;
+    m_raygenRegion.size = raygenSize;
+
+    // Miss shader (group 1)
+    memcpy(pData + missOffset, m_shaderHandles.data() + 1 * handleSize, handleSize);
+    m_missRegion.deviceAddress = m_sbtBuffer.address + missOffset;
+    m_missRegion.stride = missSize;
+    m_missRegion.size = missSize;
+
+    // Hit shader (group 2)
+    memcpy(pData + hitOffset, m_shaderHandles.data() + 2 * handleSize, handleSize);
+    m_hitRegion.deviceAddress = m_sbtBuffer.address + hitOffset;
+    m_hitRegion.stride = hitSize;
+    m_hitRegion.size = hitSize;
+
+    // Callable shaders (none in this tutorial)
+    m_callableRegion.deviceAddress = 0;
+    m_callableRegion.stride = 0;
+    m_callableRegion.size = 0;
+
+    ///////////////////////
+}
+
+void trayser::RayTracedPipeline::Update()
+{
+    // Ray trace pipeline
+    vkCmdBindPipeline(g_engine.m_device.GetCmd(), VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pipeline);
+
+    // Bind the descriptor sets for the graphics pipeline (making textures available to the shaders)
+    //const VkBindDescriptorSetsInfo bindDescriptorSetsInfo{ .sType = VK_STRUCTURE_TYPE_BIND_DESCRIPTOR_SETS_INFO,
+    //                                                      .stageFlags = VK_SHADER_STAGE_ALL,
+    //                                                      .layout = m_layout,
+    //                                                      .firstSet = 0,
+    //                                                      .descriptorSetCount = 1,
+    //                                                      .pDescriptorSets = m_descPack.getSetPtr() };
+    //vkCmdBindDescriptorSets2(cmd, &bindDescriptorSetsInfo);
+
+    // Push descriptor sets for ray tracing
+    //nvvk::WriteSetContainer write{};
+    //write.append(m_rtDescPack.makeWrite(shaderio::BindingPoints::eTlas), g_engine.m_device.m_tlasAccel);
+    //write.append(m_rtDescPack.makeWrite(shaderio::BindingPoints::eOutImage), g_engine.m_gBuffer.colorImage),
+    //    VK_IMAGE_LAYOUT_GENERAL);
+    //vkCmdPushDescriptorSetKHR(g_engine.m_device.GetCmd(), VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_layout, 1, write.size(), write.data());
+
+    VkAccelerationStructureDeviceAddressInfoKHR ai{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR };
+    ai.accelerationStructure = g_engine.m_device.m_tlasAccel.accel;
+    VkDeviceAddress addr = g_engine.m_device.m_rtFuncs.vkGetAccelerationStructureDeviceAddressKHR(g_engine.m_device.m_device, &ai);
+    assert(addr != 0); // 0 means invalid/never built
+
+    {
+        DescriptorWriter writer;
+        writer.WriteAccelStruct(0, g_engine.m_device.m_tlasAccel.accel);
+        writer.UpdateSet(g_engine.m_device.m_device, m_descriptorSet);
+    }
+
+    vkCmdBindDescriptorSets(g_engine.m_device.GetCmd(), VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_layout, 0, 1, &m_descriptorSet, 0, nullptr);
+
+    // Push constant information
+    gpu::PushConstants pushValues{};
+
+    glm::mat4 projection = g_engine.m_camera.m_proj;
+    projection[1][1] *= -1;
+
+    pushValues.model = glm::inverse(projection);
+    pushValues.viewProj = glm::inverse(g_engine.m_camera.m_view);
+    pushValues.camPos = glm::vec4(g_engine.m_camera.m_transform.translation, 1.0f);
+    pushValues.renderMode.x = g_engine.m_renderMode;
+
+    vkCmdPushConstants(g_engine.m_device.GetCmd(),
+        m_layout,
+        VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+        0,
+        sizeof(gpu::PushConstants),
+        &pushValues);
+
+    // Ray trace
+    const VkExtent2D size = { kInitWindowWidth, kInitWindowHeight };
+    g_engine.m_device.m_rtFuncs.vkCmdTraceRaysKHR(g_engine.m_device.GetCmd(), &m_raygenRegion, &m_missRegion, &m_hitRegion, &m_callableRegion, size.width, size.height, 1);
+
+    // Barrier to make sure the image is ready for Tonemapping
+    //nvvk::cmdMemoryBarrier(g_engine.m_device.GetCmd(), VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT);
+}
