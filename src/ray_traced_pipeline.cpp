@@ -38,11 +38,6 @@ void trayser::RayTracedPipeline::Load()
         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
     writer.UpdateSet(g_engine.m_device.m_device, m_descriptorSet);
 
-    for (auto& b : builder.m_bindings) {
-        printf("binding=%u type=%u count=%u stageFlags=0x%x\n",
-            b.binding, b.descriptorType, b.descriptorCount, b.stageFlags);
-    }
-
     // ---------------------
 
     // For re-creation

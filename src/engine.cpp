@@ -317,6 +317,7 @@ void trayser::Engine::UpdateGpuScene()
     gpu::Scene* sceneRef = (gpu::Scene*)m_gpuScene.info.pMappedData;
 
     sceneRef->camera.camPos = m_camera.m_transform.translation;
+    sceneRef->camera.viewProj = m_camera.m_proj * m_camera.m_view;
     sceneRef->camera.proj = m_camera.m_proj;
     sceneRef->camera.view = m_camera.m_view;
     sceneRef->camera.invProj = glm::inverse(m_camera.m_proj);

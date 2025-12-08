@@ -1,5 +1,4 @@
 #include "../src/gpu_io.h"
-using namespace gpu;
 
 // Texture array for material textures
 //[[vk::binding(BindingPoints::eTextures, 0)]]    Sampler2D textures[];
@@ -44,14 +43,14 @@ void rgMain()
     const float2 clipCoords = launchID / launchSize * 2.0 - 1.0;
 
     // Transform from NDC to view space using inverse projection matrix
-    const float4 viewCoords = mul(float4(clipCoords, 1.0, 1.0), camera.invProj);
+    const float4 viewCoords = mul(camera.invProj, float4(clipCoords, 1.0, 1.0));
 
     // Create the primary ray
     RayDesc ray;
     // Transform camera origin (0,0,0) from view space to world space
-    ray.Origin = mul(float4(0.0, 0.0, 0.0, 1.0), camera.invView).xyz;
+    ray.Origin = mul(camera.invView, float4(0.0, 0.0, 0.0, 1.0)).xyz;
     // Transform ray direction from view space to world space
-    ray.Direction = mul(float4(normalize(viewCoords.xyz), 0.0), camera.invView).xyz;
+    ray.Direction = mul(camera.invView, float4(normalize(viewCoords.xyz), 0.0)).xyz;
     ray.TMin = kMinT; // Minimum distance to avoid self-intersection
     ray.TMax = kMaxT; // Maximum distance (infinite for primary rays)
 

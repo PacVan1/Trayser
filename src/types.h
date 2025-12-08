@@ -179,9 +179,9 @@ struct Vertex
         return bindingDescription;
     }
 
-    static std::array<VkVertexInputAttributeDescription, 6> GetAttributeDescriptions()
+    static std::array<VkVertexInputAttributeDescription, 7> GetAttributeDescriptions()
     {
-        std::array<VkVertexInputAttributeDescription, 6> attributeDescriptions{};
+        std::array<VkVertexInputAttributeDescription, 7> attributeDescriptions{};
 
         attributeDescriptions[0].binding    = 0;
         attributeDescriptions[0].location   = 0;
@@ -210,8 +210,13 @@ struct Vertex
 
         attributeDescriptions[5].binding    = 0;
         attributeDescriptions[5].location   = 5;
-        attributeDescriptions[5].format     = VK_FORMAT_R32G32B32A32_SFLOAT;
+        attributeDescriptions[5].format     = VK_FORMAT_R32G32B32_SFLOAT;
         attributeDescriptions[5].offset     = offsetof(Vertex, tangent);
+
+        attributeDescriptions[6].binding    = 0;
+        attributeDescriptions[6].location   = 6;
+        attributeDescriptions[6].format     = VK_FORMAT_R32_SFLOAT;
+        attributeDescriptions[6].offset     = offsetof(Vertex, handedness);
 
         return attributeDescriptions;
     }

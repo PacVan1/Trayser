@@ -16,9 +16,14 @@ using int4      = glm::ivec4;
 using int3      = glm::ivec3;
 using int2      = glm::ivec2;
 #define REF(type) VkDeviceAddress
+#define FLOAT4X4 float4x4
+#define FLOAT3X3 float3x3
+#define FLOAT2X2 float2x2
 #else
-#pragma pack_matrix(column_major)
 #define REF(type) type*
+#define FLOAT4X4 column_major float4x4
+#define FLOAT3X3 column_major float3x3
+#define FLOAT2X2 column_major float2x2
 #endif
 
 namespace gpu
@@ -43,16 +48,17 @@ struct Mesh
 
 struct Instance
 {
-    float4x4 transform;         // Transformation matrix
+    FLOAT4X4 transform;         // Transformation matrix
     uint32_t meshHandle;        // Index to mesh buffer
 };
 
 struct Camera
 {
-    float4x4 proj;              // Projection matrix
-    float4x4 view;              // View matrix
-    float4x4 invProj;           // Inverse projection matrix
-    float4x4 invView;           // Inverse view matrix
+    FLOAT4X4 viewProj;          // proj * view matrix
+    FLOAT4X4 proj;              // Projection matrix
+    FLOAT4X4 view;              // View matrix
+    FLOAT4X4 invProj;           // Inverse projection matrix
+    FLOAT4X4 invView;           // Inverse view matrix
     float3 camPos;
 };
 
@@ -77,7 +83,24 @@ struct Scene
 struct RTPushConstants
 {
     REF(Scene) sceneRef;
+    REF(Scene) sceneRef2;
+    int4 renderMode;
+};
+
+struct RasterPushConstants
+{
+    FLOAT4X4 transform;
+    REF(Scene) sceneRef;
+    REF(Scene) sceneRef2;
     int4 renderMode;
 };
 
 } // namespace gpu
+
+#ifdef __SLANG__
+using namespace gpu;
+float3 GetPosition(in Camera camera)
+{
+    return float3(camera.invView[3].xyz);
+}
+#endif

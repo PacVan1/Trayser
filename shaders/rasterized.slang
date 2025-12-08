@@ -1,12 +1,4 @@
-struct Vertex
-{
-    [[vk::location(0)]] float3  position;
-    [[vk::location(1)]] float   uvX;
-    [[vk::location(2)]] float3  normal;
-    [[vk::location(3)]] float   uvY;
-    [[vk::location(4)]] float4  color;
-    [[vk::location(5)]] float4  tangent;
-};
+#include "../src/gpu_io.h"
 
 struct PBRInfo
 {
@@ -31,17 +23,9 @@ struct VsFsInterface
     float3x3 tbn    : TEXCOORD2;
 };
 
-[[vk::push_constant]]
-cbuffer PushConstants
-{
-    [[vk::offset(0)]]   column_major float4x4 viewProj;
-    [[vk::offset(64)]]  column_major float4x4 model;
-    [[vk::offset(128)]] float4 camPos;
-    [[vk::offset(144)]] int4 renderMode;
-};
-
 // Textures with explicit Vulkan bindings
 //[[vk::binding(0, 0)]] Sampler2D textures[];
+[[vk::push_constant]] ConstantBuffer<RasterPushConstants> pushConsts;
 [[vk::binding(0, 0)]] Sampler2D baseColorTexture;
 [[vk::binding(1, 0)]] Sampler2D normalMapTexture;
 [[vk::binding(2, 0)]] Sampler2D metallicRoughnessTexture;
@@ -64,19 +48,22 @@ VsFsInterface vsMain(Vertex v)
 {
     VsFsInterface o;
 
+    Scene scene = pushConsts.sceneRef[0];
+    Camera camera = scene.camera;
+
     // Transform
-    float4x4 mvp = mul(viewProj, model);
+    float4x4 mvp = mul(camera.viewProj, pushConsts.transform);
     o.position = mul(mvp, float4(v.position, 1.0f));
-    o.worldPos = mul(model, float4(v.position, 1.0f));
+    o.worldPos = mul(pushConsts.transform, float4(v.position, 1.0f));
 
     // Outputs
     o.color = v.color.xyz;
     o.uv = float2(v.uvX, v.uvY);
 
-    float3 normal   = normalize(mul(transpose(inverse((float3x3)model)), v.normal));
-    float3 tangent  = normalize(mul((float3x3)model, v.tangent.xyz));
+    float3 normal = normalize(mul(transpose(inverse((float3x3)pushConsts.transform)), v.normal));
+    float3 tangent = normalize(mul((float3x3)pushConsts.transform, v.tangent.xyz));
     tangent         = normalize(tangent - normal * dot(normal, tangent));
-    float3 bitangent = cross(normal, tangent) * v.tangent.w;
+    float3 bitangent = cross(normal, tangent) * v.handedness;
 
     o.tbn = float3x3(tangent, bitangent, normal);
 
@@ -231,6 +218,9 @@ struct FSOutput
 [shader("fragment")]
 FSOutput fsMain(VsFsInterface input)
 {
+    Scene scene = pushConsts.sceneRef[0];
+    Camera camera = scene.camera;
+
     FSOutput o;
 
     float3 L1 = normalize(float3(0.491, 0.085, 0.153));
@@ -262,10 +252,10 @@ FSOutput fsMain(VsFsInterface input)
 
     info.F0 = float3(0.04);
     info.F0 = lerp(info.F0, info.baseColor.rgb, info.metallic);
-    info.V = normalize(camPos.xyz - info.worldPos.xyz);
+    info.V = normalize(GetPosition(camera) - info.worldPos.xyz);
     info.R = reflect(info.V, info.N);
 
-    switch (renderMode.x)
+    switch (pushConsts.renderMode.x)
     {
     case RenderMode.FinalColor:
         float3 intensity = 0.0;

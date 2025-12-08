@@ -17,7 +17,7 @@ void trayser::RasterizedPipeline::Load()
 
     VkPushConstantRange pushConst{};
     pushConst.offset = 0;
-    pushConst.size = sizeof(gpu::PushConstants);
+    pushConst.size = sizeof(gpu::RasterPushConstants);
     pushConst.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
     VkPipelineLayoutCreateInfo pipLayoutInfo = PipelineLayoutCreateInfo();
@@ -213,16 +213,17 @@ void trayser::RasterizedPipeline::Update()
 
             vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_layout, 0, 1, &imageSet, 0, nullptr);
 
-            gpu::PushConstants pushConst{};
-            glm::mat4 projection = g_engine.m_camera.m_proj;
-            projection[1][1] *= -1;
-            pushConst.renderMode = glm::ivec4(g_engine.m_renderMode, 0, 0, 0);
-            pushConst.camPos = glm::vec4(g_engine.m_camera.m_transform.translation, 1.0f);
+            gpu::RasterPushConstants pushConsts{};
+            pushConsts.sceneRef = g_engine.m_gpuSceneAddr;
+            pushConsts.transform = tf.matrix;
+            pushConsts.renderMode.x = g_engine.m_renderMode;
 
-            pushConst.viewProj = projection * g_engine.m_camera.m_view;
-            pushConst.model = tf.matrix;
-
-            vkCmdPushConstants(cmd, m_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(gpu::PushConstants), &pushConst);
+            vkCmdPushConstants(g_engine.m_device.GetCmd(),
+                m_layout,
+                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                0,
+                sizeof(gpu::RasterPushConstants),
+                &pushConsts);
 
             vkCmdDrawIndexed(cmd, prim.indexCount, 1, prim.baseIndex, 0, 0);
         }
