@@ -368,11 +368,12 @@ void trayser::Engine::UpdateGpuScene()
     // Update scene
     gpu::Scene* sceneRef = (gpu::Scene*)m_gpuScene.info.pMappedData;
 
-    sceneRef->camera.viewProj = m_camera.m_proj * m_camera.m_view;
     sceneRef->camera.proj = m_camera.m_proj;
+    sceneRef->camera.proj[1][1] *= -1.0f;
     sceneRef->camera.view = m_camera.m_view;
-    sceneRef->camera.invProj = glm::inverse(m_camera.m_proj);
-    sceneRef->camera.invView = glm::inverse(m_camera.m_view);
+    sceneRef->camera.viewProj = sceneRef->camera.proj * sceneRef->camera.view;
+    sceneRef->camera.invProj = glm::inverse(sceneRef->camera.proj);
+    sceneRef->camera.invView = glm::inverse(sceneRef->camera.view);
 
     // Update meshes
     gpu::Mesh* meshBufferRef = (gpu::Mesh*)m_meshBuffer.info.pMappedData;
