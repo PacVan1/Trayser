@@ -450,7 +450,7 @@ void trayser::Device::CreateTopLevelAs()
     {
         VkAccelerationStructureInstanceKHR asInstance{};
         asInstance.transform = toTransformMatrixKHR(transform.matrix);  // Position of the instance
-        asInstance.instanceCustomIndex = 0;                       // gl_InstanceCustomIndexEXT
+        asInstance.instanceCustomIndex = render.mesh;                       // gl_InstanceCustomIndexEXT
         asInstance.accelerationStructureReference = m_blasAccel[render.mesh].address;  // Address of the BLAS
         asInstance.instanceShaderBindingTableRecordOffset = 0;  // We will use the same hit group for all objects
         asInstance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV;  // No culling - double sided

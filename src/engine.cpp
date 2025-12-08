@@ -39,11 +39,14 @@ void trayser::Engine::Init()
     InitDescriptors();
     InitDefaultData();
     InitImGuiStyle();
+    InitTextureDescriptor();
 
     Model::MikkTSpaceInit();
 
     m_modelPool.Init();
     m_meshPool.Init();
+    m_materialPool.Init();
+    m_texturePool.Init();
     ModelHandle handle = m_modelPool.Create(kModelPaths[ModelResource_DamagedHelmet], kModelPaths[ModelResource_DamagedHelmet], this);
 
     m_device.CreateBottomLevelAs();
@@ -136,8 +139,10 @@ void trayser::Engine::InitDescriptors()
     // Create a descriptor pool that will hold 10 sets with 1 image each
     std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> sizes =
     {
-        { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
-        { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 }
+        { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 2 },
+        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 5 },
+        { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 },
+        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2 }
     };
 
     m_globalDescriptorAllocator.Init(m_device.m_device, 20, sizes);
@@ -153,15 +158,6 @@ void trayser::Engine::InitDescriptors()
     builder.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
     m_gpuSceneDataDescriptorLayout = builder.Build(m_device.m_device, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
     }
-    {
-    DescriptorLayoutBuilder builder;
-    builder.AddBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-    builder.AddBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-    builder.AddBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-    builder.AddBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-    builder.AddBinding(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-    m_singleImageDescriptorLayout = builder.Build(m_device.m_device, VK_SHADER_STAGE_FRAGMENT_BIT);
-    }
     // Allocate a descriptor set for our draw image
     m_renderImageDescriptors = m_globalDescriptorAllocator.Allocate(m_device.m_device, m_renderImageDescriptorLayout);
 
@@ -176,7 +172,6 @@ void trayser::Engine::InitDescriptors()
     {
         m_globalDescriptorAllocator.DestroyPools(m_device.m_device);
         vkDestroyDescriptorSetLayout(m_device.m_device, m_renderImageDescriptorLayout, nullptr);
-        vkDestroyDescriptorSetLayout(m_device.m_device, m_singleImageDescriptorLayout, nullptr);
         vkDestroyDescriptorSetLayout(m_device.m_device, m_gpuSceneDataDescriptorLayout, nullptr);
     });
 
@@ -310,21 +305,140 @@ void trayser::Engine::InitGpuScene()
 
     VmaAllocationInfo info;
     vmaGetAllocationInfo(m_device.m_allocator, m_gpuScene.allocation, &info);
+
+    m_meshBuffer = CreateBuffer(
+        sizeof(gpu::Mesh) * kMeshCount,
+        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        VMA_MEMORY_USAGE_CPU_TO_GPU);
+
+    VkBufferDeviceAddressInfo deviceAdressInfo2{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,.buffer = m_meshBuffer.buffer };
+    m_meshBufferAddr = vkGetBufferDeviceAddress(m_device.m_device, &deviceAdressInfo2);
+
+    VmaAllocationInfo info2;
+    vmaGetAllocationInfo(m_device.m_allocator, m_meshBuffer.allocation, &info2);
+
+    m_instanceBuffer = CreateBuffer(
+        sizeof(gpu::Instance) * kInstanceCount,
+        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        VMA_MEMORY_USAGE_CPU_TO_GPU);
+
+    VkBufferDeviceAddressInfo deviceAdressInfo3{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,.buffer = m_instanceBuffer.buffer };
+    m_instanceBufferAddr = vkGetBufferDeviceAddress(m_device.m_device, &deviceAdressInfo3);
+
+    VmaAllocationInfo info3;
+    vmaGetAllocationInfo(m_device.m_allocator, m_instanceBuffer.allocation, &info3);
+
+    m_materialBuffer = CreateBuffer(
+        sizeof(gpu::Instance) * kInstanceCount,
+        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        VMA_MEMORY_USAGE_CPU_TO_GPU);
+
+    VkBufferDeviceAddressInfo deviceAdressInfo4{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,.buffer = m_materialBuffer.buffer };
+    m_materialBufferAddr = vkGetBufferDeviceAddress(m_device.m_device, &deviceAdressInfo4);
+
+    VmaAllocationInfo info4;
+    vmaGetAllocationInfo(m_device.m_allocator, m_materialBuffer.allocation, &info4);
+}
+
+void trayser::Engine::InitTextureDescriptor()
+{
+    VkDescriptorSetLayoutBinding textureBinding{};
+    textureBinding.binding = 0; // binding slot in shader
+    textureBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    textureBinding.descriptorCount = kTextureCount; // number of textures
+    textureBinding.stageFlags = 
+        VK_SHADER_STAGE_FRAGMENT_BIT | 
+        VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | 
+        VK_SHADER_STAGE_MISS_BIT_KHR | 
+        VK_SHADER_STAGE_RAYGEN_BIT_KHR; // or whichever stage
+    textureBinding.pImmutableSamplers = nullptr;
+
+    VkDescriptorSetLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = 1;
+    layoutInfo.pBindings = &textureBinding;
+
+    vkCreateDescriptorSetLayout(m_device.m_device, &layoutInfo, nullptr, &m_allTexturesLayout);
+
+    m_allTexturesSet = m_globalDescriptorAllocator.Allocate(m_device.m_device, m_allTexturesLayout);
 }
 
 void trayser::Engine::UpdateGpuScene()
 {
+    // Update scene
     gpu::Scene* sceneRef = (gpu::Scene*)m_gpuScene.info.pMappedData;
 
-    sceneRef->camera.camPos = m_camera.m_transform.translation;
     sceneRef->camera.viewProj = m_camera.m_proj * m_camera.m_view;
     sceneRef->camera.proj = m_camera.m_proj;
     sceneRef->camera.view = m_camera.m_view;
     sceneRef->camera.invProj = glm::inverse(m_camera.m_proj);
     sceneRef->camera.invView = glm::inverse(m_camera.m_view);
-    sceneRef->meshBufferRef = VkDeviceAddress();
-    sceneRef->instanceBufferRef = VkDeviceAddress();
-    sceneRef->materialBufferRef = VkDeviceAddress();
+
+    // Update meshes
+    gpu::Mesh* meshBufferRef = (gpu::Mesh*)m_meshBuffer.info.pMappedData;
+
+    for (int i = 0; i < m_meshPool.m_resources.size(); i++)
+    {
+        if (!m_meshPool.m_takenSpots[i])
+            continue;
+
+        meshBufferRef[i].vertexBufferRef = m_meshPool.m_resources[i].vertexBufferAddr;
+        meshBufferRef[i].indexBufferRef = m_meshPool.m_resources[i].indexBufferAddr;
+        meshBufferRef[i].materialHandle = m_meshPool.m_resources[i].primitives[0].materialId;
+    }
+    sceneRef->meshBufferRef = m_meshBufferAddr;
+
+    // Update instances
+    gpu::Instance* instanceBufferRef = (gpu::Instance*)m_instanceBuffer.info.pMappedData;
+    gpu::Material* materialBufferRef = (gpu::Material*)m_materialBuffer.info.pMappedData;
+    
+    std::vector<VkAccelerationStructureInstanceKHR> tlasInstances;
+    auto view = g_engine.m_scene.m_registry.view<WorldTransform, RenderComponent>();
+    int i = 0;
+    for (const auto& [entity, transform, render] : view.each())
+    {
+        instanceBufferRef[i].transform = transform.matrix;
+        instanceBufferRef[i].meshHandle = render.mesh;
+
+        MaterialHandle materialHandle = m_meshPool.m_resources[render.mesh].primitives[0].materialId;
+        const Material2 material = m_materialPool.m_resources[materialHandle];
+        materialBufferRef[materialHandle].baseColorHandle    = material.baseColorHandle;
+        materialBufferRef[materialHandle].normalMapHandle    = material.normalMapHandle;
+        materialBufferRef[materialHandle].metalRoughHandle   = material.metalRoughHandle;
+        materialBufferRef[materialHandle].aoHandle           = material.aoHandle;
+        materialBufferRef[materialHandle].emissiveHandle     = material.emissiveHandle;
+        i++;
+    }
+    sceneRef->instanceBufferRef = m_instanceBufferAddr;
+    sceneRef->materialBufferRef = m_materialBufferAddr;
+
+    std::vector<VkDescriptorImageInfo> imageInfos;
+    std::vector<VkWriteDescriptorSet> writes;
+    writes.clear();
+    imageInfos.clear();
+    imageInfos.reserve(kTextureCount);
+    imageInfos.reserve(kTextureCount);
+    for (size_t i = 0; i < m_texturePool.m_resources.size(); i++) 
+    {
+        if (!m_texturePool.m_takenSpots[i])
+            continue;
+
+        VkDescriptorImageInfo& imageInfo = imageInfos.emplace_back();
+        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageInfo.imageView = m_texturePool.m_resources[i].imageView; // your VkImageView
+        imageInfo.sampler = m_sampler;   // your VkSampler
+
+        VkWriteDescriptorSet& write = writes.emplace_back();
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.dstSet = m_allTexturesSet;
+        write.dstBinding = 0;
+        write.dstArrayElement = i;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        write.descriptorCount = 1;
+        write.pImageInfo = &imageInfo;
+    }
+
+    vkUpdateDescriptorSets(m_device.m_device, writes.size(), writes.data(), 0, nullptr);
 }
 
 AllocatedBuffer trayser::Engine::CreateBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage)

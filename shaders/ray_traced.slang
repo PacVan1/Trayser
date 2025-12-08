@@ -1,15 +1,13 @@
 #include "../src/gpu_io.h"
 
 // Texture array for material textures
-//[[vk::binding(BindingPoints::eTextures, 0)]]    Sampler2D textures[];
 [[vk::push_constant]] ConstantBuffer<RTPushConstants> pushConst;
+[[vk::binding(0, 0)]] Sampler2D textures[100];
 // Top-level acceleration structure containing the scene geometry
-[[vk::binding(0, 0)]] RaytracingAccelerationStructure topLevelAS;
+[[vk::binding(0, 1)]] RaytracingAccelerationStructure topLevelAS;
 // Output image where the final rendered result will be stored
-[[vk::binding(1, 0)]] RWTexture2D<float4> outImage;
+[[vk::binding(1, 1)]] RWTexture2D<float4> outImage;
 
-[[vk::binding(2, 0)]] StructuredBuffer<Vertex> vertices;
-[[vk::binding(3, 0)]] StructuredBuffer<uint32_t> indices;
 // clang-format on
 
 static const float kMinT = 0.001f;
@@ -79,31 +77,41 @@ void rgMain()
 [shader("closesthit")]
 void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
+    Scene scene = pushConst.sceneRef[0];
+    REF(Mesh) meshBufferRef = scene.meshBufferRef;
+    REF(Instance) instanceBufferRef = scene.instanceBufferRef;
+    Instance instance = instanceBufferRef[InstanceIndex()];
+    Mesh mesh = meshBufferRef[instance.meshHandle];
+    REF(Vertex) vertexBufferRef = mesh.vertexBufferRef;
+    REF(uint32_t) indexBufferRef = mesh.indexBufferRef;
+    REF(Material) materialBufferRef = scene.materialBufferRef;
+    Material material = materialBufferRef[mesh.materialHandle];
+
     // Triangle index inside the BLAS
     uint triIndex = PrimitiveIndex() * 3;
 
     // Fetch the three vertex indices
-    uint i0 = indices[triIndex + 0];
-    uint i1 = indices[triIndex + 1];
-    uint i2 = indices[triIndex + 2];
+    uint i0 = indexBufferRef[triIndex + 0];
+    uint i1 = indexBufferRef[triIndex + 1];
+    uint i2 = indexBufferRef[triIndex + 2];
 
     // Fetch the three vertices
-    Vertex v0 = vertices[i0];
-    Vertex v1 = vertices[i1];
-    Vertex v2 = vertices[i2];
+    Vertex v0 = vertexBufferRef[i0];
+    Vertex v1 = vertexBufferRef[i1];
+    Vertex v2 = vertexBufferRef[i2];
 
     // Interpolate attributes using barycentrics
     float w0 = 1.0 - attr.barycentrics.x - attr.barycentrics.y;
     float w1 = attr.barycentrics.x;
     float w2 = attr.barycentrics.y;
 
-    float3 hitPos = v0.position * w0 + v1.position * w1 + v2.position * w2;
-    float3 hitNormal = normalize(v0.normal * w0 + v1.normal * w1 + v2.normal * w2);
-    float hitUVX = v0.uvX * w0 + v1.uvX * w1 + v2.uvX * w2;
-    float hitUVY = v0.uvY * w0 + v1.uvY * w1 + v2.uvY * w2;
+    float3 hitPos = v0.position.xyz * w0 + v1.position.xyz * w1 + v2.position.xyz * w2;
+    float3 hitNormal = normalize(v0.normal.xyz * w0 + v1.normal.xyz * w1 + v2.normal.xyz * w2);
+    float2 hitUV = v0.texCoord.xy * w0 + v1.texCoord.xy * w1 + v2.texCoord.xy * w2;
 
     // Use hitPos, hitNormal, hitUV for shading
-    payload.color = (float3(hitNormal) + 1.0) * 0.5; // example: encode UVs as color
+    payload.color = float3(textures[material.aoHandle].Sample(hitUV).rgb); // example: encode UVs as color
+    //payload.color = float3(1.0, 0.0, 0.0); // example: encode UVs as color
 
     payload.depth = 1;
     payload.distance = RayTCurrent();

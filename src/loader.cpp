@@ -212,13 +212,11 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
         newPrim.baseIndex = indicesProcessed;
 		newPrim.indexCount = indexCount;
 
-        // Convert positionData to my format
-        size_t stride = accessor->ByteStride(*view);
-        const uint8_t* ptr = positionData;
-        for (size_t i = 0; i < vertexCount; i++, ptr += stride)
+        // Convert normalData to my format
+        for (size_t i = 0; i < vertexCount; i++)
         {
-            const float* pos = reinterpret_cast<const float*>(ptr);
-            vertices[verticesProcessed + i].position = glm::vec3(pos[0], pos[1], pos[2]);
+            float* pos = (float*)(positionData + i * sizeof(float) * 3);
+            vertices[verticesProcessed + i].position = glm::vec4(pos[0], pos[1], pos[2], 1.0);
         }
 
         // Normals ---------------------------------------------------------------------
@@ -236,7 +234,7 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
             for (size_t i = 0; i < vertexCount; i++)
             {
                 float* normal = (float*)(normalData + i * sizeof(float) * 3);
-                vertices[verticesProcessed + i].normal = glm::vec3(normal[0], normal[1], normal[2]);
+                vertices[verticesProcessed + i].normal = glm::vec4(normal[0], normal[1], normal[2], 0.0);
             }
         }
         else
@@ -271,8 +269,10 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
             for (size_t i = 0; i < vertexCount; i++)
             {
                 float* texCoord = (float*)(texCoordData + i * sizeof(float) * 2);
-                vertices[verticesProcessed + i].uvX = texCoord[0];
-                vertices[verticesProcessed + i].uvY = texCoord[1];
+                vertices[verticesProcessed + i].texCoord.x = texCoord[0];
+                vertices[verticesProcessed + i].texCoord.y = texCoord[1];
+                vertices[verticesProcessed + i].texCoord.z = 0.0;
+                vertices[verticesProcessed + i].texCoord.w = 0.0;
             }
         }
 
@@ -307,13 +307,7 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
 
         // Materials -----------------------------------------------------------------
         int matIdx = prim.material;
-        if (matIdx >= 0)
-        {
-            newPrim.materialId = materials.size();
-            auto& newMaterial = materials.emplace_back();
-            auto& material = loaded.materials[matIdx];
-            LoadMaterial(loaded, material, folder, newMaterial);
-        }
+        newPrim.materialId = LoadMaterial(loaded, matIdx, folder);
     }
 
     
@@ -353,108 +347,17 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
     //////////////////////////////////////////////////////////////
 }
 
-void trayser::Mesh::LoadMaterial(const tinygltf::Model& model, const tinygltf::Material& material, const std::string& folder, Material& newMaterial)
+trayser::MaterialHandle trayser::Mesh::LoadMaterial(const tinygltf::Model& model, int matIdx, const std::string& folder)
 {
-    auto GetImagePath = [&](const tinygltf::Image& image, const tinygltf::Texture& texture)
-        { return folder + (image.uri.empty() ? "_texture" + std::to_string(texture.source) : image.uri); };
+    if (matIdx < 0)
+        return ResourceHandle_Invalid;
+
+    auto GetMaterialPath = [&](int matIdx)
+        { return folder + ("_material" + matIdx); };
 
     auto& engine = g_engine;
 
-    // Base color -------------------------------------------------------------------
-    int texIdx = material.pbrMetallicRoughness.baseColorTexture.index;
-    if (texIdx >= 0)
-    {
-        auto& texture = model.textures[texIdx];
-        if (texture.source >= 0)
-        {
-            auto& image = model.images[texture.source];
-            std::string path = GetImagePath(image, texture);
-            newMaterial.baseColor = engine.m_resources.Create<Image>(
-                path,
-                path,
-                model,
-                image,
-                VK_FORMAT_R8G8B8A8_SRGB,
-                VK_IMAGE_USAGE_SAMPLED_BIT);
-            newMaterial.baseColorFactor = glm::make_vec4(material.pbrMetallicRoughness.baseColorFactor.data());
-        }
-    }
-    // Normal map -------------------------------------------------------------------
-    texIdx = material.normalTexture.index;
-    if (texIdx >= 0)
-    {
-        auto& texture = model.textures[texIdx];
-        if (texture.source >= 0)
-        {
-            auto& image = model.images[texture.source];
-            std::string path = GetImagePath(image, texture);
-            newMaterial.normalMap = engine.m_resources.Create<Image>(
-                path,
-                path,
-                model,
-                image,
-                VK_FORMAT_R8G8B8A8_UNORM,
-                VK_IMAGE_USAGE_SAMPLED_BIT);
-        }
-    }
-    // Metallic roughness -------------------------------------------------------------------
-    texIdx = material.pbrMetallicRoughness.metallicRoughnessTexture.index;
-    if (texIdx >= 0)
-    {
-        auto& texture = model.textures[texIdx];
-        if (texture.source >= 0)
-        {
-            auto& image = model.images[texture.source];
-            std::string path = GetImagePath(image, texture);
-            newMaterial.metallicRoughness = engine.m_resources.Create<Image>(
-                path,
-                path,
-                model,
-                image,
-                VK_FORMAT_R8G8B8A8_UNORM,
-                VK_IMAGE_USAGE_SAMPLED_BIT);
-            newMaterial.metallicRoughnessAoFactor.r = material.pbrMetallicRoughness.metallicFactor;
-            newMaterial.metallicRoughnessAoFactor.g = material.pbrMetallicRoughness.roughnessFactor;
-        }
-    }
-    // Ambient occlusion -------------------------------------------------------------------
-    texIdx = material.occlusionTexture.index;
-    if (texIdx >= 0)
-    {
-        auto& texture = model.textures[texIdx];
-        if (texture.source >= 0)
-        {
-            auto& image = model.images[texture.source];
-            std::string path = GetImagePath(image, texture);
-            newMaterial.occlusion = engine.m_resources.Create<Image>(
-                path,
-                path,
-                model,
-                image,
-                VK_FORMAT_R8G8B8A8_UNORM,
-                VK_IMAGE_USAGE_SAMPLED_BIT);
-            newMaterial.metallicRoughnessAoFactor.b = material.occlusionTexture.strength;
-        }
-    }
-    // Emissive ---------------------------------------------------------------------------
-    texIdx = material.emissiveTexture.index;
-    if (texIdx >= 0)
-    {
-        auto& texture = model.textures[texIdx];
-        if (texture.source >= 0)
-        {
-            auto& image = model.images[texture.source];
-            std::string path = GetImagePath(image, texture);
-            newMaterial.emissive = engine.m_resources.Create<Image>(
-                path,
-                path,
-                model,
-                image,
-                VK_FORMAT_R8G8B8A8_SRGB,
-                VK_IMAGE_USAGE_SAMPLED_BIT);
-            newMaterial.emissiveFactor = glm::make_vec3(material.emissiveFactor.data());
-        }
-    }
+    return engine.m_materialPool.Create(GetMaterialPath(matIdx), model, model.materials[matIdx], folder);
 }
 
 void trayser::Model::MikkTSpaceCalc(LoadingMesh* mesh)
@@ -514,8 +417,8 @@ void trayser::Model::MikkTSpaceGetTexCoords(const SMikkTSpaceContext* context,
     auto index = MikkTSpaceGetVertexIndex(context, iFace, iVert);
     auto vertices = mesh->vertices;
 
-    outUv[0] = vertices[index].uvX;
-    outUv[1] = vertices[index].uvY;
+    outUv[0] = vertices[index].texCoord.x;
+    outUv[1] = vertices[index].texCoord.y;
 }
 
 void trayser::Model::MikkTSpaceSetTSpaceBasic(
@@ -532,7 +435,7 @@ void trayser::Model::MikkTSpaceSetTSpaceBasic(
     vertices[index].tangent.x = tangentu[0];
     vertices[index].tangent.y = tangentu[1];
     vertices[index].tangent.z = tangentu[2];
-    vertices[index].handedness = -fSign;
+    vertices[index].tangent.w = -fSign;
 }
 
 int trayser::Model::MikkTSpaceGetVertexIndex(const SMikkTSpaceContext* context, int iFace, int iVert)
@@ -730,4 +633,109 @@ trayser::Image::Image(u32* data, u32 width, u32 height, VkFormat format, VkImage
     allocation = new_image.allocation;
     imageExtent = new_image.imageExtent;
     imageFormat = new_image.imageFormat;
+}
+
+trayser::Material2::Material2(const tinygltf::Model& model, const tinygltf::Material& material, const std::string& folder)
+{
+    auto GetImagePath = [&](const tinygltf::Image& image, const tinygltf::Texture& texture)
+        { return folder + (image.uri.empty() ? "_texture" + std::to_string(texture.source) : image.uri); };
+
+    auto& engine = g_engine;
+
+    // Base color -------------------------------------------------------------------
+    int texIdx = material.pbrMetallicRoughness.baseColorTexture.index;
+    if (texIdx >= 0)
+    {
+        auto& texture = model.textures[texIdx];
+        if (texture.source >= 0)
+        {
+            auto& image = model.images[texture.source];
+            std::string path = GetImagePath(image, texture);
+            baseColorHandle = engine.m_texturePool.Create(
+                path,
+                path,
+                model,
+                image,
+                VK_FORMAT_R8G8B8A8_SRGB,
+                VK_IMAGE_USAGE_SAMPLED_BIT);
+
+            baseColorFactor = glm::make_vec4(material.pbrMetallicRoughness.baseColorFactor.data());
+        }
+    }
+    // Normal map -------------------------------------------------------------------
+    texIdx = material.normalTexture.index;
+    if (texIdx >= 0)
+    {
+        auto& texture = model.textures[texIdx];
+        if (texture.source >= 0)
+        {
+            auto& image = model.images[texture.source];
+            std::string path = GetImagePath(image, texture);
+            normalMapHandle = engine.m_texturePool.Create(
+                path,
+                path,
+                model,
+                image,
+                VK_FORMAT_R8G8B8A8_UNORM,
+                VK_IMAGE_USAGE_SAMPLED_BIT);
+        }
+    }
+    // Metallic roughness -------------------------------------------------------------------
+    texIdx = material.pbrMetallicRoughness.metallicRoughnessTexture.index;
+    if (texIdx >= 0)
+    {
+        auto& texture = model.textures[texIdx];
+        if (texture.source >= 0)
+        {
+            auto& image = model.images[texture.source];
+            std::string path = GetImagePath(image, texture);
+            metalRoughHandle = engine.m_texturePool.Create(
+                path,
+                path,
+                model,
+                image,
+                VK_FORMAT_R8G8B8A8_UNORM,
+                VK_IMAGE_USAGE_SAMPLED_BIT);
+            metallicRoughnessAoFactor.r = material.pbrMetallicRoughness.metallicFactor;
+            metallicRoughnessAoFactor.g = material.pbrMetallicRoughness.roughnessFactor;
+        }
+    }
+    // Ambient occlusion -------------------------------------------------------------------
+    texIdx = material.occlusionTexture.index;
+    if (texIdx >= 0)
+    {
+        auto& texture = model.textures[texIdx];
+        if (texture.source >= 0)
+        {
+            auto& image = model.images[texture.source];
+            std::string path = GetImagePath(image, texture);
+            aoHandle = engine.m_texturePool.Create(
+                path,
+                path,
+                model,
+                image,
+                VK_FORMAT_R8G8B8A8_UNORM,
+                VK_IMAGE_USAGE_SAMPLED_BIT);
+            metallicRoughnessAoFactor.b = material.occlusionTexture.strength;
+        }
+    }
+    // Emissive ---------------------------------------------------------------------------
+    texIdx = material.emissiveTexture.index;
+    if (texIdx >= 0)
+    {
+        auto& texture = model.textures[texIdx];
+        if (texture.source >= 0)
+        {
+            auto& image = model.images[texture.source];
+            std::string path = GetImagePath(image, texture);
+            emissiveHandle = engine.m_texturePool.Create(
+                path,
+                path,
+                model,
+                image,
+                VK_FORMAT_R8G8B8A8_SRGB,
+                VK_IMAGE_USAGE_SAMPLED_BIT);
+            emissiveFactor = glm::vec4(glm::make_vec3(material.emissiveFactor.data()), 0.0);
+        }
+    }
 }

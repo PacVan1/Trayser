@@ -11,6 +11,8 @@ namespace trayser
 
 using ModelHandle = ResourceHandle;
 using MeshHandle = ResourceHandle;
+using TextureHandle = ResourceHandle;
+using MaterialHandle = ResourceHandle;
 
 class Engine;
 
@@ -22,6 +24,7 @@ struct Image
     VkExtent3D      imageExtent;
     VkFormat        imageFormat;
 
+    Image() = default;
     Image(const std::string& path, const tinygltf::Model& model, const tinygltf::Image& image, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
     Image(u32* data, u32 width, u32 height, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
 };
@@ -38,13 +41,29 @@ struct Material
     glm::vec3 emissiveFactor = glm::vec3(1.0);
 };
 
+struct Material2
+{
+    uint32_t baseColorHandle;   // Base color index to textures
+    uint32_t normalMapHandle;   // Normal map index to textures
+    uint32_t metalRoughHandle;  // Metallic roughness index to textures
+    uint32_t aoHandle;          // Ambient occlusion index to textures
+    uint32_t emissiveHandle;    // Emissive index to textures
+
+    glm::vec4 baseColorFactor;
+    glm::vec4 metallicRoughnessAoFactor;
+    glm::vec4 emissiveFactor;
+
+    Material2() = default;
+    Material2(const tinygltf::Model&, const tinygltf::Material&, const std::string& folder);
+};
+
 struct Primitive
 {
     u32 baseVertex;
     u32 vertexCount;
     u32 baseIndex;
     u32 indexCount;
-    u32 materialId;
+    MaterialHandle materialId;
 };
 
 struct LoadingMesh
@@ -64,7 +83,6 @@ struct Instance
 struct Mesh
 {
     std::vector<Primitive>  primitives;
-    std::vector<Material>   materials;
     AllocatedBuffer         indexBuffer;
     AllocatedBuffer         vertexBuffer;
     VkDeviceAddress         vertexBufferAddr;
@@ -74,7 +92,7 @@ struct Mesh
 
     Mesh() = default;
     Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mesh& loadedMesh, const std::string& folder);
-    void LoadMaterial(const tinygltf::Model&, const tinygltf::Material&, const std::string& folder, Material&);
+    MaterialHandle LoadMaterial(const tinygltf::Model&, int matIdx, const std::string& folder);
 };
 
 struct Model

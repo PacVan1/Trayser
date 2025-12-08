@@ -62,8 +62,8 @@ static void GetTexCoord(const SMikkTSpaceContext* context,
     auto index = GetVertexIndex(context, iFace, iVert);
     auto vertices = mesh->vertices;
 
-    outUv[0] = vertices[index].uvX;
-    outUv[1] = vertices[index].uvY;
+    outUv[0] = vertices[index].texCoord.x;
+    outUv[1] = vertices[index].texCoord.y;
 }
 
 static void SetTangent(
@@ -80,7 +80,7 @@ static void SetTangent(
     vertices[index].tangent.x = tangentu[0];
     vertices[index].tangent.y = tangentu[1];
     vertices[index].tangent.z = tangentu[2];
-    vertices[index].handedness = -fSign;
+    vertices[index].tangent.w = -fSign;
 }
 
 } // namespace trayser::mikktspace

@@ -53,6 +53,7 @@ private:
 	void InitDefaultData();
 	void InitDefaultMaterial();
 	void InitGpuScene();
+	void InitTextureDescriptor();
 	void UpdateGpuScene();
 	void DestroySwapchain();
 	void BeginRecording(VkCommandBuffer cmd);
@@ -71,13 +72,26 @@ public:
 	TonemapMode		m_tonemapMode	= TonemapMode_ACES;
 	PipelineMode	m_pipelineMode	= PipelineMode_Rasterized;
 
+	static constexpr uint32_t kMeshCount = 20;
+	static constexpr uint32_t kInstanceCount = 20;
+	static constexpr uint32_t kTextureCount = 100;
+	static constexpr uint32_t kMaterialCount = 100;
+
 	ResourcePool<Model, 10> m_modelPool;
 	ResourcePool<Mesh, 20> m_meshPool;
+	ResourcePool<Image, kTextureCount> m_texturePool;
+	ResourcePool<Material2, kMaterialCount> m_materialPool;
 
-	bool			m_rayTraced = false;
+	bool			m_rayTraced = true;
 
 	AllocatedBuffer m_gpuScene;
 	VkDeviceAddress m_gpuSceneAddr;
+	AllocatedBuffer m_meshBuffer;
+	VkDeviceAddress m_meshBufferAddr;
+	AllocatedBuffer m_instanceBuffer;
+	VkDeviceAddress m_instanceBufferAddr;
+	AllocatedBuffer m_materialBuffer;
+	VkDeviceAddress m_materialBufferAddr;
 
 	std::vector<Pipeline*> m_pipelines;
 
@@ -89,9 +103,11 @@ public:
 	u32							m_graphicsQueueFamily;
 
 	VkExtent2D					m_windowExtent{1700, 900};
-	VkDescriptorSetLayout		m_singleImageDescriptorLayout;
 	VkSampler m_sampler;
 	Material m_defaultMaterial;
+
+	VkDescriptorSetLayout m_allTexturesLayout;
+	VkDescriptorSet m_allTexturesSet;
 
 private:
 	gpu::SceneData m_sceneData;

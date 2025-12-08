@@ -18,19 +18,13 @@ struct VsFsInterface
 {
     float4 position : SV_Position;
     float4 worldPos : WORLD_POS;
-    float3 color    : TEXCOORD0;
-    float2 uv       : TEXCOORD1;
+    float4 uv       : TEXCOORD1;
     float3x3 tbn    : TEXCOORD2;
 };
 
 // Textures with explicit Vulkan bindings
 //[[vk::binding(0, 0)]] Sampler2D textures[];
 [[vk::push_constant]] ConstantBuffer<RasterPushConstants> pushConsts;
-[[vk::binding(0, 0)]] Sampler2D baseColorTexture;
-[[vk::binding(1, 0)]] Sampler2D normalMapTexture;
-[[vk::binding(2, 0)]] Sampler2D metallicRoughnessTexture;
-[[vk::binding(3, 0)]] Sampler2D occlusionTexture;
-[[vk::binding(4, 0)]] Sampler2D emissiveTexture;
 
 float3x3 inverse(float3x3 m)
 {
@@ -52,18 +46,20 @@ VsFsInterface vsMain(Vertex v)
     Camera camera = scene.camera;
 
     // Transform
-    float4x4 mvp = mul(camera.viewProj, pushConsts.transform);
-    o.position = mul(mvp, float4(v.position, 1.0f));
-    o.worldPos = mul(pushConsts.transform, float4(v.position, 1.0f));
+    //float4x4 vp = mul(camera.view, camera.proj);
+    //float4x4 mvp = mul(vp, pushConsts.transform);
+    o.position = float4(v.position.xyz, 1.0);
+    o.worldPos = float4(v.position.xyz, 1.0);
 
     // Outputs
-    o.color = v.color.xyz;
-    o.uv = float2(v.uvX, v.uvY);
+    o.uv = v.texCoord;
 
-    float3 normal = normalize(mul(transpose(inverse((float3x3)pushConsts.transform)), v.normal));
-    float3 tangent = normalize(mul((float3x3)pushConsts.transform, v.tangent.xyz));
+    //float3 normal = normalize(mul(transpose(inverse((float3x3)pushConsts.transform)), v.normal.xyz));
+    //float3 tangent = normalize(mul((float3x3)pushConsts.transform, v.tangent.xyz));
+    float3 normal = v.normal.xyz;
+    float3 tangent = v.tangent.xyz;
     tangent         = normalize(tangent - normal * dot(normal, tangent));
-    float3 bitangent = cross(normal, tangent) * v.handedness;
+    float3 bitangent = cross(normal, tangent) * v.tangent.w;
 
     o.tbn = float3x3(tangent, bitangent, normal);
 
@@ -240,22 +236,22 @@ FSOutput fsMain(VsFsInterface input)
 
     PBRInfo info;
     info.worldPos = input.worldPos.xyz;
-    float3 mapNormal = normalize(normalMapTexture.Sample(input.uv).xyz * 2.0 - 1.0);
-    info.N = normalize(mul(mapNormal, input.tbn));
+    //float3 mapNormal = normalize(normalMapTexture.Sample(input.uv.xy).xyz * 2.0 - 1.0);
+    info.N = normalize(mul(input.tbn[2], input.tbn));
 
-    info.baseColor = baseColorTexture.Sample(input.uv);
-    info.emissive = emissiveTexture.Sample(input.uv).rgb;
-    float3 metallicRoughness = metallicRoughnessTexture.Sample(input.uv).rgb;
-    info.metallic = metallicRoughness.b;
-    info.roughness = metallicRoughness.g;
-    info.ao = occlusionTexture.Sample(input.uv).r;
+    //info.baseColor = baseColorTexture.Sample(input.uv.xy);
+    //info.emissive = emissiveTexture.Sample(input.uv.xy).rgb;
+    //float3 metallicRoughness = metallicRoughnessTexture.Sample(input.uv.xy).rgb;
+    //info.metallic = metallicRoughness.b;
+    //info.roughness = metallicRoughness.g;
+    //info.ao = occlusionTexture.Sample(input.uv.xy).r;
 
     info.F0 = float3(0.04);
     info.F0 = lerp(info.F0, info.baseColor.rgb, info.metallic);
     info.V = normalize(GetPosition(camera) - info.worldPos.xyz);
     info.R = reflect(info.V, info.N);
 
-    switch (pushConsts.renderMode.x)
+    switch (pushConsts.renderMode)
     {
     case RenderMode.FinalColor:
         float3 intensity = 0.0;
@@ -266,7 +262,7 @@ FSOutput fsMain(VsFsInterface input)
         break;
 
     case RenderMode.TexCoord0:
-        o.fragColor = float4(input.uv, 0.0, 1.0);
+        o.fragColor = float4(input.uv.xy, 0.0, 1.0);
         break;
 
     case RenderMode.Tangent:
@@ -290,7 +286,7 @@ FSOutput fsMain(VsFsInterface input)
         break;
 
     case RenderMode.NormalMap:
-        o.fragColor = normalMapTexture.Sample(input.uv);
+        o.fragColor = normalMapTexture.Sample(input.uv.xy);
         break;
 
     case RenderMode.Metallic:

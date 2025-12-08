@@ -23,7 +23,7 @@ void trayser::RasterizedPipeline::Load()
     VkPipelineLayoutCreateInfo pipLayoutInfo = PipelineLayoutCreateInfo();
     pipLayoutInfo.flags = 0;
     pipLayoutInfo.setLayoutCount = 1;
-    pipLayoutInfo.pSetLayouts = &g_engine.m_singleImageDescriptorLayout;
+    pipLayoutInfo.pSetLayouts = &g_engine.m_allTexturesLayout;
     pipLayoutInfo.pushConstantRangeCount = 1;
     pipLayoutInfo.pPushConstantRanges = &pushConst;
     VK_CHECK(vkCreatePipelineLayout(g_engine.m_device.m_device, &pipLayoutInfo, nullptr, &m_layout));
@@ -189,6 +189,7 @@ void trayser::RasterizedPipeline::Update()
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
 
     auto view = g_engine.m_scene.m_registry.view<WorldTransform, RenderComponent>();
+    int i = 0;
     for (const auto& [ent, tf, render] : view.each())
     {
         VkBuffer vertexBuffers[] = { g_engine.m_meshPool.Get(render.mesh).vertexBuffer.buffer };
@@ -198,25 +199,10 @@ void trayser::RasterizedPipeline::Update()
 
         for (auto& prim : g_engine.m_meshPool.Get(render.mesh).primitives)
         {
-            //bind a texture
-            VkDescriptorSet imageSet = g_engine.m_device.GetFrame().descriptors.Allocate(g_engine.m_device.m_device, g_engine.m_singleImageDescriptorLayout);
-            {
-                DescriptorWriter writer;
-                writer.WriteImage(0, g_engine.m_meshPool.Get(render.mesh).materials[prim.materialId].baseColor ? g_engine.m_meshPool.Get(render.mesh).materials[prim.materialId].baseColor->imageView : g_engine.m_defaultMaterial.baseColor->imageView, g_engine.m_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-                writer.WriteImage(1, g_engine.m_meshPool.Get(render.mesh).materials[prim.materialId].normalMap ? g_engine.m_meshPool.Get(render.mesh).materials[prim.materialId].normalMap->imageView : g_engine.m_defaultMaterial.normalMap->imageView, g_engine.m_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-                writer.WriteImage(2, g_engine.m_meshPool.Get(render.mesh).materials[prim.materialId].metallicRoughness ? g_engine.m_meshPool.Get(render.mesh).materials[prim.materialId].metallicRoughness->imageView : g_engine.m_defaultMaterial.metallicRoughness->imageView, g_engine.m_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-                writer.WriteImage(3, g_engine.m_meshPool.Get(render.mesh).materials[prim.materialId].occlusion ? g_engine.m_meshPool.Get(render.mesh).materials[prim.materialId].occlusion->imageView : g_engine.m_defaultMaterial.occlusion->imageView, g_engine.m_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-                writer.WriteImage(4, g_engine.m_meshPool.Get(render.mesh).materials[prim.materialId].emissive ? g_engine.m_meshPool.Get(render.mesh).materials[prim.materialId].emissive->imageView : g_engine.m_defaultMaterial.emissive->imageView, g_engine.m_sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-
-                writer.UpdateSet(g_engine.m_device.m_device, imageSet);
-            }
-
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_layout, 0, 1, &imageSet, 0, nullptr);
-
             gpu::RasterPushConstants pushConsts{};
             pushConsts.sceneRef = g_engine.m_gpuSceneAddr;
-            pushConsts.transform = tf.matrix;
-            pushConsts.renderMode.x = g_engine.m_renderMode;
+            pushConsts.renderMode = g_engine.m_renderMode;
+            pushConsts.instanceIdx = i;
 
             vkCmdPushConstants(g_engine.m_device.GetCmd(),
                 m_layout,
@@ -227,6 +213,7 @@ void trayser::RasterizedPipeline::Update()
 
             vkCmdDrawIndexed(cmd, prim.indexCount, 1, prim.baseIndex, 0, 0);
         }
+        i++;
     }
 
     vkCmdEndRendering(cmd);
