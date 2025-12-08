@@ -1,28 +1,22 @@
 #include "../src/gpu_io.h"
 
-// Texture array for material textures
 [[vk::push_constant]] ConstantBuffer<RTPushConstants> pushConst;
-[[vk::binding(0, 0)]] Sampler2D textures[100];
-// Top-level acceleration structure containing the scene geometry
-[[vk::binding(0, 1)]] RaytracingAccelerationStructure topLevelAS;
-// Output image where the final rendered result will be stored
-[[vk::binding(1, 1)]] RWTexture2D<float4> outImage;
 
-// clang-format on
+[[vk::binding(0, 0)]] Sampler2D textures[100];
+[[vk::binding(0, 1)]] RaytracingAccelerationStructure topLevelAS;
+[[vk::binding(1, 1)]] RWTexture2D<float4> outImage;
 
 static const float kMinT = 0.001f;
 static const float kMaxT = 100.0f;
 
-// Ray payload structure - carries data through the ray tracing pipeline
 struct HitPayload
 {
-    float3 color;   // Accumulated color along the ray path
-    float  weight;  // Weight/importance of this ray (for importance sampling)
+    float3 color;
+    float  weight;
     float  distance;
-    int    depth;   // Current recursion depth (for limiting bounces)
+    int    depth;
 };
 
-// Ray generation shader - entry point for each pixel
 [shader("raygeneration")]
 void rgMain()
 {

@@ -12,6 +12,7 @@
 #include <entt/entt.hpp>
 
 #include <magic_enum/magic_enum.hpp>
+#include <gpu_io.h>
 
 #define VK_CHECK(x)                                                     \
     do {                                                                \
@@ -48,27 +49,6 @@ typedef int8_t          s8;
 typedef unsigned int    uint;
 
 using Entity = entt::entity;
-
-enum RenderMode_
-{
-    RenderMode_FinalColor,
-    RenderMode_TexCoord0,
-    RenderMode_Tangent,
-    RenderMode_Bitangent,
-    RenderMode_GeometryNormal,
-    RenderMode_ShadingNormal,
-    RenderMode_BaseColor,
-    RenderMode_NormalMap,
-    RenderMode_Metallic,
-    RenderMode_Roughness,
-    RenderMode_AmbientOcclusion,
-    RenderMode_Emission,
-    RenderMode_WorldPos,
-    RenderMode_ViewDir,
-    RenderMode_Wireframe,
-    RenderMode_Depth,
-    kRenderModeCount
-};
 using RenderMode = int;
 
 const std::string kRenderModeStr = GetNullSeparated<RenderMode_>();

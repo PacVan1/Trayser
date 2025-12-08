@@ -20,13 +20,51 @@ using int2      = glm::ivec2;
 #define FLOAT4X4 float4x4
 #define FLOAT3X3 float3x3
 #define FLOAT2X2 float2x2
+#define BEGIN_ENUM_DEF(type) enum type##_ {
+#define DEF_ENUM_ENTRY(type, entry) type##_##entry,
+#define DEF_ENUM_ENTRY_VAL(type, entry, value) type##_##entry = value,
+#define END_ENUM_DEF(type) k##type##Count };
 #else
 #define REF(type) type*
 #define PUSH_CONST(type) type
 #define FLOAT4X4 column_major float4x4
 #define FLOAT3X3 column_major float3x3
 #define FLOAT2X2 column_major float2x2
+#define BEGIN_ENUM_DEF(type) enum type {
+#define DEF_ENUM_ENTRY(type, entry) entry,
+#define DEF_ENUM_ENTRY_VAL(type, entry, value) entry = value,
+#define END_ENUM_DEF(type) kCount, };
 #endif
+
+static constexpr float kGamma       = 2.2;
+static constexpr float kInvGamma    = 1.0 / 2.2;
+static constexpr float kPi          = 3.14159265359;
+
+BEGIN_ENUM_DEF(TextureType)
+DEF_ENUM_ENTRY(TextureType, BaseColor)
+DEF_ENUM_ENTRY(TextureType, NormalMap)
+DEF_ENUM_ENTRY(TextureType, MetallicRoughness)
+DEF_ENUM_ENTRY(TextureType, AmbientOcclusion)
+DEF_ENUM_ENTRY(TextureType, Emission)
+END_ENUM_DEF(TextureType)
+
+BEGIN_ENUM_DEF(RenderMode)
+DEF_ENUM_ENTRY(RenderMode, FinalColor)
+DEF_ENUM_ENTRY(RenderMode, TexCoord0)
+DEF_ENUM_ENTRY(RenderMode, Tangent)
+DEF_ENUM_ENTRY(RenderMode, Bitangent)
+DEF_ENUM_ENTRY(RenderMode, GeometryNormal)
+DEF_ENUM_ENTRY(RenderMode, ShadingNormal)
+DEF_ENUM_ENTRY(RenderMode, BaseColor)
+DEF_ENUM_ENTRY(RenderMode, NormalMap)
+DEF_ENUM_ENTRY(RenderMode, Metallic)
+DEF_ENUM_ENTRY(RenderMode, Roughness)
+DEF_ENUM_ENTRY(RenderMode, AmbientOcclusion)
+DEF_ENUM_ENTRY(RenderMode, Emission)
+DEF_ENUM_ENTRY(RenderMode, WorldPos)
+DEF_ENUM_ENTRY(RenderMode, ViewDir)
+DEF_ENUM_ENTRY(RenderMode, Depth)
+END_ENUM_DEF(RenderMode)
 
 namespace gpu
 {

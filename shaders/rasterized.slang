@@ -1,5 +1,8 @@
 #include "../src/gpu_io.h"
 
+[[vk::push_constant]] ConstantBuffer<RasterPushConstants> pushConsts;
+[[vk::binding(0, 0)]] Sampler2D textures[100];
+
 struct PBRInfo
 {
     float3 worldPos;
@@ -18,13 +21,9 @@ struct VsFsInterface
 {
     float4 position : SV_Position;
     float4 worldPos : WORLD_POS;
-    float4 uv       : TEXCOORD1;
-    float3x3 tbn    : TEXCOORD2;
+    float4 uv : TEXCOORD1;
+    float3x3 tbn : TEXCOORD2;
 };
-
-// Textures with explicit Vulkan bindings
-//[[vk::binding(0, 0)]] Sampler2D textures[];
-[[vk::push_constant]] ConstantBuffer<RasterPushConstants> pushConsts;
 
 float3x3 inverse(float3x3 m)
 {
@@ -44,12 +43,13 @@ VsFsInterface vsMain(Vertex v)
 
     Scene scene = pushConsts.sceneRef[0];
     Camera camera = scene.camera;
+    REF(Instance) instanceBufferRef = scene.instanceBufferRef;
+    Instance instance = instanceBufferRef[pushConsts.instanceIdx];
 
     // Transform
-    //float4x4 vp = mul(camera.view, camera.proj);
-    //float4x4 mvp = mul(vp, pushConsts.transform);
-    o.position = float4(v.position.xyz, 1.0);
-    o.worldPos = float4(v.position.xyz, 1.0);
+    float4x4 mvp = mul(camera.viewProj, instance.transform);
+    o.position = mul(mvp, float4(v.position.xyz, 1.0));
+    o.worldPos = mul(instance.transform, float4(v.position.xyz, 1.0));
 
     // Outputs
     o.uv = v.texCoord;
@@ -65,39 +65,6 @@ VsFsInterface vsMain(Vertex v)
 
     return o;
 }
-
-static constexpr float kGamma = 2.2;
-static constexpr float kInvGamma = 1.0 / 2.2;
-static constexpr float kPi = 3.14159265359;
-
-enum TextureType
-{
-    BaseColor,
-    NormalMap,
-    MetallicRoughness,
-    AmbientOcclusion,
-    Emission,
-};
-
-enum RenderMode
-{
-    FinalColor,
-    TexCoord0,
-    Tangent,
-    Bitangent,
-    GeometryNormal,
-    ShadingNormal,
-    BaseColor,
-    NormalMap,
-    Metallic,
-    Roughness,
-    AmbientOcclusion,
-    Emission,
-    WorldPos,
-    ViewDir,
-    Wireframe,
-    Depth,
-};
 
 float SrgbToLinear(float color)
 {
@@ -286,7 +253,8 @@ FSOutput fsMain(VsFsInterface input)
         break;
 
     case RenderMode.NormalMap:
-        o.fragColor = normalMapTexture.Sample(input.uv.xy);
+        //o.fragColor = normalMapTexture.Sample(input.uv.xy);
+        o.fragColor = float4(0.0);
         break;
 
     case RenderMode.Metallic:
