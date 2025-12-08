@@ -40,14 +40,6 @@ static constexpr float kGamma       = 2.2;
 static constexpr float kInvGamma    = 1.0 / 2.2;
 static constexpr float kPi          = 3.14159265359;
 
-BEGIN_ENUM_DEF(TextureType)
-DEF_ENUM_ENTRY(TextureType, BaseColor)
-DEF_ENUM_ENTRY(TextureType, NormalMap)
-DEF_ENUM_ENTRY(TextureType, MetallicRoughness)
-DEF_ENUM_ENTRY(TextureType, AmbientOcclusion)
-DEF_ENUM_ENTRY(TextureType, Emission)
-END_ENUM_DEF(TextureType)
-
 BEGIN_ENUM_DEF(RenderMode)
 DEF_ENUM_ENTRY(RenderMode, FinalColor)
 DEF_ENUM_ENTRY(RenderMode, TexCoord0)

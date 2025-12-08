@@ -188,6 +188,8 @@ void trayser::RasterizedPipeline::Update()
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
 
+    vkCmdBindDescriptorSets(g_engine.m_device.GetCmd(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_layout, 0, 1, &g_engine.m_allTexturesSet, 0, nullptr);
+
     auto view = g_engine.m_scene.m_registry.view<WorldTransform, RenderComponent>();
     int i = 0;
     for (const auto& [ent, tf, render] : view.each())
@@ -203,6 +205,7 @@ void trayser::RasterizedPipeline::Update()
             pushConsts.sceneRef = g_engine.m_gpuSceneAddr;
             pushConsts.renderMode = g_engine.m_renderMode;
             pushConsts.instanceIdx = i;
+
 
             vkCmdPushConstants(g_engine.m_device.GetCmd(),
                 m_layout,

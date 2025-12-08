@@ -346,7 +346,7 @@ void trayser::Engine::InitTextureDescriptor()
     textureBinding.binding = 0; // binding slot in shader
     textureBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     textureBinding.descriptorCount = kTextureCount; // number of textures
-    textureBinding.stageFlags = 
+    textureBinding.stageFlags =  
         VK_SHADER_STAGE_FRAGMENT_BIT | 
         VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | 
         VK_SHADER_STAGE_MISS_BIT_KHR | 

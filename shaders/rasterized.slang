@@ -54,10 +54,8 @@ VsFsInterface vsMain(Vertex v)
     // Outputs
     o.uv = v.texCoord;
 
-    //float3 normal = normalize(mul(transpose(inverse((float3x3)pushConsts.transform)), v.normal.xyz));
-    //float3 tangent = normalize(mul((float3x3)pushConsts.transform, v.tangent.xyz));
-    float3 normal = v.normal.xyz;
-    float3 tangent = v.tangent.xyz;
+    float3 normal = normalize(mul(transpose(inverse((float3x3)instance.transform)), v.normal.xyz));
+    float3 tangent = normalize(mul((float3x3)instance.transform, v.tangent.xyz));
     tangent         = normalize(tangent - normal * dot(normal, tangent));
     float3 bitangent = cross(normal, tangent) * v.tangent.w;
 
@@ -183,35 +181,34 @@ FSOutput fsMain(VsFsInterface input)
 {
     Scene scene = pushConsts.sceneRef[0];
     Camera camera = scene.camera;
+    REF(Mesh) meshBufferRef = scene.meshBufferRef;
+    REF(Instance) instanceBufferRef = scene.instanceBufferRef;
+    Instance instance = instanceBufferRef[pushConsts.instanceIdx];
+    Mesh mesh = meshBufferRef[instance.meshHandle];
+    REF(Vertex) vertexBufferRef = mesh.vertexBufferRef;
+    REF(uint32_t) indexBufferRef = mesh.indexBufferRef;
+    REF(Material) materialBufferRef = scene.materialBufferRef;
+    Material material = materialBufferRef[mesh.materialHandle];
+
+    Sampler2D baseColorTexture  = textures[material.baseColorHandle];
+    Sampler2D normalMapTexture  = textures[material.normalMapHandle];
+    Sampler2D metalRoughTexture = textures[material.metalRoughHandle];
+    Sampler2D aoTexture         = textures[material.aoHandle];
+    Sampler2D emissiveTexture   = textures[material.emissiveHandle];
 
     FSOutput o;
 
-    float3 L1 = normalize(float3(0.491, 0.085, 0.153));
-    float3 L2 = -L1;
-
-    //PBRInfo info;
-    //info.worldPos = input.worldPos.xyz;
-    //float3 mapNormal = normalize(textures[TextureType.NormalMap].Sample(input.uv).xyz * 2.0 - 1.0);
-    //info.N = normalize(mul(mapNormal, input.tbn));
-    //
-    //info.baseColor = textures[TextureType.BaseColor].Sample(input.uv);
-    //info.emissive = textures[TextureType.Emission].Sample(input.uv).rgb;
-    //float3 metallicRoughness = textures[TextureType.MetallicRoughness].Sample(input.uv).rgb;
-    //info.metallic = metallicRoughness.b;
-    //info.roughness = metallicRoughness.g;
-    //info.ao = textures[TextureType.AmbientOcclusion].Sample(input.uv).r;
-
     PBRInfo info;
     info.worldPos = input.worldPos.xyz;
-    //float3 mapNormal = normalize(normalMapTexture.Sample(input.uv.xy).xyz * 2.0 - 1.0);
-    info.N = normalize(mul(input.tbn[2], input.tbn));
+    float3 mapNormal = normalize(normalMapTexture.Sample(input.uv.xy).xyz * 2.0 - 1.0);
+    info.N = normalize(mul(mapNormal, input.tbn));
 
-    //info.baseColor = baseColorTexture.Sample(input.uv.xy);
-    //info.emissive = emissiveTexture.Sample(input.uv.xy).rgb;
-    //float3 metallicRoughness = metallicRoughnessTexture.Sample(input.uv.xy).rgb;
-    //info.metallic = metallicRoughness.b;
-    //info.roughness = metallicRoughness.g;
-    //info.ao = occlusionTexture.Sample(input.uv.xy).r;
+    info.baseColor = baseColorTexture.Sample(input.uv.xy);
+    info.emissive = emissiveTexture.Sample(input.uv.xy).rgb;
+    float3 metallicRoughness = metalRoughTexture.Sample(input.uv.xy).rgb;
+    info.metallic = metallicRoughness.b;
+    info.roughness = metallicRoughness.g;
+    info.ao = aoTexture.Sample(input.uv.xy).r;
 
     info.F0 = float3(0.04);
     info.F0 = lerp(info.F0, info.baseColor.rgb, info.metallic);
@@ -222,6 +219,8 @@ FSOutput fsMain(VsFsInterface input)
     {
     case RenderMode.FinalColor:
         float3 intensity = 0.0;
+        float3 L1 = normalize(float3(0.491, 0.085, 0.153));
+        float3 L2 = -L1;
         intensity += CookTorranceBRDF(info, L1) * 2.0;
         intensity += CookTorranceBRDF(info, L2) * 2.0;
         o.fragColor = float4(intensity * info.ao + info.emissive, 1.0);
@@ -253,8 +252,7 @@ FSOutput fsMain(VsFsInterface input)
         break;
 
     case RenderMode.NormalMap:
-        //o.fragColor = normalMapTexture.Sample(input.uv.xy);
-        o.fragColor = float4(0.0);
+        o.fragColor = normalMapTexture.Sample(input.uv.xy);
         break;
 
     case RenderMode.Metallic:
