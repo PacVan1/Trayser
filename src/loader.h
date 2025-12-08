@@ -85,8 +85,10 @@ struct Mesh
     std::vector<Primitive>  primitives;
     AllocatedBuffer         indexBuffer;
     AllocatedBuffer         vertexBuffer;
+    AllocatedBuffer         primitiveBuffer;
     VkDeviceAddress         vertexBufferAddr;
     VkDeviceAddress         indexBufferAddr;
+    VkDeviceAddress         primitiveBufferAddr;
 	u32                     vertexCount;
 	u32                     indexCount;
 

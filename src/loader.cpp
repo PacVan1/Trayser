@@ -111,6 +111,8 @@ void trayser::Model::TraverseNode(tinygltf::Model& loaded, const tinygltf::Node&
 
 trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mesh& loadedMesh, const std::string& folder)
 {
+    u32 primitiveCount = loadedMesh.primitives.size();
+
     // Indexing is already being processed during loading,
     // so the amount of indices equals the amount of vertices
     indexCount = Model::TotalIndexCountInMesh(loaded, loadedMesh);
@@ -130,6 +132,7 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
     // NEW /////////////////////////////////////////////////////////
     const size_t vertexBufferSize = vertexCount * sizeof(Vertex);
     const size_t indexBufferSize = indexCount * sizeof(u32);
+    const size_t primitiveBufferSize = primitiveCount * sizeof(gpu::Primitive);
 
     //create vertex buffer
     vertexBuffer = engine->CreateBuffer(vertexBufferSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
@@ -139,14 +142,21 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
     indexBuffer = engine->CreateBuffer(indexBufferSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
         VMA_MEMORY_USAGE_GPU_ONLY);
 
+    //create primitive buffer
+    primitiveBuffer = engine->CreateBuffer(primitiveBufferSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+        VMA_MEMORY_USAGE_GPU_ONLY);
+
     //find the adress of the vertex and index buffer
     VkBufferDeviceAddressInfo deviceAdressInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,.buffer = vertexBuffer.buffer };
     vertexBufferAddr = vkGetBufferDeviceAddress(engine->m_device.m_device, &deviceAdressInfo);
     deviceAdressInfo = VkBufferDeviceAddressInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,.buffer = indexBuffer.buffer };
     indexBufferAddr = vkGetBufferDeviceAddress(engine->m_device.m_device, &deviceAdressInfo);
+    deviceAdressInfo = VkBufferDeviceAddressInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,.buffer = primitiveBuffer.buffer };
+    primitiveBufferAddr = vkGetBufferDeviceAddress(engine->m_device.m_device, &deviceAdressInfo);
 
     AllocatedBuffer vertexStaging = engine->CreateBuffer(vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
     AllocatedBuffer indexStaging = engine->CreateBuffer(indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+    AllocatedBuffer primitiveStaging = engine->CreateBuffer(primitiveBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
 
     VmaAllocationInfo info;
     vmaGetAllocationInfo(engine->m_device.m_allocator, vertexStaging.allocation, &info);
@@ -154,12 +164,16 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
 
     vmaGetAllocationInfo(engine->m_device.m_allocator, indexStaging.allocation, &info);
     u32* indices = (u32*)info.pMappedData;
+
+    vmaGetAllocationInfo(engine->m_device.m_allocator, primitiveStaging.allocation, &info);
+    gpu::Primitive* primitivesAddr = (gpu::Primitive*)info.pMappedData;
     ////////////////////////////////////////////////////////////////
 
     bool missesTangents = false;
     int verticesProcessed = 0;
     int indicesProcessed = 0;
 
+    int i = 0;
     for (const auto& prim : loadedMesh.primitives)
     {
         // Create pointers up front so they can be reused
@@ -308,6 +322,8 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
         // Materials -----------------------------------------------------------------
         int matIdx = prim.material;
         newPrim.materialId = LoadMaterial(loaded, matIdx, folder);
+        primitivesAddr[i].materialHandle = newPrim.materialId;
+        i++;
     }
 
     
@@ -330,20 +346,25 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
     vertexCopy.dstOffset = 0;
     vertexCopy.srcOffset = 0;
     vertexCopy.size = vertexBufferSize;
-
     vkCmdCopyBuffer(cmd, vertexStaging.buffer, vertexBuffer.buffer, 1, &vertexCopy);
 
     VkBufferCopy indexCopy{ 0 };
     indexCopy.dstOffset = 0;
     indexCopy.srcOffset = 0;
     indexCopy.size = indexBufferSize;
-
     vkCmdCopyBuffer(cmd, indexStaging.buffer, indexBuffer.buffer, 1, &indexCopy);
+
+    VkBufferCopy primitiveCopy{ 0 };
+    primitiveCopy.dstOffset = 0;
+    primitiveCopy.srcOffset = 0;
+    primitiveCopy.size = primitiveBufferSize;
+    vkCmdCopyBuffer(cmd, primitiveStaging.buffer, primitiveBuffer.buffer, 1, &primitiveCopy);
 
 	engine->m_device.EndOneTimeSubmit();
 
     engine->DestroyBuffer(vertexStaging);
     engine->DestroyBuffer(indexStaging);
+    engine->DestroyBuffer(primitiveStaging);
     //////////////////////////////////////////////////////////////
 }
 

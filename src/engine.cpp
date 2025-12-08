@@ -107,6 +107,7 @@ void trayser::Engine::Render()
     {
         m_pipelines[PipelineType_Rasterized]->Update();
     }
+
     m_pipelines[PipelineType_Tonemap]->Update();
 
     // Transition the draw image and the swapchain image into their correct transfer layouts
@@ -385,7 +386,7 @@ void trayser::Engine::UpdateGpuScene()
 
         meshBufferRef[i].vertexBufferRef = m_meshPool.m_resources[i].vertexBufferAddr;
         meshBufferRef[i].indexBufferRef = m_meshPool.m_resources[i].indexBufferAddr;
-        meshBufferRef[i].materialHandle = m_meshPool.m_resources[i].primitives[0].materialId;
+        meshBufferRef[i].primitiveBufferRef = m_meshPool.m_resources[i].primitiveBufferAddr;
     }
     sceneRef->meshBufferRef = m_meshBufferAddr;
 

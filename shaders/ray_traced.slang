@@ -79,7 +79,13 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     REF(Vertex) vertexBufferRef = mesh.vertexBufferRef;
     REF(uint32_t) indexBufferRef = mesh.indexBufferRef;
     REF(Material) materialBufferRef = scene.materialBufferRef;
-    Material material = materialBufferRef[mesh.materialHandle];
+    REF(Primitive) primitiveBufferRef = mesh.primitiveBufferRef;
+    Material material = materialBufferRef[primitiveBufferRef[0].materialHandle];
+
+    Sampler2D baseColorTexture  = textures[material.baseColorHandle];
+    Sampler2D normalMapTexture  = textures[material.normalMapHandle];
+    Sampler2D metalRoughTexture = textures[material.metalRoughHandle];
+    Sampler2D emissiveTexture   = textures[material.emissiveHandle];
 
     // Triangle index inside the BLAS
     uint triIndex = PrimitiveIndex() * 3;
@@ -104,7 +110,7 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     float2 hitUV = v0.texCoord.xy * w0 + v1.texCoord.xy * w1 + v2.texCoord.xy * w2;
 
     // Use hitPos, hitNormal, hitUV for shading
-    payload.color = float3(textures[material.aoHandle].Sample(hitUV).rgb); // example: encode UVs as color
+    payload.color = float3(baseColorTexture.Sample(hitUV).rgb); // example: encode UVs as color
     //payload.color = float3(1.0, 0.0, 0.0); // example: encode UVs as color
 
     payload.depth = 1;

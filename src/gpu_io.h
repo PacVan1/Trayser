@@ -69,10 +69,14 @@ struct Vertex
     float4  texCoord;
 };
 
+struct Primitive
+{
+    uint32_t materialHandle;
+};
+
 struct Mesh
 {
-    uint32_t        materialHandle;
-    uint32_t        _pad[3];
+    REF(Primitive)  primitiveBufferRef;
 	REF(Vertex)     vertexBufferRef;
 	REF(uint32_t)   indexBufferRef;
 };
@@ -96,15 +100,15 @@ struct Camera
 
 struct Material
 {
+    float4   baseColorFactor;
+    float4   metallicRoughnessAoFactor;
+    float4   emissiveFactor;
     uint32_t baseColorHandle;   // Base color index to textures
     uint32_t normalMapHandle;   // Normal map index to textures
     uint32_t metalRoughHandle;  // Metallic roughness index to textures
     uint32_t aoHandle;          // Ambient occlusion index to textures
     uint32_t emissiveHandle;    // Emissive index to textures
-
-    float4   baseColorFactor;
-    float4   metallicRoughnessAoFactor;
-    float4   emissiveFactor;
+    uint32_t _pad[3];
 };
 
 struct Scene
