@@ -106,8 +106,8 @@ void trayser::Engine::Render()
     else
     {
         m_pipelines[PipelineType_Rasterized]->Update();
-        m_pipelines[PipelineType_Tonemap]->Update();
     }
+    m_pipelines[PipelineType_Tonemap]->Update();
 
     // Transition the draw image and the swapchain image into their correct transfer layouts
     vkutil::TransitionImage(cmd, m_gBuffer.colorImage.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);

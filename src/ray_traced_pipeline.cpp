@@ -229,5 +229,27 @@ void trayser::RayTracedPipeline::Update()
     g_engine.m_device.m_rtFuncs.vkCmdTraceRaysKHR(g_engine.m_device.GetCmd(), &m_raygenRegion, &m_missRegion, &m_hitRegion, &m_callableRegion, size.width, size.height, 1);
 
     // Barrier to make sure the image is ready for Tonemapping
-    //nvvk::cmdMemoryBarrier(g_engine.m_device.GetCmd(), VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT);
+    PipelineBarrier();
+}
+
+void trayser::RayTracedPipeline::PipelineBarrier() const
+{
+    // Barrier to make sure the image is ready for Tonemapping
+    VkImageMemoryBarrier2 barrier{};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+    barrier.srcStageMask = VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR;
+    barrier.srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+    barrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT; // or COMPUTE if tonemapping
+    barrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL; // whatever layout ray tracing used
+    barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; // for sampling
+    barrier.image = g_engine.m_gBuffer.colorImage.image;
+    barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+
+    VkDependencyInfo depInfo{};
+    depInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+    depInfo.imageMemoryBarrierCount = 1;
+    depInfo.pImageMemoryBarriers = &barrier;
+
+    vkCmdPipelineBarrier2(g_engine.m_device.GetCmd(), &depInfo);
 }

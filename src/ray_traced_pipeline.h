@@ -22,6 +22,8 @@ public:
     virtual void Load() override;
     virtual void Update() override;
 
+    void PipelineBarrier() const;
+
 private:
     VkDescriptorSetLayout   m_descriptorSetLayout;
     VkDescriptorSet         m_descriptorSet;
