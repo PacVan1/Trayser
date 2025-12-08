@@ -40,6 +40,10 @@ void trayser::SlangCompiler::Init()
 
     m_searchPaths =
     {
+        "../src"
+        "../../src"
+        "../../../src"
+        "../../../../src"
         "shaders"
         "../shaders",
         "../../shaders",
@@ -198,6 +202,11 @@ void trayser::SlangCompiler::CreateSlangSession(Slang::ComPtr<slang::ISession>& 
     sessionDesc.compilerOptionEntryCount = 0;
     sessionDesc.searchPaths = m_searchPaths.data();
     sessionDesc.searchPathCount = m_searchPaths.size();
+    sessionDesc.preprocessorMacroCount = 1;
+
+    slang::PreprocessorMacroDesc preprocessorMacros;
+    preprocessorMacros = {"__SLANG__", "1"};
+    sessionDesc.preprocessorMacros = &preprocessorMacros;
 
     m_slangGlobalSession->createSession(sessionDesc, session.writeRef());
 }

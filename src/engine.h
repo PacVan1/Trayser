@@ -13,6 +13,7 @@
 #include <device.h>
 #include <gbuffer.h>
 #include <slang_compiler.h>
+#include <gpu_io.h>
 
 static constexpr char const*	kEngineName	= "Trayser";
 static constexpr unsigned int	kFrameCount	= 2;
@@ -72,6 +73,8 @@ public:
 	ResourcePool<Mesh, 20> m_meshPool;
 
 	bool			m_rayTraced = false;
+
+	gpu::Scene m_gpuScene;
 
 	std::vector<Pipeline*> m_pipelines;
 

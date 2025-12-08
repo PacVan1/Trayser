@@ -1,3 +1,6 @@
+#include "../src/gpu_io.h"
+//using namespace gpu;
+
 [[vk::push_constant]]
 cbuffer PushConstants
 {
@@ -7,17 +10,6 @@ cbuffer PushConstants
     [[vk::offset(144)]] int4 renderMode;
 };
 
-struct Vertex
-{
-    float3 position;
-    float uvX;
-    float3 normal;
-    float uvY;
-    float4 color;
-    float3 tangent;
-    float handedness;
-}
-
 // Texture array for material textures
 //[[vk::binding(BindingPoints::eTextures, 0)]]    Sampler2D textures[];
 // Top-level acceleration structure containing the scene geometry
@@ -25,7 +17,7 @@ struct Vertex
 // Output image where the final rendered result will be stored
 [[vk::binding(1, 0)]] RWTexture2D<float4> outImage;
 
-[[vk::binding(2, 0)]] StructuredBuffer<Vertex> vertices;
+[[vk::binding(2, 0)]] StructuredBuffer<gpu::Vertex> vertices;
 [[vk::binding(3, 0)]] StructuredBuffer<uint32_t> indices;
 // clang-format on
 
@@ -102,9 +94,9 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     uint i2 = indices[triIndex + 2];
 
     // Fetch the three vertices
-    Vertex v0 = vertices[i0];
-    Vertex v1 = vertices[i1];
-    Vertex v2 = vertices[i2];
+    gpu::Vertex v0 = vertices[i0];
+    gpu::Vertex v1 = vertices[i1];
+    gpu::Vertex v2 = vertices[i2];
 
     // Interpolate attributes using barycentrics
     float w0 = 1.0 - attr.barycentrics.x - attr.barycentrics.y;
