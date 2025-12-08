@@ -111,7 +111,7 @@ void trayser::CameraWindow::Update()
 	Camera& cam = g_engine.m_camera;
 
 	ImGui::DragFloat("FOV", &cam.m_fov, 0.05f);
-	ImGui::DragFloat("Speed", &cam.m_speed, 0.01f);
+	ImGui::DragFloat("Speed", &cam.m_speed, 0.0001f);
 	ImGui::DragFloat("Sensitivity", &cam.m_sensitivity, 0.002f);
 
 	ImGui::SeparatorText("Transform");

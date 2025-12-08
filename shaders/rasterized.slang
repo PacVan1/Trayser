@@ -25,17 +25,6 @@ struct VsFsInterface
     float3x3 tbn : TEXCOORD2;
 };
 
-float3x3 inverse(float3x3 m)
-{
-    float det = determinant(m);
-    // Compute adjugate and divide by det
-    return transpose(float3x3(
-        cross(m[1], m[2]),
-        cross(m[2], m[0]),
-        cross(m[0], m[1])
-    )) / det;
-}
-
 [shader("vertex")]
 VsFsInterface vsMain(Vertex v)
 {
@@ -54,7 +43,7 @@ VsFsInterface vsMain(Vertex v)
     // Outputs
     o.uv = v.texCoord;
 
-    float3 normal = normalize(mul(transpose(inverse((float3x3)instance.transform)), v.normal.xyz));
+    float3 normal = normalize(mul(instance.normalTransform, v.normal.xyz));
     float3 tangent = normalize(mul((float3x3)instance.transform, v.tangent.xyz));
     tangent         = normalize(tangent - normal * dot(normal, tangent));
     float3 bitangent = cross(normal, tangent) * v.tangent.w;
