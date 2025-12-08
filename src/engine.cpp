@@ -399,6 +399,7 @@ void trayser::Engine::UpdateGpuScene()
     for (const auto& [entity, transform, render] : view.each())
     {
         instanceBufferRef[i].transform = transform.matrix;
+        instanceBufferRef[i].normalTransform = glm::transpose(glm::inverse(float3x3(transform.matrix)));
         instanceBufferRef[i].meshHandle = render.mesh;
 
         MaterialHandle materialHandle = m_meshPool.m_resources[render.mesh].primitives[0].materialId;
