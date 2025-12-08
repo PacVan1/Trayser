@@ -1,23 +1,15 @@
 #include "../src/gpu_io.h"
-//using namespace gpu;
-
-[[vk::push_constant]]
-cbuffer PushConstants
-{
-    [[vk::offset(0)]]   column_major float4x4 viewInvMatrix;
-    [[vk::offset(64)]]  column_major float4x4 projInvMatrix;
-    [[vk::offset(128)]] float4 camPos;
-    [[vk::offset(144)]] int4 renderMode;
-};
+using namespace gpu;
 
 // Texture array for material textures
 //[[vk::binding(BindingPoints::eTextures, 0)]]    Sampler2D textures[];
+[[vk::push_constant]] ConstantBuffer<RTPushConstants> pushConst;
 // Top-level acceleration structure containing the scene geometry
 [[vk::binding(0, 0)]] RaytracingAccelerationStructure topLevelAS;
 // Output image where the final rendered result will be stored
 [[vk::binding(1, 0)]] RWTexture2D<float4> outImage;
 
-[[vk::binding(2, 0)]] StructuredBuffer<gpu::Vertex> vertices;
+[[vk::binding(2, 0)]] StructuredBuffer<Vertex> vertices;
 [[vk::binding(3, 0)]] StructuredBuffer<uint32_t> indices;
 // clang-format on
 
@@ -41,6 +33,9 @@ void rgMain()
     float2 launchID = (float2)DispatchRaysIndex().xy;     // Current pixel (x,y)
     float2 launchSize = (float2)DispatchRaysDimensions().xy; // Image size (width,height)
 
+    Scene scene = pushConst.sceneRef[0];
+    Camera camera = scene.camera;
+
     // Set ray tracing flags (0 = no special flags)
     const uint rayFlags = 0;
     
@@ -49,14 +44,14 @@ void rgMain()
     const float2 clipCoords = launchID / launchSize * 2.0 - 1.0;
 
     // Transform from NDC to view space using inverse projection matrix
-    const float4 viewCoords = mul(projInvMatrix, float4(clipCoords, 1.0, 1.0));
+    const float4 viewCoords = mul(float4(clipCoords, 1.0, 1.0), camera.invProj);
 
     // Create the primary ray
     RayDesc ray;
     // Transform camera origin (0,0,0) from view space to world space
-    ray.Origin = mul(viewInvMatrix, float4(0.0, 0.0, 0.0, 1.0)).xyz;
+    ray.Origin = mul(float4(0.0, 0.0, 0.0, 1.0), camera.invView).xyz;
     // Transform ray direction from view space to world space
-    ray.Direction = mul(viewInvMatrix, float4(normalize(viewCoords.xyz), 0.0)).xyz;
+    ray.Direction = mul(float4(normalize(viewCoords.xyz), 0.0), camera.invView).xyz;
     ray.TMin = kMinT; // Minimum distance to avoid self-intersection
     ray.TMax = kMaxT; // Maximum distance (infinite for primary rays)
 
@@ -94,9 +89,9 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     uint i2 = indices[triIndex + 2];
 
     // Fetch the three vertices
-    gpu::Vertex v0 = vertices[i0];
-    gpu::Vertex v1 = vertices[i1];
-    gpu::Vertex v2 = vertices[i2];
+    Vertex v0 = vertices[i0];
+    Vertex v1 = vertices[i1];
+    Vertex v2 = vertices[i2];
 
     // Interpolate attributes using barycentrics
     float w0 = 1.0 - attr.barycentrics.x - attr.barycentrics.y;

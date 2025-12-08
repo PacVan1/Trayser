@@ -54,6 +54,8 @@ void trayser::Engine::Init()
     m_device.CreateTopLevelAs();
 
     InitPipelines();
+
+    InitGpuScene();
 }
 
 void trayser::Engine::Cleanup()
@@ -89,6 +91,8 @@ void trayser::Engine::Render()
 
     //vkutil::TransitionImage(cmd, m_gBuffer.colorImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     vkutil::TransitionImage(cmd, m_gBuffer.depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+
+    UpdateGpuScene();
 
     m_pipelines[PipelineType_Background]->Update();
 
@@ -292,6 +296,34 @@ void trayser::Engine::InitDefaultMaterial()
     m_defaultMaterial.emissive          = m_resources.Create<Image>("default_emissive_image", &black, 1, 1, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_SAMPLED_BIT);
     m_defaultMaterial.occlusion         = m_resources.Create<Image>("default_ambient_occlusion_image", &white, 1, 1, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT);
     m_defaultMaterial.normalMap         = m_resources.Create<Image>("default_normal_map_image", &normal, 1, 1, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT);
+}
+
+void trayser::Engine::InitGpuScene()
+{
+    m_gpuScene = CreateBuffer(
+        sizeof(gpu::Scene), 
+        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        VMA_MEMORY_USAGE_CPU_TO_GPU);
+
+    VkBufferDeviceAddressInfo deviceAdressInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,.buffer = m_gpuScene.buffer };
+    m_gpuSceneAddr = vkGetBufferDeviceAddress(m_device.m_device, &deviceAdressInfo);
+
+    VmaAllocationInfo info;
+    vmaGetAllocationInfo(m_device.m_allocator, m_gpuScene.allocation, &info);
+}
+
+void trayser::Engine::UpdateGpuScene()
+{
+    gpu::Scene* sceneRef = (gpu::Scene*)m_gpuScene.info.pMappedData;
+
+    sceneRef->camera.camPos = m_camera.m_transform.translation;
+    sceneRef->camera.proj = m_camera.m_proj;
+    sceneRef->camera.view = m_camera.m_view;
+    sceneRef->camera.invProj = glm::inverse(m_camera.m_proj);
+    sceneRef->camera.invView = glm::inverse(m_camera.m_view);
+    sceneRef->meshBufferRef = VkDeviceAddress();
+    sceneRef->instanceBufferRef = VkDeviceAddress();
+    sceneRef->materialBufferRef = VkDeviceAddress();
 }
 
 AllocatedBuffer trayser::Engine::CreateBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage)

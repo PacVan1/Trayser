@@ -104,7 +104,7 @@ void trayser::RayTracedPipeline::Load()
 
     VkPushConstantRange pushConst{};
     pushConst.offset = 0;
-    pushConst.size = sizeof(gpu::PushConstants);
+    pushConst.size = sizeof(gpu::RTPushConstants);
     pushConst.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
 
     VkPipelineLayoutCreateInfo pipeline_layout_create_info{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
@@ -228,23 +228,16 @@ void trayser::RayTracedPipeline::Update()
 
     vkCmdBindDescriptorSets(g_engine.m_device.GetCmd(), VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_layout, 0, 1, &m_descriptorSet, 0, nullptr);
 
-    // Push constant information
-    gpu::PushConstants pushValues{};
-
-    glm::mat4 projection = g_engine.m_camera.m_proj;
-    projection[1][1] *= -1;
-
-    pushValues.model = glm::inverse(projection);
-    pushValues.viewProj = glm::inverse(g_engine.m_camera.m_view);
-    pushValues.camPos = glm::vec4(g_engine.m_camera.m_transform.translation, 1.0f);
-    pushValues.renderMode.x = g_engine.m_renderMode;
+    gpu::RTPushConstants pushConsts{};
+    pushConsts.sceneRef = g_engine.m_gpuSceneAddr;
+    pushConsts.renderMode.x = g_engine.m_renderMode;
 
     vkCmdPushConstants(g_engine.m_device.GetCmd(),
         m_layout,
         VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
         0,
-        sizeof(gpu::PushConstants),
-        &pushValues);
+        sizeof(gpu::RTPushConstants),
+        &pushConsts);
 
     // Ray trace
     const VkExtent2D size = { kInitWindowWidth, kInitWindowHeight };

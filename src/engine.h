@@ -52,6 +52,8 @@ private:
 	void InitImGuiStyle();
 	void InitDefaultData();
 	void InitDefaultMaterial();
+	void InitGpuScene();
+	void UpdateGpuScene();
 	void DestroySwapchain();
 	void BeginRecording(VkCommandBuffer cmd);
 	void ResizeSwapchain();
@@ -74,7 +76,8 @@ public:
 
 	bool			m_rayTraced = false;
 
-	gpu::Scene m_gpuScene;
+	AllocatedBuffer m_gpuScene;
+	VkDeviceAddress m_gpuSceneAddr;
 
 	std::vector<Pipeline*> m_pipelines;
 
