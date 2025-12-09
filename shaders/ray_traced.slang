@@ -77,6 +77,7 @@ void rgMain()
 [shader("closesthit")]
 void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
+    // Collect resources
     Scene scene = pushConst.sceneRef[0];
     REF(Mesh) meshBufferRef = scene.meshBufferRef;
     REF(Instance) instanceBufferRef = scene.instanceBufferRef;
@@ -93,27 +94,25 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     Sampler2D metalRoughTexture = textures[material.metalRoughHandle];
     Sampler2D emissiveTexture   = textures[material.emissiveHandle];
 
-    // Triangle index inside the BLAS
-    uint triIndex = PrimitiveIndex() * 3;
+    // Find triangle, vertices and barycentrics
+    uint triangleIdx = PrimitiveIndex() * 3;
 
-    // Fetch the three vertex indices
-    uint i0 = indexBufferRef[triIndex + 0];
-    uint i1 = indexBufferRef[triIndex + 1];
-    uint i2 = indexBufferRef[triIndex + 2];
+    uint i0 = indexBufferRef[triangleIdx + 0];
+    uint i1 = indexBufferRef[triangleIdx + 1];
+    uint i2 = indexBufferRef[triangleIdx + 2];
 
-    // Fetch the three vertices
     Vertex v0 = vertexBufferRef[i0];
     Vertex v1 = vertexBufferRef[i1];
     Vertex v2 = vertexBufferRef[i2];
 
-    // Interpolate attributes using barycentrics
     float w0 = 1.0 - attr.barycentrics.x - attr.barycentrics.y;
     float w1 = attr.barycentrics.x;
     float w2 = attr.barycentrics.y;
 
-    float3 hitPos = v0.position.xyz * w0 + v1.position.xyz * w1 + v2.position.xyz * w2;
-    float3 hitNormal = normalize(v0.normal.xyz * w0 + v1.normal.xyz * w1 + v2.normal.xyz * w2);
-    float2 hitUV = v0.texCoord.xy * w0 + v1.texCoord.xy * w1 + v2.texCoord.xy * w2;
+    // Get hit info
+    float3 hitPos       = v0.position.xyz * w0 + v1.position.xyz * w1 + v2.position.xyz * w2;
+    float3 hitNormal    = normalize(v0.normal.xyz * w0 + v1.normal.xyz * w1 + v2.normal.xyz * w2);
+    float2 hitUV        = v0.texCoord.xy * w0 + v1.texCoord.xy * w1 + v2.texCoord.xy * w2;
 
     // Use hitPos, hitNormal, hitUV for shading
     payload.color = float3(baseColorTexture.Sample(hitUV).rgb); // example: encode UVs as color
