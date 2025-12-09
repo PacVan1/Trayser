@@ -122,7 +122,9 @@ struct Scene
 struct PUSH_CONST(RTPushConstants)
 {
     REF(Scene) sceneRef;
-    int4 renderMode;
+    uint32_t renderMode;
+    uint32_t frame;
+    uint32_t _pad[2];
 };
 
 struct PUSH_CONST(RasterPushConstants)
@@ -140,5 +142,34 @@ using namespace gpu;
 float3 GetPosition(in Camera camera)
 {
     return mul(camera.invView, float4(0, 0, 0, 1)).xyz;
+}
+// WangHash: calculates a high-quality seed based on an arbitrary non-zero
+// integer. Use this to create your own seed based on e.g. thread index.
+uint32_t WangHash(uint32_t s)
+{
+    s = (s ^ 61) ^ (s >> 16);
+    s *= 9, s = s ^ (s >> 4);
+    s *= 0x27d4eb2d;
+    s = s ^ (s >> 15);
+    return s;
+}
+// random number generator - Marsaglia's xor32
+// This is a high-quality RNG that uses a single 32-bit seed. More info:
+// https://www.researchgate.net/publication/5142825_Xorshift_RNGs
+uint32_t RandomUInt(out uint32_t seed)
+{
+    seed ^= seed << 13;
+    seed ^= seed >> 17;
+    seed ^= seed << 5;
+    return seed;
+}
+// Calculate a random unsigned int and cast it to a float in the range [0..1)
+float RandomFloat(out uint32_t seed) 
+{ 
+    return RandomUInt(seed) * 2.3283064365387e-10f; 
+}
+uint32_t InitRNGState(uint32_t x, uint32_t y, uint32_t frame)
+{
+    return WangHash((x * 0x1f123bb5u) ^ (y * 0x9e3779b9u) ^ (frame * 0x85ebca6bu));
 }
 #endif

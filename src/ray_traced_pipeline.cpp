@@ -180,24 +180,10 @@ void trayser::RayTracedPipeline::Load()
 
 void trayser::RayTracedPipeline::Update()
 {
+    m_frame++;
+
     // Ray trace pipeline
     vkCmdBindPipeline(g_engine.m_device.GetCmd(), VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pipeline);
-
-    // Bind the descriptor sets for the graphics pipeline (making textures available to the shaders)
-    //const VkBindDescriptorSetsInfo bindDescriptorSetsInfo{ .sType = VK_STRUCTURE_TYPE_BIND_DESCRIPTOR_SETS_INFO,
-    //                                                      .stageFlags = VK_SHADER_STAGE_ALL,
-    //                                                      .layout = m_layout,
-    //                                                      .firstSet = 0,
-    //                                                      .descriptorSetCount = 1,
-    //                                                      .pDescriptorSets = m_descPack.getSetPtr() };
-    //vkCmdBindDescriptorSets2(cmd, &bindDescriptorSetsInfo);
-
-    // Push descriptor sets for ray tracing
-    //nvvk::WriteSetContainer write{};
-    //write.append(m_rtDescPack.makeWrite(shaderio::BindingPoints::eTlas), g_engine.m_device.m_tlasAccel);
-    //write.append(m_rtDescPack.makeWrite(shaderio::BindingPoints::eOutImage), g_engine.m_gBuffer.colorImage),
-    //    VK_IMAGE_LAYOUT_GENERAL);
-    //vkCmdPushDescriptorSetKHR(g_engine.m_device.GetCmd(), VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_layout, 1, write.size(), write.data());
 
     VkAccelerationStructureDeviceAddressInfoKHR ai{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR };
     ai.accelerationStructure = g_engine.m_device.m_tlasAccel.accel;
@@ -215,7 +201,8 @@ void trayser::RayTracedPipeline::Update()
 
     gpu::RTPushConstants pushConsts{};
     pushConsts.sceneRef = g_engine.m_gpuSceneAddr;
-    pushConsts.renderMode.x = g_engine.m_renderMode;
+    pushConsts.renderMode = g_engine.m_renderMode;
+    pushConsts.frame = m_frame;
 
     vkCmdPushConstants(g_engine.m_device.GetCmd(),
         m_layout,

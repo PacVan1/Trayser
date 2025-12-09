@@ -29,7 +29,8 @@ private:
     VkDescriptorSet         m_descriptorSet;
     std::vector<u8>         m_shaderHandles;
     Buffer                  m_sbtBuffer;
-
+    uint32_t                m_frame;
+    
     VkStridedDeviceAddressRegionKHR m_raygenRegion;    // Ray generation shader region
     VkStridedDeviceAddressRegionKHR m_missRegion;      // Miss shader region
     VkStridedDeviceAddressRegionKHR m_hitRegion;       // Hit shader region

@@ -47,7 +47,7 @@ void trayser::Engine::Init()
     m_meshPool.Init();
     m_materialPool.Init();
     m_texturePool.Init();
-    ModelHandle handle = m_modelPool.Create(kModelPaths[ModelResource_Sponza], kModelPaths[ModelResource_Sponza], this);
+    ModelHandle handle = m_modelPool.Create(kModelPaths[ModelResource_FlightHelmet], kModelPaths[ModelResource_FlightHelmet], this);
 
     m_device.CreateBottomLevelAs();
 

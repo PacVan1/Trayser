@@ -11,16 +11,21 @@ static const float kMaxT = 100.0f;
 
 struct HitPayload
 {
-    float3 color;
-    float  weight;
-    float  distance;
-    int    depth;
+    float3      color;
+    float       weight;
+    float       distance;
+    int         depth;
+    uint32_t    rngState;
 };
 
 [shader("raygeneration")]
 void rgMain()
 {
     // Get the current pixel coordinates and image dimensions
+    uint width, height;
+    outImage.GetDimensions(width, height);
+    uint pixelIdx = DispatchRaysIndex().x * DispatchRaysIndex().y * width;
+
     float2 launchID = (float2)DispatchRaysIndex().xy;     // Current pixel (x,y)
     float2 launchSize = (float2)DispatchRaysDimensions().xy; // Image size (width,height)
 
@@ -51,7 +56,8 @@ void rgMain()
     payload.color = float3(0, 0, 0);  // Start with black
     payload.weight = 1;               // Full weight for primary rays
     payload.distance = -1.0f;
-    payload.depth = 0;                // Start at depth 0
+    payload.depth = 0; // Start at depth 0
+    payload.rngState = InitRNGState(DispatchRaysIndex().x, DispatchRaysIndex().y, pushConst.frame);
 
     // Cast the ray into the scene using the acceleration structure
     // Parameters: AS, flags, instance mask, sbt offset, sbt stride, miss offset, ray, payload
@@ -64,7 +70,7 @@ void rgMain()
         return;
 
     // Write the result to the output image
-    outImage[int2(launchID)] = float4(color, 1.0);
+    outImage[int2(launchID)] = float4(payload.color, 1.0);
 }
 
 // Closest hit shader - called when ray hits geometry
