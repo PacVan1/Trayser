@@ -53,46 +53,6 @@ VsFsInterface vsMain(Vertex v)
     return o;
 }
 
-float SrgbToLinear(float color)
-{
-    return pow(color, kGamma);
-}
-
-float2 SrgbToLinear(float2 color)
-{
-    return pow(color, kGamma);
-}
-
-float3 SrgbToLinear(float3 color)
-{
-    return pow(color, kGamma);
-}
-
-float4 SrgbToLinear(float4 color)
-{
-    return pow(color, kGamma);
-}
-
-float LinearToSrgb(float color)
-{
-    return pow(color, kInvGamma);
-}
-
-float2 LinearToSrgb(float2 color)
-{
-    return pow(color, kInvGamma);
-}
-
-float3 LinearToSrgb(float3 color)
-{
-    return pow(color, kInvGamma);
-}
-
-float4 LinearToSrgb(float4 color)
-{
-    return pow(color, kInvGamma);
-}
-
 float3 FresnelSchlickRoughness(float cosTheta, float3 F0, float roughness)
 {
     return F0 + (max(float3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);

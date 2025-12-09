@@ -1,6 +1,6 @@
 #include "../src/gpu_io.h"
 
-[[vk::push_constant]] ConstantBuffer<RTPushConstants> pushConst;
+[[vk::push_constant]] ConstantBuffer<RTPushConstants> pushConsts;
 
 [[vk::binding(0, 0)]] Sampler2D textures[100];
 [[vk::binding(0, 1)]] RaytracingAccelerationStructure topLevelAS;
@@ -18,6 +18,19 @@ struct HitPayload
     uint32_t    rngState;
 };
 
+struct HitInfo
+{
+    float3  albedo;
+    float3  normal;
+    float3  position;
+    float3  tangent;
+    float3  bitangent;
+    float3  emission;
+    float2  uv;
+    float   metallic;
+    float   roughness;
+}
+
 [shader("raygeneration")]
 void rgMain()
 {
@@ -29,7 +42,7 @@ void rgMain()
     float2 launchID = (float2)DispatchRaysIndex().xy;     // Current pixel (x,y)
     float2 launchSize = (float2)DispatchRaysDimensions().xy; // Image size (width,height)
 
-    Scene scene = pushConst.sceneRef[0];
+    Scene scene = pushConsts.sceneRef[0];
     Camera camera = scene.camera;
 
     // Set ray tracing flags (0 = no special flags)
@@ -53,11 +66,11 @@ void rgMain()
 
     // Initialize ray payload with default values
     HitPayload payload;
-    payload.color = float3(0, 0, 0);  // Start with black
+    payload.color = float3(1.0);  // Start with black
     payload.weight = 1;               // Full weight for primary rays
     payload.distance = -1.0f;
     payload.depth = 0; // Start at depth 0
-    payload.rngState = InitRNGState(DispatchRaysIndex().x, DispatchRaysIndex().y, pushConst.frame);
+    payload.rngState = InitRNGState(DispatchRaysIndex().x, DispatchRaysIndex().y, pushConsts.frame);
 
     // Cast the ray into the scene using the acceleration structure
     // Parameters: AS, flags, instance mask, sbt offset, sbt stride, miss offset, ray, payload
@@ -77,8 +90,14 @@ void rgMain()
 [shader("closesthit")]
 void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
+    if (payload.depth >= 2)
+    {
+        payload.color = float3(0.0);
+        return;
+    }
+
     // Collect resources
-    Scene scene = pushConst.sceneRef[0];
+    Scene scene = pushConsts.sceneRef[0];
     REF(Mesh) meshBufferRef = scene.meshBufferRef;
     REF(Instance) instanceBufferRef = scene.instanceBufferRef;
     Instance instance = instanceBufferRef[InstanceIndex()];
@@ -110,26 +129,102 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     float w2 = attr.barycentrics.y;
 
     // Get hit info
-    float3 hitPos       = v0.position.xyz * w0 + v1.position.xyz * w1 + v2.position.xyz * w2;
-    float3 hitNormal    = normalize(v0.normal.xyz * w0 + v1.normal.xyz * w1 + v2.normal.xyz * w2);
-    float2 hitUV        = v0.texCoord.xy * w0 + v1.texCoord.xy * w1 + v2.texCoord.xy * w2;
+    HitInfo hit;
+    hit.position    = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
+    hit.normal      = normalize(v0.normal.xyz * w0 + v1.normal.xyz * w1 + v2.normal.xyz * w2);
+    hit.tangent     = v0.tangent.xyz * w0 + v1.tangent.xyz * w1 + v2.tangent.xyz * w2;
+    hit.uv          = v0.texCoord.xy * w0 + v1.texCoord.xy * w1 + v2.texCoord.xy * w2;
+    hit.albedo      = baseColorTexture.Sample(hit.uv).rgb;
+    hit.emission    = emissiveTexture.Sample(hit.uv).rgb;
+    hit.metallic    = metalRoughTexture.Sample(hit.uv).b;
+    hit.roughness   = metalRoughTexture.Sample(hit.uv).g;
 
-    // Use hitPos, hitNormal, hitUV for shading
-    payload.color = float3(baseColorTexture.Sample(hitUV).rgb); // example: encode UVs as color
-    //payload.color = float3(1.0, 0.0, 0.0); // example: encode UVs as color
+    hit.normal = normalize(mul(instance.normalTransform, hit.normal));
+    hit.tangent = normalize(mul((float3x3)instance.transform, hit.tangent.xyz));
+    hit.tangent = normalize(hit.tangent - hit.normal * dot(hit.normal, hit.tangent));
+    hit.bitangent = cross(hit.normal, hit.tangent) * v0.tangent.w;
+    float3x3 tbn = float3x3(hit.tangent, hit.bitangent, hit.normal);
+    float3 mapNormal = normalize(normalMapTexture.Sample(hit.uv.xy).xyz * 2.0 - 1.0);
+    hit.normal = normalize(mul(mapNormal, tbn));
 
-    payload.depth = 1;
+    switch (pushConsts.renderMode)
+    {
+    case RenderMode.FinalColor:
+        payload.color *= hit.albedo;
+        payload.depth++;
+        payload.distance = RayTCurrent();
+
+        RayDesc ray;
+        ray.Origin = hit.position;
+        ray.Direction = RandomCosineOnHemisphere(hit.normal, payload.rngState);
+        ray.TMin = kMinT;
+        ray.TMax = kMaxT;
+
+        TraceRay(topLevelAS, RAY_FLAG_NONE, 0xff, 0, 0, 0, ray, payload);
+        return;
+        break;
+    case RenderMode.TexCoord0:
+        payload.color = float3(hit.uv, 0.0);
+        break;
+    case RenderMode.Tangent:
+        payload.color = (float3(hit.tangent) + 1.0) * 0.5;
+        break;
+    case RenderMode.Bitangent:
+        payload.color = (float3(hit.bitangent) + 1.0) * 0.5;
+        break;
+    case RenderMode.GeometryNormal:
+        payload.color = (float3(hit.normal) + 1.0) * 0.5;
+        break;
+    case RenderMode.ShadingNormal:
+        payload.color = (float3(hit.normal) + 1.0) * 0.5;
+        break;
+    case RenderMode.BaseColor:
+        payload.color = float3(LinearToSrgb(hit.albedo));
+        break;
+    case RenderMode.NormalMap:
+        payload.color = float3(mapNormal);
+        break;
+    case RenderMode.Metallic:
+        payload.color = float3(hit.metallic);
+        break;
+    case RenderMode.Roughness:
+        payload.color = float3(hit.roughness);
+        break;
+    case RenderMode.AmbientOcclusion:
+    {
+        payload.depth++;
+        payload.distance = RayTCurrent();
+
+        RayDesc ray;
+        ray.Origin = hit.position;
+        ray.Direction = RandomCosineOnHemisphere(hit.normal, payload.rngState);
+        ray.TMin = kMinT;
+        ray.TMax = kMaxT;
+
+        TraceRay(topLevelAS, RAY_FLAG_NONE, 0xff, 0, 0, 0, ray, payload);
+        return;
+        break;
+    }
+    case RenderMode.Emission:
+        payload.color = float3(LinearToSrgb(hit.emission));
+        break;
+    case RenderMode.WorldPos:
+        payload.color = float3(hit.position);
+        break;
+    case RenderMode.Depth:
+        payload.color = float3(RayTCurrent() / kMaxT);
+        break;
+    default:
+        payload.color = float3(1.0, 0.0, 1.0); // Default color: magenta
+        break;
+    }
+
+    payload.depth++;
     payload.distance = RayTCurrent();
 }
 
-// Miss shader - called when ray doesn't hit any geometry
 [shader("miss")]
 void mMain(inout HitPayload payload)
 {
-    // Set background color when ray misses all geometry
-    // In a full implementation, this could sample from:
-    // - Skybox textures
-    // - Procedural sky gradients
-    // - Environment maps
-    payload.color = float3(0.0, 0.0, 0.2); // Gray background
+    //payload.color *= 1.0; // Gray background
 }

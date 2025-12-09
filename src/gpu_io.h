@@ -122,7 +122,7 @@ struct Scene
 struct PUSH_CONST(RTPushConstants)
 {
     REF(Scene) sceneRef;
-    uint32_t renderMode;
+    int renderMode;
     uint32_t frame;
     uint32_t _pad[2];
 };
@@ -145,13 +145,14 @@ float3 GetPosition(in Camera camera)
 }
 // WangHash: calculates a high-quality seed based on an arbitrary non-zero
 // integer. Use this to create your own seed based on e.g. thread index.
-uint32_t WangHash(uint32_t s)
+uint32_t WangHash(in uint32_t seed)
 {
-    s = (s ^ 61) ^ (s >> 16);
-    s *= 9, s = s ^ (s >> 4);
-    s *= 0x27d4eb2d;
-    s = s ^ (s >> 15);
-    return s;
+    seed = (seed ^ 61) ^ (seed >> 16);
+    seed *= 9;
+    seed = seed ^ (seed >> 4);
+    seed *= 0x27d4eb2d;
+    seed = seed ^ (seed >> 15);
+    return seed;
 }
 // random number generator - Marsaglia's xor32
 // This is a high-quality RNG that uses a single 32-bit seed. More info:
@@ -168,8 +169,80 @@ float RandomFloat(out uint32_t seed)
 { 
     return RandomUInt(seed) * 2.3283064365387e-10f; 
 }
+float2 RandomFloat2(out uint32_t seed)
+{
+    return float2(RandomFloat(seed), RandomFloat(seed));
+}
+float3 RandomFloat3(out uint32_t seed)
+{
+    return float3(RandomFloat(seed), RandomFloat(seed), RandomFloat(seed));
+}
+float3 RandomUnitFloat3(out uint32_t seed)
+{
+    return normalize(float3(RandomFloat(seed), RandomFloat(seed), RandomFloat(seed)));
+}
+float3 RandomOnHemisphere(in float3 normal, out uint32_t seed)
+{
+    float3 random = RandomUnitFloat3(seed);
+    if (dot(random, normal) > 0.0f)
+        return random;
+    return -random;
+}
+float3 RandomCosineOnHemisphere(in float3 normal, out uint32_t seed)
+{
+    float u1 = RandomFloat(seed);
+    float u2 = RandomFloat(seed);
+
+    float r = sqrt(u1);
+    float theta = 2.0f * kPi * u2;
+
+    float x = r * cos(theta);
+    float y = r * sin(theta);
+    float z = sqrt(1.0f - u1);
+
+    float3 dir = float3(x, y, z);
+
+    // Transform into world space using the normal
+    float3 up = fabs(normal.z) < 0.999f ? float3(0, 0, 1) : float3(1, 0, 0);
+    float3 tangent = normalize(cross(up, normal));
+    float3 bitangent = cross(normal, tangent);
+
+    return dir.x * tangent + dir.y * bitangent + dir.z * normal;
+}
 uint32_t InitRNGState(uint32_t x, uint32_t y, uint32_t frame)
 {
     return WangHash((x * 0x1f123bb5u) ^ (y * 0x9e3779b9u) ^ (frame * 0x85ebca6bu));
+}
+float SrgbToLinear(float color)
+{
+    return pow(color, kGamma);
+}
+float2 SrgbToLinear(float2 color)
+{
+    return pow(color, kGamma);
+}
+float3 SrgbToLinear(float3 color)
+{
+    return pow(color, kGamma);
+}
+float4 SrgbToLinear(float4 color)
+{
+    return pow(color, kGamma);
+}
+float LinearToSrgb(float color)
+{
+    return pow(color, kInvGamma);
+}
+float2 LinearToSrgb(float2 color)
+{
+    return pow(color, kInvGamma);
+}
+float3 LinearToSrgb(float3 color)
+{
+    return pow(color, kInvGamma);
+}
+float4 LinearToSrgb(float4 color)
+{
+    return pow(color, kInvGamma);
 }
 #endif
