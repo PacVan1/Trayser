@@ -72,17 +72,17 @@ public:
 	TonemapMode		m_tonemapMode	= TonemapMode_ACES;
 	PipelineMode	m_pipelineMode	= PipelineMode_Rasterized;
 
-	static constexpr uint32_t kMeshCount = 20;
-	static constexpr uint32_t kInstanceCount = 20;
-	static constexpr uint32_t kTextureCount = 100;
-	static constexpr uint32_t kMaterialCount = 100;
+	static constexpr uint32_t kMeshCount		= 128;
+	static constexpr uint32_t kInstanceCount	= 128;
+	static constexpr uint32_t kTextureCount		= 128;
+	static constexpr uint32_t kMaterialCount	= 128;
 
 	ResourcePool<Model, 10> m_modelPool;
-	ResourcePool<Mesh, 20> m_meshPool;
+	ResourcePool<Mesh, kMeshCount> m_meshPool;
 	ResourcePool<Image, kTextureCount> m_texturePool;
 	ResourcePool<Material2, kMaterialCount> m_materialPool;
 
-	bool			m_rayTraced = true;
+	bool			m_rayTraced = false;
 
 	AllocatedBuffer m_gpuScene;
 	VkDeviceAddress m_gpuSceneAddr;

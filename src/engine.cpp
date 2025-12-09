@@ -47,7 +47,7 @@ void trayser::Engine::Init()
     m_meshPool.Init();
     m_materialPool.Init();
     m_texturePool.Init();
-    ModelHandle handle = m_modelPool.Create(kModelPaths[ModelResource_DamagedHelmet], kModelPaths[ModelResource_DamagedHelmet], this);
+    ModelHandle handle = m_modelPool.Create(kModelPaths[ModelResource_Sponza], kModelPaths[ModelResource_Sponza], this);
 
     m_device.CreateBottomLevelAs();
 
@@ -140,13 +140,13 @@ void trayser::Engine::InitDescriptors()
     // Create a descriptor pool that will hold 10 sets with 1 image each
     std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> sizes =
     {
-        { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 2 },
-        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 5 },
-        { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 },
-        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2 }
+        { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,                 128 },
+        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,        128 },
+        { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,    128 },
+        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,                128 }
     };
 
-    m_globalDescriptorAllocator.Init(m_device.m_device, 20, sizes);
+    m_globalDescriptorAllocator.Init(m_device.m_device, 10, sizes);
 
     // Make the descriptor set layout for our compute draw
     {

@@ -411,25 +411,25 @@ bool trayser::Device::ShouldQuit() const
 
 void trayser::Device::CreateBottomLevelAs()
 {
-    m_blasAccel.resize(120);
+    m_blasAccel.resize(128);
 
     // One BLAS per primitive
     for (int i = 0; i < g_engine.m_meshPool.m_resources.size(); i++)
     {
-        if (g_engine.m_meshPool.m_takenSpots[i])
-        {
-            const Mesh& mesh = g_engine.m_meshPool.Get(i);
+        if (!g_engine.m_meshPool.m_takenSpots[i])
+            continue;
 
-            VkAccelerationStructureGeometryKHR       asGeometry{};
-            VkAccelerationStructureBuildRangeInfoKHR asBuildRangeInfo{};
+        const Mesh& mesh = g_engine.m_meshPool.Get(i);
 
-            // Convert the primitive information to acceleration structure geometry
-            PrimitiveToGeometry(mesh, asGeometry, asBuildRangeInfo);
+        VkAccelerationStructureGeometryKHR       asGeometry{};
+        VkAccelerationStructureBuildRangeInfoKHR asBuildRangeInfo{};
 
-            m_blasAccel.emplace_back();
-            CreateAccelerationStructure(VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR, m_blasAccel[i], asGeometry,
-                asBuildRangeInfo, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
-        }
+        // Convert the primitive information to acceleration structure geometry
+        PrimitiveToGeometry(mesh, asGeometry, asBuildRangeInfo);
+
+        m_blasAccel.emplace_back();
+        CreateAccelerationStructure(VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR, m_blasAccel[i], asGeometry,
+            asBuildRangeInfo, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
     }
 }
 

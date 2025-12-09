@@ -184,5 +184,5 @@ void trayser::RenderSettingsWindow::Update()
 {
 	ImGui::Combo("Render Mode", &g_engine.m_renderMode, kRenderModeStr.c_str());
 	ImGui::Combo("Tonemap Mode", &g_engine.m_tonemapMode, kTonemapModeStr.c_str());
-	ImGui::Checkbox("Pipeline Mode", &g_engine.m_rayTraced);
+	ImGui::Checkbox("Ray traced", &g_engine.m_rayTraced);
 }
