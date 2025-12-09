@@ -24,8 +24,9 @@ public:
     void Destroy() const;
     void ReloadIfChanged();
 
-    virtual void Load() = 0;
+    virtual void Load(VkShaderModule module) = 0;
     virtual void Update() = 0;
+    virtual VkShaderModule Compile() = 0;
 };
 
 } // namespace trayser

@@ -18,7 +18,10 @@ void trayser::Pipeline::Init()
         m_lastWriteTime = std::filesystem::last_write_time(filePath);
     }
 
-    Load();
+    VkShaderModule module = Compile();
+    if (module == VK_NULL_HANDLE)
+        return;
+    Load(module);
 }
 
 void trayser::Pipeline::Destroy() const
@@ -43,7 +46,10 @@ void trayser::Pipeline::ReloadIfChanged()
         m_lastWriteTime = currentLastWriteTime;
 
         vkQueueWaitIdle(g_engine.m_device.m_graphicsQueue);
+        VkShaderModule module = Compile();
+        if (module == VK_NULL_HANDLE)
+            return;
         Destroy();
-        Load();
+        Load(module);
     }
 }

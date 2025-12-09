@@ -11,7 +11,7 @@ trayser::RayTracedPipeline::RayTracedPipeline() :
     m_canHotReload = true;
 }
 
-void trayser::RayTracedPipeline::Load()
+void trayser::RayTracedPipeline::Load(VkShaderModule module)
 {
     // Descriptor set layout
 
@@ -43,10 +43,6 @@ void trayser::RayTracedPipeline::Load()
     std::array<VkPipelineShaderStageCreateInfo, eShaderGroupCount> stages{};
     for (auto& s : stages)
         s.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-
-    VkShaderModule module = g_engine.m_compiler.CompileAll(m_name.c_str());
-    if (module == VK_NULL_HANDLE)
-        return;
 
     stages[eRaygen].pNext = nullptr;
     stages[eRaygen].pName = "rgMain";
@@ -217,6 +213,11 @@ void trayser::RayTracedPipeline::Update()
 
     // Barrier to make sure the image is ready for Tonemapping
     PipelineBarrier();
+}
+
+VkShaderModule trayser::RayTracedPipeline::Compile()
+{
+    return g_engine.m_compiler.CompileAll(m_name.c_str());
 }
 
 void trayser::RayTracedPipeline::PipelineBarrier() const

@@ -9,12 +9,8 @@ trayser::RasterizedPipeline::RasterizedPipeline()
     m_canHotReload = true;
 }
 
-void trayser::RasterizedPipeline::Load()
+void trayser::RasterizedPipeline::Load(VkShaderModule module)
 {
-    VkShaderModule module = g_engine.m_compiler.CompileAll(m_name.c_str());
-    if (module == VK_NULL_HANDLE)
-        return;
-
     VkPushConstantRange pushConst{};
     pushConst.offset = 0;
     pushConst.size = sizeof(gpu::RasterPushConstants);
@@ -220,4 +216,9 @@ void trayser::RasterizedPipeline::Update()
     }
 
     vkCmdEndRendering(cmd);
+}
+
+VkShaderModule trayser::RasterizedPipeline::Compile()
+{
+    return g_engine.m_compiler.CompileAll(m_name.c_str());
 }

@@ -12,7 +12,7 @@ trayser::TonemapPipeline::TonemapPipeline() :
     m_canHotReload = true;
 }
 
-void trayser::TonemapPipeline::Load()
+void trayser::TonemapPipeline::Load(VkShaderModule module)
 {
     // Descriptor set layout
 
@@ -45,10 +45,6 @@ void trayser::TonemapPipeline::Load()
     computeLayout.pushConstantRangeCount = 1;
 
     VK_CHECK(vkCreatePipelineLayout(g_engine.m_device.m_device, &computeLayout, nullptr, &m_layout));
-
-    VkShaderModule module = g_engine.m_compiler.CompileAll(m_name.c_str());
-    if (module == VK_NULL_HANDLE)
-        return;
 
     VkPipelineShaderStageCreateInfo stageinfo{};
     stageinfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -85,4 +81,9 @@ void trayser::TonemapPipeline::Update()
 
     // execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
     vkCmdDispatch(cmd, std::ceil(extent.width / 16.0), std::ceil(extent.height / 16.0), 1);
+}
+
+VkShaderModule trayser::TonemapPipeline::Compile()
+{
+    return g_engine.m_compiler.CompileAll(m_name.c_str());
 }

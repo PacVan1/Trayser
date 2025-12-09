@@ -17,8 +17,9 @@ public:
 
 public:
     TonemapPipeline();
-    virtual void Load() override;
+    virtual void Load(VkShaderModule module) override;
     virtual void Update() override;
+    virtual VkShaderModule Compile() override;
 
 private:
     VkDescriptorSetLayout m_descriptorSetLayout;
