@@ -12,7 +12,7 @@ void trayser::Camera::Input()
 	float vel = m_speed * mod;
 	if (input.IsKeyDown(KeyboardKey_D))	m_transform.translation += m_right * vel;
 	if (input.IsKeyDown(KeyboardKey_W))	m_transform.translation += m_ahead * vel;
-	if (input.IsKeyDown(KeyboardKey_R))	m_transform.translation += m_up * vel;
+	if (input.IsKeyDown(KeyboardKey_Space))	m_transform.translation += m_up * vel;
 	if (input.IsKeyDown(KeyboardKey_A))	m_transform.translation -= m_right * vel;
 	if (input.IsKeyDown(KeyboardKey_S))	m_transform.translation -= m_ahead * vel;
 	if (input.IsKeyDown(KeyboardKey_F))	m_transform.translation -= m_up * vel;
