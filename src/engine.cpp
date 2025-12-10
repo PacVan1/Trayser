@@ -38,9 +38,7 @@ void trayser::Engine::Init()
 
     InitGpuScene();
 
-    InitSkydome();
-
-    //m_skybox = Image("../../assets/environments/climbing_gym_4k.hdr", VK_FORMAT_UNDEFINED, VK_IMAGE_USAGE_SAMPLED_BIT);
+    //LoadSkydome(kModelPaths[ModelResource_DamagedHelmet]);
 }
 
 void trayser::Engine::Destroy()
@@ -335,52 +333,6 @@ void trayser::Engine::InitTextureDescriptor()
     m_allTexturesSet = m_globalDescriptorAllocator.Allocate(m_device.m_device, m_allTexturesLayout);
 }
 
-// Convert 32-bit float to 16-bit half-precision float
-static uint16_t FloatToHalf(float value)
-{
-    uint32_t f = *reinterpret_cast<uint32_t*>(&value);
-    uint32_t s = (f >> 31) & 0x1;
-    uint32_t e = ((f >> 23) & 0xFF) - 112;
-    uint32_t m = (f & 0x7FFFFF) >> 13;
-
-    if (e <= 0) {
-        e = 0;
-        m = 0;
-    }
-    else if (e >= 31) {
-        e = 31;
-        m = 0x3FF;
-    }
-
-    return (s << 15) | (e << 10) | m;
-}
-
-void trayser::Engine::InitSkydome()
-{ 
-    int width, height;
-    float* stbiData = stbi_loadf("../../assets/environments/golden_gate_hills_4k.hdr", &width, &height, nullptr, 4);
-
-    if (!stbiData)
-        return;
-
-    std::vector<uint16_t> imageData16Bit(width * height * 4); // 4 channels per pixel
-    for (int i = 0; i < width * height; i++) {
-        for (int c = 0; c < 4; c++) {
-            // Convert float to 16-bit half-float
-            imageData16Bit[i * 4 + c] = FloatToHalf(stbiData[i * 4 + c]);
-        }
-    }
-
-    m_skydome = m_texturePool.Create("skydome", 
-        imageData16Bit.data(),
-        (uint32_t)width, 
-        (uint32_t)height,
-        VK_FORMAT_R16G16B16A16_SFLOAT,
-        VK_IMAGE_USAGE_SAMPLED_BIT);
-
-    stbi_image_free(stbiData);
-}
-
 void trayser::Engine::UpdateGpuScene()
 {
     // Update scene
@@ -392,7 +344,7 @@ void trayser::Engine::UpdateGpuScene()
     sceneRef->camera.viewProj = sceneRef->camera.proj * sceneRef->camera.view;
     sceneRef->camera.invProj = glm::inverse(sceneRef->camera.proj);
     sceneRef->camera.invView = glm::inverse(sceneRef->camera.view);
-    sceneRef->skydomeHandle = m_skydome;
+    sceneRef->skydomeHandle = m_skydomeHandle;
 
     // Update meshes
     gpu::Mesh* meshBufferRef = (gpu::Mesh*)m_meshBuffer.info.pMappedData;
@@ -645,6 +597,36 @@ void trayser::Engine::HotReloadPipelines()
     {
 		m_pipelines[i]->ReloadIfChanged();
     }
+}
+
+void trayser::Engine::LoadSkydome(const std::string& path)
+{
+    static constexpr u32 kChannels = 4;
+
+    int width, height;
+    float* stbiData = stbi_loadf(path.c_str(), &width, &height, nullptr, kChannels);
+
+    if (!stbiData)
+        return;
+
+    m_texturePool.Free(m_skydomeHandle);
+
+    size_t sizeBytes = (size_t)(width * height * kChannels);
+    f16* halfedData = new f16[width * height * kChannels];
+    for (int i = 0; i < sizeBytes; i++)
+    {
+        halfedData[i] = stbiData[i];
+    }
+
+    m_skydomeHandle = m_texturePool.Create("skydome",
+        halfedData,
+        (u32)width,
+        (u32)height,
+        VK_IMAGE_USAGE_SAMPLED_BIT,
+        Image::HDRI{});
+
+    delete[] halfedData;
+    stbi_image_free(stbiData);
 }
 
 void trayser::Engine::DestroySwapchain()

@@ -41,6 +41,7 @@
 #include <mikktspace.h>
 #include <slang/slang.h>
 #include <slang/slang-com-ptr.h>
+#include <umHalf.h>
 
 // Custom
 #include <types.h>

@@ -10,17 +10,25 @@ file(GLOB_RECURSE SOURCE_FILES
 )
 
 # Add source to this project's executable.
-add_executable (engine 
+add_executable (Trayser 
     ${HEADER_FILES}
     ${SOURCE_FILES}
 )
 
-set_property(TARGET engine PROPERTY CXX_STANDARD 20)
-target_compile_definitions(engine PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE)
-target_include_directories(engine PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
-target_precompile_headers(engine PRIVATE pch.h)
+target_sources(Trayser PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/umHalf/umHalf.h
+    ${PROJECT_SOURCE_DIR}/src/umHalf/umHalf.inl
+)
 
-target_link_libraries(engine PUBLIC 
+target_include_directories(Trayser PRIVATE 
+    ${PROJECT_SOURCE_DIR}/src/umHalf)
+
+set_property(TARGET Trayser PROPERTY CXX_STANDARD 20)
+target_compile_definitions(Trayser PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE)
+target_include_directories(Trayser PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+target_precompile_headers(Trayser PRIVATE pch.h)
+
+target_link_libraries(Trayser PUBLIC 
   vma 
   glm 
   Vulkan::Vulkan 
@@ -36,9 +44,9 @@ target_link_libraries(engine PUBLIC
 
 # Warnings as errors
 #if (MSVC)
-#    target_compile_options(engine PRIVATE /WX)
+#    target_compile_options(Trayser PRIVATE /WX)
 #else() # GCC/Clang
-#    target_compile_options(engine PRIVATE -Werror)
+#    target_compile_options(Trayser PRIVATE -Werror)
 #endif()
 
 # Enable multi-threaded compilation
@@ -47,8 +55,8 @@ if (MSVC)
 endif()
 
 if(WIN32)
-  add_custom_command(TARGET engine POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_RUNTIME_DLLS:engine> $<TARGET_FILE_DIR:engine>
+  add_custom_command(TARGET Trayser POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_RUNTIME_DLLS:Trayser> $<TARGET_FILE_DIR:Trayser>
     COMMAND_EXPAND_LISTS
     )
 endif()
@@ -56,16 +64,16 @@ endif()
 set(SLANG_INCLUDE_DIR "$ENV{VULKAN_SDK}/Include")
 set(SLANG_LIB_DIR "$ENV{VULKAN_SDK}/Lib")
 set(SLANG_BIN_DIR "$ENV{VULKAN_SDK}/Bin")
-target_include_directories(engine PRIVATE ${SLANG_INCLUDE_DIR})
-target_link_libraries(engine PRIVATE
+target_include_directories(Trayser PRIVATE ${SLANG_INCLUDE_DIR})
+target_link_libraries(Trayser PRIVATE
     $<$<CONFIG:Debug>:${SLANG_LIB_DIR}/slangd.lib> # Windows (.lib)
     $<$<CONFIG:Release>:${SLANG_LIB_DIR}/slang.lib>
 )
 
-add_custom_command(TARGET engine POST_BUILD
+add_custom_command(TARGET Trayser POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
     "${SLANG_BIN_DIR}/slang.dll"
-    $<TARGET_FILE_DIR:engine>)
+    $<TARGET_FILE_DIR:Trayser>)
 
 # Make sure the shaders output directory exists
 file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/shaders)
@@ -78,7 +86,7 @@ file(GLOB_RECURSE SLANG_SOURCE_FILES
 set_source_files_properties(${SLANG_SOURCE_FILES} PROPERTIES HEADER_FILE_ONLY TRUE)
 
 # Attach them to your target (important!)
-target_sources(engine PRIVATE
+target_sources(Trayser PRIVATE
     ${SLANG_SOURCE_FILES}
 )
 

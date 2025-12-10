@@ -23,8 +23,9 @@ public:
 class InspectorWindow final : public IWindow
 {
 public:
-	Entity selected				= entt::null;
-	ModelResource selectedModel = ModelResource_DamagedHelmet;
+	Entity selected					= entt::null;
+	ModelResource selectedModel		= ModelResource_DamagedHelmet;
+	SkydomeResource selectedSkydome = SkydomeResource_BallawleyPark4k;
 
 public:
 	void Update() override;

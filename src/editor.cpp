@@ -156,6 +156,10 @@ void trayser::InspectorWindow::Update()
 	}
 	ImGui::SameLine();
 	ImGui::Combo("Model", &selectedModel, kModelResourceStr.c_str());
+	if (ImGui::Combo("Skydome", &selectedSkydome, kSkydomeResourceStr.c_str()))
+	{
+		g_engine.LoadSkydome(kSkydomePaths[selectedSkydome]);
+	}
 
 	float totalHeight = ImGui::GetContentRegionAvail().y - 3 * ImGui::GetFrameHeightWithSpacing() - 2 * ImGui::GetFrameHeight() - 2;
 

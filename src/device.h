@@ -272,6 +272,7 @@ public:
 [[nodiscard]] inline VkPipelineShaderStageCreateInfo	PipelineShaderStageCreateInfo(const void* pNext = nullptr);
 [[nodiscard]] inline VkComputePipelineCreateInfo		ComputePipelineCreateInfo(const void* pNext = nullptr);
 [[nodiscard]] inline VkSamplerCreateInfo				SamplerCreateInfo(const void* pNext = nullptr);
+[[nodiscard]] inline VkBufferCreateInfo					BufferCreateInfo(const void* pNext = nullptr);
 
 } // namespace trayser
 

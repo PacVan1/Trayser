@@ -93,3 +93,8 @@ VkSamplerCreateInfo trayser::SamplerCreateInfo(const void* pNext)
 {
     return VkSamplerCreateInfo{ .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO, .pNext = pNext };
 }
+
+VkBufferCreateInfo trayser::BufferCreateInfo(const void* pNext)
+{
+    return VkBufferCreateInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, .pNext = pNext };
+}

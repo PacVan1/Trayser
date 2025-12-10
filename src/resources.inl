@@ -87,6 +87,9 @@ inline void trayser::ResourcePool<T, Capacity>::Free(const std::string& hashable
 template<typename T, size_t Capacity>
 inline void trayser::ResourcePool<T, Capacity>::Free(ResourceHandle& handle)
 {
+	if (handle == ResourceHandle_Invalid)
+		return;
+
 	m_hashToHandle.erase(m_handleToHash[handle]);
 	m_freeSpots.push_back(handle);
 	m_resources[handle].~T();

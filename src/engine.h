@@ -43,6 +43,7 @@ public:
 	void DestroyImage(const AllocatedImage& img);
 	void DestroyBuffer(const AllocatedBuffer& buffer);
 	void HotReloadPipelines();
+	void LoadSkydome(const std::string& path);
 
 	[[nodiscard]] Input& GetInput()	{ return m_device.m_input; }
 
@@ -54,7 +55,6 @@ private:
 	void InitDefaultMaterial();
 	void InitGpuScene();
 	void InitTextureDescriptor();
-	void InitSkydome();
 	void UpdateGpuScene();
 	void DestroySwapchain();
 	void BeginRecording(VkCommandBuffer cmd);
@@ -85,7 +85,7 @@ public:
 
 	bool			m_rayTraced = true;
 
-	TextureHandle m_skydome;
+	TextureHandle m_skydomeHandle;
 
 	AllocatedBuffer m_gpuScene;
 	VkDeviceAddress m_gpuSceneAddr;

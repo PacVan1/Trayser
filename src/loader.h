@@ -18,6 +18,9 @@ class Engine;
 
 struct Image
 {
+    // Tags for constructor
+    struct HDRI {};
+
     VkImage         image;
     VkImageView     imageView;
     VmaAllocation   allocation;
@@ -25,10 +28,12 @@ struct Image
     VkFormat        imageFormat;
 
     Image() = default;
+    ~Image();
     Image(const std::string& path, const tinygltf::Model& model, const tinygltf::Image& image, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
     Image(const std::string& path, VkFormat format, VkImageUsageFlags usage);
     Image(u32* data, u32 width, u32 height, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
-    Image(u16* data, u32 width, u32 height, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
+    Image(u16* data, u32 width, u32 height, VkFormat format, VkImageUsageFlags usage, HDRI);
+    Image(f16* data, u32 width, u32 height, VkImageUsageFlags usage, HDRI);
 };
 
 struct Material

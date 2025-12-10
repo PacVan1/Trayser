@@ -46,6 +46,7 @@ typedef uint8_t         byte;
 typedef int32_t         s32;
 typedef int16_t         s16;
 typedef int8_t          s8;
+typedef half            f16;
 typedef unsigned int    uint;
 
 using Entity = entt::entity;
@@ -74,7 +75,64 @@ enum ModelResource_
 };
 using ModelResource = int;
 
+const std::string kModelPaths[kModelResourceCount] =
+{
+    "../../assets/Khronos/CompareAmbientOcclusion/glTF-Binary/CompareAmbientOcclusion.glb",
+    "../../assets/Khronos/CompareBaseColor/glTF-Binary/CompareBaseColor.glb",
+    "../../assets/Khronos/CompareMetallic/glTF-Binary/CompareMetallic.glb",
+    "../../assets/Khronos/CompareRoughness/glTF-Binary/CompareRoughness.glb",
+    "../../assets/Khronos/DamagedHelmet/glTF-Binary/DamagedHelmet.glb",
+    "../../assets/Khronos/FlightHelmet/glTF/FlightHelmet.gltf",
+    "../../assets/Khronos/Lantern/glTF-Binary/Lantern.glb",
+    "../../assets/Khronos/MetalRoughSpheres/glTF-Binary/MetalRoughSpheres.glb",
+    "../../assets/Khronos/NormalTangentMirrorTest/glTF-Binary/NormalTangentMirrorTest.glb",
+    "../../assets/Khronos/NormalTangentTest/glTF-Binary/NormalTangentTest.glb",
+    "../../assets/Khronos/OrientationTest/glTF-Binary/OrientationTest.glb",
+    "../../assets/Khronos/SciFiHelmet/glTF/SciFiHelmet.gltf",
+    "../../assets/Khronos/Sponza/glTF/Sponza.gltf",
+    "../../assets/Khronos/TextureLinearInterpolationTest/glTF-Binary/TextureLinearInterpolationTest.glb",
+    "../../assets/Khronos/TextureEncodingTest/glTF-Binary/TextureEncodingTest.glb"
+};
+
 const std::string kModelResourceStr = GetNullSeparated<ModelResource_>();
+
+enum SkydomeResource_
+{
+    SkydomeResource_BallawleyPark4k,
+    SkydomeResource_BilliardHall4k,
+    SkydomeResource_BlaubeurenNight4k,
+    SkydomeResource_CannonExterior,
+    SkydomeResource_ClimbingGym4k,
+    SkydomeResource_FootprintCourt2k,
+    SkydomeResource_GoldenGateHills4k,
+    SkydomeResource_IndustrialWorkshopFoundry4k,
+    SkydomeResource_LeadenhallMarket4k,
+    SkydomeResource_PeppermintPowerplant4k,
+    SkydomeResource_SyferfonteinClearPuresky4k,
+    SkydomeResource_UniversityWorkshop4k,
+    SkydomeResource_VintageWorkshop4k,
+    kSkydomeResourceCount
+};
+using SkydomeResource = int;
+
+const std::string kSkydomePaths[kSkydomeResourceCount] =
+{
+    "../../assets/environments/ballawley_park_4k.hdr",
+    "../../assets/environments/billiard_hall_4k.hdr",
+    "../../assets/environments/blaubeuren_night_4k.hdr",
+    "../../assets/environments/Cannon_Exterior.hdr",
+    "../../assets/environments/climbing_gym_4k.hdr",
+    "../../assets/environments/Footprint_Court_2k.hdr",
+    "../../assets/environments/golden_gate_hills_4k.hdr",
+    "../../assets/environments/industrial_workshop_foundry_4k.hdr",
+    "../../assets/environments/leadenhall_market_4k.hdr",
+    "../../assets/environments/peppermint_powerplant_2_4k.hdr",
+    "../../assets/environments/syferfontein_18d_clear_puresky_4k.hdr",
+    "../../assets/environments/university_workshop_4k.hdr",
+    "../../assets/environments/vintage_measuring_lab_4k.hdr"
+};
+
+const std::string kSkydomeResourceStr = GetNullSeparated<SkydomeResource_>();
 
 enum TonemapMode_
 {
@@ -105,25 +163,6 @@ enum PipelineMode_
 };
 using PipelineMode = int;
 
-const std::string kModelPaths[kModelResourceCount] =
-{
-    "../../assets/Khronos/CompareAmbientOcclusion/glTF-Binary/CompareAmbientOcclusion.glb",
-    "../../assets/Khronos/CompareBaseColor/glTF-Binary/CompareBaseColor.glb",
-    "../../assets/Khronos/CompareMetallic/glTF-Binary/CompareMetallic.glb",
-    "../../assets/Khronos/CompareRoughness/glTF-Binary/CompareRoughness.glb",
-    "../../assets/Khronos/DamagedHelmet/glTF-Binary/DamagedHelmet.glb",
-    "../../assets/Khronos/FlightHelmet/glTF/FlightHelmet.gltf",
-    "../../assets/Khronos/Lantern/glTF-Binary/Lantern.glb",
-    "../../assets/Khronos/MetalRoughSpheres/glTF-Binary/MetalRoughSpheres.glb",
-    "../../assets/Khronos/NormalTangentMirrorTest/glTF-Binary/NormalTangentMirrorTest.glb",
-    "../../assets/Khronos/NormalTangentTest/glTF-Binary/NormalTangentTest.glb",
-    "../../assets/Khronos/OrientationTest/glTF-Binary/OrientationTest.glb",
-    "../../assets/Khronos/SciFiHelmet/glTF/SciFiHelmet.gltf",
-    "../../assets/Khronos/Sponza/glTF/Sponza.gltf",
-    "../../assets/Khronos/TextureLinearInterpolationTest/glTF-Binary/TextureLinearInterpolationTest.glb",
-    "../../assets/Khronos/TextureEncodingTest/glTF-Binary/TextureEncodingTest.glb"
-};
-
 struct AllocatedImage 
 {
     VkImage         image;
@@ -138,6 +177,12 @@ struct AllocatedBuffer
     VkBuffer            buffer;
     VmaAllocation       allocation;
     VmaAllocationInfo   info;
+};
+
+struct Buffer
+{
+    VkBuffer        buffer;
+    VmaAllocation   allocation;
 };
 
 struct Vertex

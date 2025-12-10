@@ -3,7 +3,6 @@
 #include <device.h>
 #include <engine.h>
 #include <types.h>
-#include <staging.h>
 #include <images.h>
 
 #include <vk_mem_alloc.h>
