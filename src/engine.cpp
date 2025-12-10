@@ -25,9 +25,10 @@ void trayser::Engine::Init()
     m_meshPool.Init();
     m_materialPool.Init();
     m_texturePool.Init();
-    ModelHandle handle = m_modelPool.Create(kModelPaths[ModelResource_DamagedHelmet], kModelPaths[ModelResource_DamagedHelmet], this);
+    ModelHandle handle = m_modelPool.Create(kModelPaths[ModelResource_Sponza], kModelPaths[ModelResource_Sponza], this);
 
-    m_device.CreateBottomLevelAs();
+    //m_device.CreateBottomLevelAs();
+    m_device.CreateBLas2();
 
     const Model& model1 = m_modelPool.Get(handle);
     m_scene.CreateModel(model1);
@@ -361,7 +362,6 @@ void trayser::Engine::UpdateGpuScene()
     gpu::Instance* instanceBufferRef = (gpu::Instance*)m_instanceBuffer.info.pMappedData;
     gpu::Material* materialBufferRef = (gpu::Material*)m_materialBuffer.info.pMappedData;
     
-    std::vector<VkAccelerationStructureInstanceKHR> tlasInstances;
     auto view = g_engine.m_scene.m_registry.view<WorldTransform, RenderComponent>();
     int i = 0;
     for (const auto& [entity, transform, render] : view.each())
@@ -370,13 +370,18 @@ void trayser::Engine::UpdateGpuScene()
         instanceBufferRef[i].normalTransform = glm::transpose(glm::inverse(float3x3(transform.matrix)));
         instanceBufferRef[i].meshHandle = render.mesh;
 
-        MaterialHandle materialHandle = m_meshPool.m_resources[render.mesh].primitives[0].materialId;
-        const Material2 material = m_materialPool.m_resources[materialHandle];
-        materialBufferRef[materialHandle].baseColorHandle    = material.baseColorHandle;
-        materialBufferRef[materialHandle].normalMapHandle    = material.normalMapHandle;
-        materialBufferRef[materialHandle].metalRoughHandle   = material.metalRoughHandle;
-        materialBufferRef[materialHandle].aoHandle           = material.aoHandle;
-        materialBufferRef[materialHandle].emissiveHandle     = material.emissiveHandle;
+        auto& mesh = m_meshPool.m_resources[render.mesh];
+
+        for (auto& prim : mesh.primitives)
+        {
+            MaterialHandle materialHandle = prim.materialId;
+            const Material2 material = m_materialPool.m_resources[materialHandle];
+            materialBufferRef[materialHandle].baseColorHandle    = material.baseColorHandle;
+            materialBufferRef[materialHandle].normalMapHandle    = material.normalMapHandle;
+            materialBufferRef[materialHandle].metalRoughHandle   = material.metalRoughHandle;
+            materialBufferRef[materialHandle].aoHandle           = material.aoHandle;
+            materialBufferRef[materialHandle].emissiveHandle     = material.emissiveHandle;
+        }
         i++;
     }
     sceneRef->instanceBufferRef = m_instanceBufferAddr;

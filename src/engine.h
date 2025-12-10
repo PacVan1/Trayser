@@ -69,7 +69,7 @@ public:
 	Device			m_device;
 	GBuffer			m_gBuffer;
 
-	RenderMode		m_renderMode	= RenderMode_FinalColor;
+	RenderMode		m_renderMode	= RenderMode_Depth;
 	TonemapMode		m_tonemapMode	= TonemapMode_ACES;
 	PipelineMode	m_pipelineMode	= PipelineMode_Rasterized;
 

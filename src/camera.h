@@ -24,7 +24,7 @@ public:
 	float m_pitch = 0.0f;
 	float m_yaw = 0.0f;
 
-	float m_speed		= 0.02f;
+	float m_speed		= 0.003f;
 	float m_sensitivity = 0.2f;
 	float m_fov			= 90.0f;
 };

@@ -7,7 +7,7 @@
 [[vk::binding(1, 1)]] RWTexture2D<float4> outImage;
 
 static const float kMinT = 0.001f;
-static const float kMaxT = 100.0f;
+static const float kMaxT = 50.0f;
 
 struct HitPayload
 {
@@ -111,7 +111,8 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     REF(uint32_t) indexBufferRef = mesh.indexBufferRef;
     REF(Material) materialBufferRef = scene.materialBufferRef;
     REF(Primitive) primitiveBufferRef = mesh.primitiveBufferRef;
-    Material material = materialBufferRef[primitiveBufferRef[0].materialHandle];
+    Primitive primitive = primitiveBufferRef[GeometryIndex()];
+    Material material = materialBufferRef[primitive.materialHandle];
 
     Sampler2D baseColorTexture  = textures[material.baseColorHandle];
     Sampler2D normalMapTexture  = textures[material.normalMapHandle];
@@ -119,15 +120,15 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     Sampler2D emissiveTexture   = textures[material.emissiveHandle];
 
     // Find triangle, vertices and barycentrics
-    uint triangleIdx = PrimitiveIndex() * 3;
+    uint triangleIdx = primitive.baseIndex + PrimitiveIndex() * 3;
 
     uint i0 = indexBufferRef[triangleIdx + 0];
     uint i1 = indexBufferRef[triangleIdx + 1];
     uint i2 = indexBufferRef[triangleIdx + 2];
 
-    Vertex v0 = vertexBufferRef[i0];
-    Vertex v1 = vertexBufferRef[i1];
-    Vertex v2 = vertexBufferRef[i2];
+    Vertex v0 = vertexBufferRef[primitive.baseVertex + i0];
+    Vertex v1 = vertexBufferRef[primitive.baseVertex + i1];
+    Vertex v2 = vertexBufferRef[primitive.baseVertex + i2];
 
     float w0 = 1.0 - attr.barycentrics.x - attr.barycentrics.y;
     float w1 = attr.barycentrics.x;
@@ -217,6 +218,18 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     case RenderMode.Depth:
         payload.color = float3(RayTCurrent() / kMaxT);
         break;
+    case RenderMode.GeometryIndex:
+    {
+        uint32_t hash = WangHash(GeometryIndex());
+        payload.color = float3(RandomFloat(hash), RandomFloat(hash), RandomFloat(hash));
+        break;
+    }
+    case RenderMode.PrimitiveIndex:
+    {
+        uint32_t hash = WangHash(PrimitiveIndex());
+        payload.color = float3(RandomFloat(hash), RandomFloat(hash), RandomFloat(hash));
+        break;
+    }
     default:
         payload.color = float3(1.0, 0.0, 1.0); // Default color: magenta
         break;

@@ -138,7 +138,7 @@ FSOutput fsMain(VsFsInterface input)
     REF(uint32_t) indexBufferRef = mesh.indexBufferRef;
     REF(Material) materialBufferRef = scene.materialBufferRef;
     REF(Primitive) primitiveBufferRef = mesh.primitiveBufferRef;
-    Material material = materialBufferRef[primitiveBufferRef[0].materialHandle];
+    Material material = materialBufferRef[primitiveBufferRef[88].materialHandle];
 
     Sampler2D baseColorTexture  = textures[material.baseColorHandle];
     Sampler2D normalMapTexture  = textures[material.normalMapHandle];

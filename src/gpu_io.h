@@ -58,6 +58,8 @@ DEF_ENUM_ENTRY(RenderMode, Emission)
 DEF_ENUM_ENTRY(RenderMode, WorldPos)
 DEF_ENUM_ENTRY(RenderMode, ViewDir)
 DEF_ENUM_ENTRY(RenderMode, Depth)
+DEF_ENUM_ENTRY(RenderMode, GeometryIndex)
+DEF_ENUM_ENTRY(RenderMode, PrimitiveIndex)
 END_ENUM_DEF(RenderMode)
 
 namespace gpu
@@ -74,6 +76,10 @@ struct Vertex
 struct Primitive
 {
     uint32_t materialHandle;
+    uint32_t baseVertex;
+    uint32_t vertexCount;
+    uint32_t baseIndex;
+    uint32_t indexCount;
 };
 
 struct Mesh
@@ -136,7 +142,8 @@ struct PUSH_CONST(RasterPushConstants)
     REF(Scene) sceneRef;
     int renderMode;
     int instanceIdx;
-    int _pad[2];
+    int primitiveIdx;
+    int _pad;
 };
 
 } // namespace gpu

@@ -287,6 +287,64 @@ void trayser::Device::CreateAccelerationStructure(VkAccelerationStructureTypeKHR
     //m_allocator.destroyBuffer(scratchBuffer);
 }
 
+void trayser::Device::CreateAccelerationStructure2(VkAccelerationStructureTypeKHR type, 
+    AccelerationStructure& outAccelStruct, 
+    std::vector<VkAccelerationStructureGeometryKHR>& geometries, 
+    std::vector<VkAccelerationStructureBuildRangeInfoKHR>& rangeInfos, 
+    VkBuildAccelerationStructureFlagsKHR flags)
+{
+    // Helper function to align a value to a given alignment
+    auto alignUp = [](auto value, size_t alignment) noexcept { return ((value + alignment - 1) & ~(alignment - 1)); };
+
+    VkAccelerationStructureBuildGeometryInfoKHR buildInfo{};
+    buildInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+    buildInfo.type = type;
+    buildInfo.flags = flags;
+    buildInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+    buildInfo.geometryCount = (uint32_t)geometries.size();
+    buildInfo.pGeometries = geometries.data();
+
+    std::vector<uint32_t> maxPrimCount(rangeInfos.size());
+    for (int i = 0; i < maxPrimCount.size(); i++)
+    {
+        maxPrimCount[i] = rangeInfos[i].primitiveCount;
+    }
+
+    VkAccelerationStructureBuildSizesInfoKHR buildSize{ .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR };
+    m_rtFuncs.vkGetAccelerationStructureBuildSizesKHR(m_device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &buildInfo, maxPrimCount.data(), &buildSize);
+
+    // Make sure the scratch buffer is properly aligned
+    VkDeviceSize scratchSize = alignUp(buildSize.buildScratchSize, m_asProperties.minAccelerationStructureScratchOffsetAlignment);
+
+    // Create the scratch buffer to store the temporary data for the build
+    Buffer scratchBuffer;
+    VK_CHECK(CreateBuffer(scratchBuffer, scratchSize,
+        VK_BUFFER_USAGE_2_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT
+        | VK_BUFFER_USAGE_2_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR, m_asProperties.minAccelerationStructureScratchOffsetAlignment));
+
+    // Create the acceleration structure
+    VkAccelerationStructureCreateInfoKHR createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
+    createInfo.size = buildSize.accelerationStructureSize;  // The size of the acceleration structure
+    createInfo.type = type;  // The type of acceleration structure (BLAS or TLAS)
+    VK_CHECK(CreateAccelerationStructure(outAccelStruct, createInfo));
+
+    VkCommandBuffer cmd;
+    BeginOneTimeSubmit(cmd);
+
+    // Fill with new information for the build,scratch buffer and destination AS
+    buildInfo.dstAccelerationStructure = outAccelStruct.accel;
+    buildInfo.scratchData.deviceAddress = scratchBuffer.address;
+
+    VkAccelerationStructureBuildRangeInfoKHR* pBuildRangeInfo = rangeInfos.data();
+    m_rtFuncs.vkCmdBuildAccelerationStructuresKHR(cmd, 1, &buildInfo, &pBuildRangeInfo);
+
+    EndOneTimeSubmit();
+
+    // Cleanup the scratch buffer
+    vmaDestroyBuffer(m_allocator, scratchBuffer.buffer, scratchBuffer.allocation);
+}
+
 void trayser::Device::PrimitiveToGeometry(const Mesh& mesh,
     VkAccelerationStructureGeometryKHR& geometry,
     VkAccelerationStructureBuildRangeInfoKHR& rangeInfo)
@@ -309,7 +367,48 @@ void trayser::Device::PrimitiveToGeometry(const Mesh& mesh,
         .flags = VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR | VK_GEOMETRY_OPAQUE_BIT_KHR,
     };
 
-    rangeInfo = VkAccelerationStructureBuildRangeInfoKHR{ .primitiveCount = mesh.indexCount / 3 };
+    rangeInfo = VkAccelerationStructureBuildRangeInfoKHR
+    { 
+        .primitiveCount = mesh.indexCount / 3,
+        .primitiveOffset = 0,
+        .firstVertex = 0,
+        .transformOffset = 0
+    };
+}
+
+void trayser::Device::PrimitivesToGeometries(const Mesh& mesh, 
+    std::vector<VkAccelerationStructureGeometryKHR>& geometries, 
+    std::vector<VkAccelerationStructureBuildRangeInfoKHR>& rangeInfos)
+{
+    geometries.clear();
+    rangeInfos.clear();
+    geometries.reserve(mesh.primitives.size());
+    rangeInfos.reserve(mesh.primitives.size());
+
+    for (auto& prim : mesh.primitives)
+    {
+        auto& geometry = geometries.emplace_back();
+        auto& rangeInfo = rangeInfos.emplace_back();
+
+        VkAccelerationStructureGeometryTrianglesDataKHR triangles{};
+        triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
+        triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
+        triangles.vertexData = { .deviceAddress = mesh.vertexBufferAddr + offsetof(Vertex, position) };
+        triangles.vertexStride = sizeof(Vertex);
+        triangles.maxVertex = mesh.vertexCount - 1;
+        triangles.indexType = VK_INDEX_TYPE_UINT32;
+        triangles.indexData = { .deviceAddress = mesh.indexBufferAddr };
+
+        geometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+        geometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+        geometry.flags = VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR | VK_GEOMETRY_OPAQUE_BIT_KHR;
+        geometry.geometry.triangles = triangles;
+
+        rangeInfo.primitiveCount = prim.indexCount / 3;
+        rangeInfo.primitiveOffset = prim.baseIndex * sizeof(uint32_t);
+        rangeInfo.firstVertex = prim.baseVertex;
+        rangeInfo.transformOffset = 0;
+    }
 }
 
 void trayser::Device::BeginOneTimeSubmit(VkCommandBuffer& outCmd) const
@@ -343,7 +442,7 @@ void trayser::Device::EndOneTimeSubmit() const
 	submitInfo.commandBufferInfoCount   = 1;
 
     VK_CHECK(vkQueueSubmit2(m_graphicsQueue, 1, &submitInfo, m_oneTimeFence));
-    VK_CHECK(vkWaitForFences(m_device, 1, &m_oneTimeFence, true, 9999999999));
+    VK_CHECK(vkWaitForFences(m_device, 1, &m_oneTimeFence, true, 9999999999999));
 }
 
 void trayser::Device::BeginFrame()
@@ -464,6 +563,26 @@ void trayser::Device::CreateBottomLevelAs()
         m_blasAccel.emplace_back();
         CreateAccelerationStructure(VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR, m_blasAccel[i], asGeometry,
             asBuildRangeInfo, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
+    }
+}
+
+void trayser::Device::CreateBLas2()
+{
+    m_blasAccel.resize(128);
+
+    for (int i = 0; i < g_engine.m_meshPool.m_resources.size(); i++)
+    {
+        if (!g_engine.m_meshPool.m_takenSpots[i])
+            continue;
+
+        const Mesh& mesh = g_engine.m_meshPool.Get(i);
+        std::vector<VkAccelerationStructureGeometryKHR> geometries;
+        std::vector<VkAccelerationStructureBuildRangeInfoKHR> rangeInfos;
+
+        PrimitivesToGeometries(mesh, geometries, rangeInfos);
+
+        CreateAccelerationStructure2(VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR, m_blasAccel[i], geometries,
+            rangeInfos, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
     }
 }
 

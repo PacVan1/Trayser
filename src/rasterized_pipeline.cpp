@@ -195,13 +195,14 @@ void trayser::RasterizedPipeline::Update()
         vkCmdBindIndexBuffer(cmd, g_engine.m_meshPool.Get(render.mesh).indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
         vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
 
+        int j = 0;
         for (auto& prim : g_engine.m_meshPool.Get(render.mesh).primitives)
         {
             gpu::RasterPushConstants pushConsts{};
             pushConsts.sceneRef = g_engine.m_gpuSceneAddr;
             pushConsts.renderMode = g_engine.m_renderMode;
             pushConsts.instanceIdx = i;
-
+            pushConsts.primitiveIdx = j;
 
             vkCmdPushConstants(g_engine.m_device.GetCmd(),
                 m_layout,
@@ -210,7 +211,8 @@ void trayser::RasterizedPipeline::Update()
                 sizeof(gpu::RasterPushConstants),
                 &pushConsts);
 
-            vkCmdDrawIndexed(cmd, prim.indexCount, 1, prim.baseIndex, 0, 0);
+            vkCmdDrawIndexed(cmd, prim.indexCount, 1, prim.baseIndex, prim.baseVertex, 0);
+            j++;
         }
         i++;
     }

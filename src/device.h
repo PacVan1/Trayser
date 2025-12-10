@@ -123,6 +123,7 @@ public:
 	void EndFrame();
 	bool ShouldQuit() const;
 	void CreateBottomLevelAs();
+	void CreateBLas2();
 	void CreateTopLevelAs();
 
 	VkCommandBuffer GetCmd() const	{ return m_swapchain.GetCmd(); }
@@ -167,9 +168,19 @@ public:
 		VkAccelerationStructureBuildRangeInfoKHR& buildRangeInfo,
 		VkBuildAccelerationStructureFlagsKHR	  flags);
 
+	void CreateAccelerationStructure2(VkAccelerationStructureTypeKHR type,
+		AccelerationStructure& outAccelStruct,
+		std::vector<VkAccelerationStructureGeometryKHR>& geometries,
+		std::vector<VkAccelerationStructureBuildRangeInfoKHR>& rangeInfos,
+		VkBuildAccelerationStructureFlagsKHR flags);
+
 	void PrimitiveToGeometry(const Mesh& mesh,
 		VkAccelerationStructureGeometryKHR& geometry,
 		VkAccelerationStructureBuildRangeInfoKHR& rangeInfo);
+
+	void PrimitivesToGeometries(const Mesh& mesh,
+		std::vector<VkAccelerationStructureGeometryKHR>& geometries,
+		std::vector<VkAccelerationStructureBuildRangeInfoKHR>& rangeInfos);
 
 private:
 	void InitSDL();
