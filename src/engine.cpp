@@ -37,8 +37,6 @@ void trayser::Engine::Init()
     InitPipelines();
 
     InitGpuScene();
-
-    //LoadSkydome(kModelPaths[ModelResource_DamagedHelmet]);
 }
 
 void trayser::Engine::Destroy()
@@ -61,10 +59,9 @@ void trayser::Engine::Render()
 
     UpdateGpuScene();
 
-    m_pipelines[PipelineType_Background]->Update();
-
     if (m_rayTraced)
     {
+        m_pipelines[PipelineType_Background]->Update();
         m_pipelines[PipelineType_RayTraced]->Update();
     }
     else
