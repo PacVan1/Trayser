@@ -39,6 +39,8 @@ using int2      = glm::ivec2;
 static constexpr float kGamma       = 2.2;
 static constexpr float kInvGamma    = 1.0 / 2.2;
 static constexpr float kPi          = 3.14159265359;
+static constexpr float k2Pi         = 2.0 * kPi;
+static constexpr float2 kInvTan     = float2(0.1591, 0.3183);
 
 BEGIN_ENUM_DEF(RenderMode)
 DEF_ENUM_ENTRY(RenderMode, FinalColor)
@@ -117,7 +119,7 @@ struct Scene
     REF(Mesh)       meshBufferRef;
     REF(Instance)   instanceBufferRef;
     REF(Material)   materialBufferRef;
-    uint32_t        skyboxHandle;
+    uint32_t        skydomeHandle;
     uint32_t        _pad[3];
 };
 

@@ -54,6 +54,7 @@ private:
 	void InitDefaultMaterial();
 	void InitGpuScene();
 	void InitTextureDescriptor();
+	void InitSkydome();
 	void UpdateGpuScene();
 	void DestroySwapchain();
 	void BeginRecording(VkCommandBuffer cmd);
@@ -84,6 +85,8 @@ public:
 
 	bool			m_rayTraced = true;
 
+	TextureHandle m_skydome;
+
 	AllocatedBuffer m_gpuScene;
 	VkDeviceAddress m_gpuSceneAddr;
 	AllocatedBuffer m_meshBuffer;
@@ -94,8 +97,6 @@ public:
 	VkDeviceAddress m_materialBufferAddr;
 
 	std::vector<Pipeline*> m_pipelines;
-	Equi2CubemapPipeline m_equi2cubemapPipeline;
-	Image						m_skybox;
 
 	DescriptorAllocatorGrowable	m_globalDescriptorAllocator;
 	VkDescriptorSet				m_renderImageDescriptors;

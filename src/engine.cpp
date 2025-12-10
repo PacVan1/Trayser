@@ -38,6 +38,8 @@ void trayser::Engine::Init()
 
     InitGpuScene();
 
+    InitSkydome();
+
     //m_skybox = Image("../../assets/environments/climbing_gym_4k.hdr", VK_FORMAT_UNDEFINED, VK_IMAGE_USAGE_SAMPLED_BIT);
 }
 
@@ -172,8 +174,6 @@ void trayser::Engine::InitPipelines()
 	{
 		pipeline->Init();
 	}
-
-    m_equi2cubemapPipeline.Init();
 }
 
 void trayser::Engine::InitImGuiStyle()
@@ -325,26 +325,60 @@ void trayser::Engine::InitTextureDescriptor()
         VK_SHADER_STAGE_RAYGEN_BIT_KHR; // or whichever stage
     textureBinding.pImmutableSamplers = nullptr;
 
-    VkDescriptorSetLayoutBinding skyboxBinding{};
-    skyboxBinding.binding = 1; // binding slot in shader
-    skyboxBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    skyboxBinding.descriptorCount = 1;
-    skyboxBinding.stageFlags =
-        VK_SHADER_STAGE_FRAGMENT_BIT |
-        VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR |
-        VK_SHADER_STAGE_MISS_BIT_KHR |
-        VK_SHADER_STAGE_RAYGEN_BIT_KHR; // or whichever stage
-    skyboxBinding.pImmutableSamplers = nullptr;
-
-    VkDescriptorSetLayoutBinding bindings[2] = { textureBinding, skyboxBinding };
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutInfo.bindingCount = 1;
-    layoutInfo.pBindings = bindings;
+    layoutInfo.pBindings = &textureBinding;
 
     vkCreateDescriptorSetLayout(m_device.m_device, &layoutInfo, nullptr, &m_allTexturesLayout);
 
     m_allTexturesSet = m_globalDescriptorAllocator.Allocate(m_device.m_device, m_allTexturesLayout);
+}
+
+// Convert 32-bit float to 16-bit half-precision float
+static uint16_t FloatToHalf(float value)
+{
+    uint32_t f = *reinterpret_cast<uint32_t*>(&value);
+    uint32_t s = (f >> 31) & 0x1;
+    uint32_t e = ((f >> 23) & 0xFF) - 112;
+    uint32_t m = (f & 0x7FFFFF) >> 13;
+
+    if (e <= 0) {
+        e = 0;
+        m = 0;
+    }
+    else if (e >= 31) {
+        e = 31;
+        m = 0x3FF;
+    }
+
+    return (s << 15) | (e << 10) | m;
+}
+
+void trayser::Engine::InitSkydome()
+{ 
+    int width, height;
+    float* stbiData = stbi_loadf("../../assets/environments/golden_gate_hills_4k.hdr", &width, &height, nullptr, 4);
+
+    if (!stbiData)
+        return;
+
+    std::vector<uint16_t> imageData16Bit(width * height * 4); // 4 channels per pixel
+    for (int i = 0; i < width * height; i++) {
+        for (int c = 0; c < 4; c++) {
+            // Convert float to 16-bit half-float
+            imageData16Bit[i * 4 + c] = FloatToHalf(stbiData[i * 4 + c]);
+        }
+    }
+
+    m_skydome = m_texturePool.Create("skydome", 
+        imageData16Bit.data(),
+        (uint32_t)width, 
+        (uint32_t)height,
+        VK_FORMAT_R16G16B16A16_SFLOAT,
+        VK_IMAGE_USAGE_SAMPLED_BIT);
+
+    stbi_image_free(stbiData);
 }
 
 void trayser::Engine::UpdateGpuScene()
@@ -358,6 +392,7 @@ void trayser::Engine::UpdateGpuScene()
     sceneRef->camera.viewProj = sceneRef->camera.proj * sceneRef->camera.view;
     sceneRef->camera.invProj = glm::inverse(sceneRef->camera.proj);
     sceneRef->camera.invView = glm::inverse(sceneRef->camera.view);
+    sceneRef->skydomeHandle = m_skydome;
 
     // Update meshes
     gpu::Mesh* meshBufferRef = (gpu::Mesh*)m_meshBuffer.info.pMappedData;
@@ -423,21 +458,6 @@ void trayser::Engine::UpdateGpuScene()
         write.descriptorCount = 1;
         write.pImageInfo = &imageInfo;
     }
-
-    // Skybox
-    VkDescriptorImageInfo& imageInfo = imageInfos.emplace_back();
-    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageInfo.imageView = m_skybox.imageView; // your VkImageView
-    imageInfo.sampler = m_samplerCube;   // your VkSampler
-
-    VkWriteDescriptorSet& write = writes.emplace_back();
-    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.dstSet = m_allTexturesSet;
-    write.dstBinding = 1;
-    write.dstArrayElement = 0;
-    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    write.descriptorCount = 1;
-    write.pImageInfo = &imageInfo;
 
     vkUpdateDescriptorSets(m_device.m_device, writes.size(), writes.data(), 0, nullptr);
 }

@@ -28,6 +28,7 @@ struct Image
     Image(const std::string& path, const tinygltf::Model& model, const tinygltf::Image& image, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
     Image(const std::string& path, VkFormat format, VkImageUsageFlags usage);
     Image(u32* data, u32 width, u32 height, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
+    Image(u16* data, u32 width, u32 height, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
 };
 
 struct Material

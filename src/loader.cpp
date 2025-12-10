@@ -719,10 +719,6 @@ trayser::Image::Image(const std::string& path, VkFormat format, VkImageUsageFlag
 
         stbi_image_free(stbiData);
 
-        // Generate cubemap from equirectangular map
-        g_engine.m_equi2cubemapPipeline.SetImage(equiImage, cubeImage);
-        g_engine.m_equi2cubemapPipeline.Update();
-
         image       = cubeImage.image;
         imageView   = cubeImage.imageView;
         allocation  = cubeImage.allocation;
@@ -768,6 +764,53 @@ trayser::Image::Image(u32* data, u32 width, u32 height, VkFormat format, VkImage
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
   
 		engine.m_device.EndOneTimeSubmit();
+
+    engine.DestroyBuffer(uploadbuffer);
+
+    image = new_image.image;
+    imageView = new_image.imageView;
+    allocation = new_image.allocation;
+    imageExtent = new_image.imageExtent;
+    imageFormat = new_image.imageFormat;
+}
+
+trayser::Image::Image(u16* data, u32 width, u32 height, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
+{
+    auto& engine = g_engine;
+
+    size_t data_size = width * height * 4 * 2;
+    AllocatedBuffer uploadbuffer = engine.CreateBuffer(data_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+
+    memcpy(uploadbuffer.info.pMappedData, data, data_size);
+
+    VkExtent3D extent = { width, height, 1 };
+
+    AllocatedImage new_image = engine.CreateImage(extent, format, usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, mipmapped);
+
+    VkCommandBuffer cmd;
+    engine.m_device.BeginOneTimeSubmit(cmd);
+
+    vkutil::TransitionImage(cmd, new_image.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+    VkBufferImageCopy copyRegion = {};
+    copyRegion.bufferOffset = 0;
+    copyRegion.bufferRowLength = 0;
+    copyRegion.bufferImageHeight = 0;
+
+    copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    copyRegion.imageSubresource.mipLevel = 0;
+    copyRegion.imageSubresource.baseArrayLayer = 0;
+    copyRegion.imageSubresource.layerCount = 1;
+    copyRegion.imageExtent = extent;
+
+    // copy the buffer into the image
+    vkCmdCopyBufferToImage(cmd, uploadbuffer.buffer, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+        &copyRegion);
+
+    vkutil::TransitionImage(cmd, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+    engine.m_device.EndOneTimeSubmit();
 
     engine.DestroyBuffer(uploadbuffer);
 

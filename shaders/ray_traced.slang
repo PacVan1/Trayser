@@ -2,8 +2,7 @@
 
 [[vk::push_constant]] ConstantBuffer<RTPushConstants> pushConsts;
 
-[[vk::binding(0, 0)]] Sampler2D textures[100];
-[[vk::binding(1, 0)]] SamplerCube skybox;
+[[vk::binding(0, 0)]] Sampler2D textures[128];
 [[vk::binding(0, 1)]] RaytracingAccelerationStructure topLevelAS;
 [[vk::binding(1, 1)]] RWTexture2D<float4> outImage;
 
@@ -230,5 +229,11 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
 [shader("miss")]
 void mMain(inout HitPayload payload)
 {
-    payload.color *= float3(1.0);
+    Scene scene = pushConsts.sceneRef[0];
+
+    float2 uv = float2(atan2(WorldRayDirection().z, WorldRayDirection().x), asin(-WorldRayDirection().y));
+    uv *= kInvTan;
+    uv += 0.5;
+
+    payload.color *= textures[scene.skydomeHandle].Sample(uv).rgb;
 }
