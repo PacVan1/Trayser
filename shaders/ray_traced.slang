@@ -39,11 +39,6 @@ struct HitInfo
 [shader("raygeneration")]
 void rgMain()
 {
-    // Get the current pixel coordinates and image dimensions
-    uint width, height;
-    outImage.GetDimensions(width, height);
-    uint pixelIdx = DispatchRaysIndex().x * DispatchRaysIndex().y * width;
-
     float2 launchID = (float2)DispatchRaysIndex().xy;     // Current pixel (x,y)
     float2 launchSize = (float2)DispatchRaysDimensions().xy; // Image size (width,height)
 
