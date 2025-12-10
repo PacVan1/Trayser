@@ -19,6 +19,11 @@ void trayser::Camera::Input()
 
 	m_yaw	+= input.GetMouseDeltaPos().x * m_sensitivity;
 	m_pitch -= input.GetMouseDeltaPos().y * m_sensitivity;
+	if (m_pitch >= 89.9f)
+		m_pitch = 89.9f;
+	else if (m_pitch <= -89.9f)
+		m_pitch = -89.9f;
+
 	m_fov	-= (float)input.GetMouseScroll();
 
 	m_ahead.x	= cos(glm::radians(m_yaw)) * cos(glm::radians(m_pitch));

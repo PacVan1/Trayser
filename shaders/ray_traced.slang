@@ -132,10 +132,26 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     // Get hit info
     HitInfo hit;
     hit.position    = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
+    hit.uv          = v0.texCoord.xy * w0 + v1.texCoord.xy * w1 + v2.texCoord.xy * w2;
+    float4 albedo   = baseColorTexture.Sample(hit.uv);
+    
+    // Continue at fully transparent surfaces
+    if (albedo.a == 0.0)
+    {
+        payload.distance += RayTCurrent();
+        RayDesc ray;
+        ray.Origin = hit.position;
+        ray.Direction = WorldRayDirection();
+        ray.TMin = kMinT;
+        ray.TMax = kMaxT;
+        TraceRay(topLevelAS, RAY_FLAG_NONE, 0xff, 0, 0, 0, ray, payload);
+        return; 
+    }
+
+    // Continue getting hit info
     hit.normal      = normalize(v0.normal.xyz * w0 + v1.normal.xyz * w1 + v2.normal.xyz * w2);
     hit.tangent     = v0.tangent.xyz * w0 + v1.tangent.xyz * w1 + v2.tangent.xyz * w2;
-    hit.uv          = v0.texCoord.xy * w0 + v1.texCoord.xy * w1 + v2.texCoord.xy * w2;
-    hit.albedo      = baseColorTexture.Sample(hit.uv).rgb;
+    hit.albedo      = albedo.rgb;
     hit.emission    = emissiveTexture.Sample(hit.uv).rgb;
     hit.metallic    = metalRoughTexture.Sample(hit.uv).b;
     hit.roughness   = metalRoughTexture.Sample(hit.uv).g;
