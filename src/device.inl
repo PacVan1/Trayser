@@ -1,3 +1,4 @@
+#include "device.h"
 inline VkCommandPoolCreateInfo trayser::CommandPoolCreateInfo(const void* pNext)
 {
     return VkCommandPoolCreateInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, .pNext = pNext };
@@ -81,4 +82,14 @@ inline VkPipelineLayoutCreateInfo trayser::PipelineLayoutCreateInfo(const void* 
 inline VkPipelineShaderStageCreateInfo trayser::PipelineShaderStageCreateInfo(const void* pNext)
 {
     return VkPipelineShaderStageCreateInfo{ .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, .pNext = pNext };
+}
+
+VkComputePipelineCreateInfo trayser::ComputePipelineCreateInfo(const void* pNext)
+{
+    return VkComputePipelineCreateInfo{ .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, .pNext = pNext };
+}
+
+VkSamplerCreateInfo trayser::SamplerCreateInfo(const void* pNext)
+{
+    return VkSamplerCreateInfo{ .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO, .pNext = pNext };
 }

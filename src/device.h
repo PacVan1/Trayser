@@ -80,10 +80,13 @@ struct RuntimeFuncs
 	PFN_vkCmdTraceRaysKHR vkCmdTraceRaysKHR;
 };
 
+class Device;
+
 class Swapchain
 {
 public:
-	void Init(VkDevice device);
+	void Init(const Device& device);
+	void Destroy(const Device& device);
 
 	FrameData& GetFrame()				{ return m_frames[m_frameIdx]; }
 	const FrameData& GetFrame() const	{ return m_frames[m_frameIdx]; }
@@ -93,10 +96,14 @@ public:
 	VkCommandBuffer& GetCmd()			{ return GetFrame().commandBuffer; }
 	VkImageView GetImageView() const	{ return m_imageViews[m_imageIdx]; }
 
+private:
+	SwapChainSupportDetails QuerySwapChainSupport(const Device& device) const;
+	VkExtent2D ChooseSwapExtent(const Device& device, const VkSurfaceCapabilitiesKHR& capabilities);
+
 public:
 	VkSwapchainKHR				m_swapchain;
 	VkFormat					m_format;
-	std::vector<VkImage>		m_images;
+	std::vector<VkImage>		m_images; // Are getting destroyed with vkDestroySwapchainKHR
 	std::vector<VkImageView>	m_imageViews;
 	VkExtent2D					m_extent;
 	u32 						m_frameIdx;
@@ -171,11 +178,19 @@ private:
 	void InitDebugMessenger();
 	void InitPhysicalDevice();
 	void InitLogicalDevice();
-	void InitSwapchain();
 	void InitCommands();
 	void InitSyncStructures();
 	void InitVMA();
 	void InitImGui();
+	void DestroySDL() const;
+	void DestroyInstance() const;
+	void DestroySurface() const;
+	void DestroyDebugMessenger() const;
+	void DestroyLogicalDevice() const;
+	void DestroyVMA() const;
+	void DestroyImGui() const;
+	void DestroyCommands() const;
+	void DestroySyncStructures() const;
 
 	// Testing
 	void InitRayTracing();
@@ -255,6 +270,8 @@ public:
 [[nodiscard]] inline VkImageViewCreateInfo				ImageViewCreateInfo(const void* pNext = nullptr);
 [[nodiscard]] inline VkPipelineLayoutCreateInfo			PipelineLayoutCreateInfo(const void* pNext = nullptr);
 [[nodiscard]] inline VkPipelineShaderStageCreateInfo	PipelineShaderStageCreateInfo(const void* pNext = nullptr);
+[[nodiscard]] inline VkComputePipelineCreateInfo		ComputePipelineCreateInfo(const void* pNext = nullptr);
+[[nodiscard]] inline VkSamplerCreateInfo				SamplerCreateInfo(const void* pNext = nullptr);
 
 } // namespace trayser
 

@@ -35,3 +35,4 @@ public:
 #include <tonemap_pipeline.h>
 #include <rasterized_pipeline.h>
 #include <ray_traced_pipeline.h>
+#include <equi2cubemap_pipeline.h>

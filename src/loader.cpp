@@ -609,6 +609,128 @@ trayser::Image::Image(const std::string& path, const tinygltf::Model& model, con
     imageFormat = new_image.imageFormat;
 }
 
+trayser::Image::Image(const std::string& path, VkFormat format, VkImageUsageFlags usage)
+{
+    std::filesystem::path fsPath = path;
+    if (fsPath.extension() == ".hdr")
+    {
+        int width, height, channels;
+        float* stbiData = stbi_loadf(path.c_str(), &width, &height, &channels, 4);
+        if (!stbiData)
+            return;
+
+        size_t sizeBytes = width * height * 4;
+        AllocatedBuffer staging = g_engine.CreateBuffer(sizeBytes, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+        memcpy(staging.info.pMappedData, stbiData, sizeBytes);
+
+        VkExtent3D extent = { width, height, 1 };
+
+        AllocatedImage equiImage{};
+        {
+        equiImage.imageFormat = format;
+        equiImage.imageExtent = extent;
+
+        VkImageCreateInfo imageCreateInfo = ImageCreateInfo();
+        imageCreateInfo.imageType   = VK_IMAGE_TYPE_2D;
+        imageCreateInfo.format      = VK_FORMAT_R16G16B16A16_SFLOAT;
+        imageCreateInfo.extent      = extent;
+        imageCreateInfo.usage       = usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+        imageCreateInfo.mipLevels   = 1;
+        imageCreateInfo.arrayLayers = 1;
+        imageCreateInfo.samples     = VK_SAMPLE_COUNT_1_BIT;
+        imageCreateInfo.tiling      = VK_IMAGE_TILING_OPTIMAL;
+
+        // Always allocate images on dedicated GPU memory
+        VmaAllocationCreateInfo allocInfo = {};
+        allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+        allocInfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        VK_CHECK(vmaCreateImage(g_engine.m_device.m_allocator, &imageCreateInfo, &allocInfo, &equiImage.image, &equiImage.allocation, nullptr));
+
+        // Build a image-view for the image
+        VkImageViewCreateInfo viewCreateInfo = ImageViewCreateInfo();
+        viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewCreateInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
+        viewCreateInfo.image = equiImage.image;
+        viewCreateInfo.subresourceRange.baseMipLevel = 0;
+        viewCreateInfo.subresourceRange.levelCount = 1;
+        viewCreateInfo.subresourceRange.baseArrayLayer = 0;
+        viewCreateInfo.subresourceRange.layerCount = 1;
+        viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        VK_CHECK(vkCreateImageView(g_engine.m_device.m_device, &viewCreateInfo, nullptr, &equiImage.imageView));
+        }
+
+        AllocatedImage cubeImage{};
+        {
+        cubeImage.imageFormat = format;
+        cubeImage.imageExtent = extent;
+
+        VkImageCreateInfo imageCreateInfo = ImageCreateInfo();
+        imageCreateInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+        imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageCreateInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
+        imageCreateInfo.extent = extent;
+        imageCreateInfo.usage = usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+        imageCreateInfo.mipLevels = 1;
+        imageCreateInfo.arrayLayers = 6; // 6 sides on a cube
+        imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+
+        // Always allocate images on dedicated GPU memory
+        VmaAllocationCreateInfo allocInfo = {};
+        allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+        allocInfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        VK_CHECK(vmaCreateImage(g_engine.m_device.m_allocator, &imageCreateInfo, &allocInfo, &cubeImage.image, &cubeImage.allocation, nullptr));
+
+        // Build a image-view for the image
+        VkImageViewCreateInfo viewCreateInfo = ImageViewCreateInfo();
+        viewCreateInfo.viewType                         = VK_IMAGE_VIEW_TYPE_CUBE;
+        viewCreateInfo.format                           = VK_FORMAT_R16G16B16A16_SFLOAT;
+        viewCreateInfo.image                            = cubeImage.image;
+        viewCreateInfo.subresourceRange.baseMipLevel    = 0;
+        viewCreateInfo.subresourceRange.levelCount      = 1;
+        viewCreateInfo.subresourceRange.baseArrayLayer  = 0;
+        viewCreateInfo.subresourceRange.layerCount      = 6;
+        viewCreateInfo.subresourceRange.aspectMask      = VK_IMAGE_ASPECT_COLOR_BIT;
+        VK_CHECK(vkCreateImageView(g_engine.m_device.m_device, &viewCreateInfo, nullptr, &cubeImage.imageView));
+        }
+
+        // Copy stbi contents to equi image
+        VkCommandBuffer cmd;
+        g_engine.m_device.BeginOneTimeSubmit(cmd);
+
+        vkutil::TransitionImage(cmd, equiImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+        VkBufferImageCopy copyRegion = {};
+        copyRegion.bufferOffset = 0;
+        copyRegion.bufferRowLength = 0;
+        copyRegion.bufferImageHeight = 0;
+        copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        copyRegion.imageSubresource.mipLevel = 0;
+        copyRegion.imageSubresource.baseArrayLayer = 0;
+        copyRegion.imageSubresource.layerCount = 1;
+        copyRegion.imageExtent = extent;
+        vkCmdCopyBufferToImage(cmd, staging.buffer, equiImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+
+        vkutil::TransitionImage(cmd, equiImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+        g_engine.m_device.EndOneTimeSubmit();
+        g_engine.DestroyBuffer(staging);
+
+        stbi_image_free(stbiData);
+
+        // Generate cubemap from equirectangular map
+        g_engine.m_equi2cubemapPipeline.SetImage(equiImage, cubeImage);
+        g_engine.m_equi2cubemapPipeline.Update();
+
+        image       = cubeImage.image;
+        imageView   = cubeImage.imageView;
+        allocation  = cubeImage.allocation;
+        imageExtent = cubeImage.imageExtent;
+        imageFormat = cubeImage.imageFormat;
+    }
+}
+
 trayser::Image::Image(u32* data, u32 width, u32 height, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
 {
     auto& engine = g_engine;

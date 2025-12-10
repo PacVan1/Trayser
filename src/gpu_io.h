@@ -117,6 +117,8 @@ struct Scene
     REF(Mesh)       meshBufferRef;
     REF(Instance)   instanceBufferRef;
     REF(Material)   materialBufferRef;
+    uint32_t        skyboxHandle;
+    uint32_t        _pad[3];
 };
 
 struct PUSH_CONST(RTPushConstants)
@@ -157,7 +159,7 @@ uint32_t WangHash(in uint32_t seed)
 // random number generator - Marsaglia's xor32
 // This is a high-quality RNG that uses a single 32-bit seed. More info:
 // https://www.researchgate.net/publication/5142825_Xorshift_RNGs
-uint32_t RandomUInt(out uint32_t seed)
+uint32_t RandomUInt(inout uint32_t seed)
 {
     seed ^= seed << 13;
     seed ^= seed >> 17;
@@ -165,30 +167,30 @@ uint32_t RandomUInt(out uint32_t seed)
     return seed;
 }
 // Calculate a random unsigned int and cast it to a float in the range [0..1)
-float RandomFloat(out uint32_t seed) 
+float RandomFloat(inout uint32_t seed)
 { 
     return RandomUInt(seed) * 2.3283064365387e-10f; 
 }
-float2 RandomFloat2(out uint32_t seed)
+float2 RandomFloat2(inout uint32_t seed)
 {
     return float2(RandomFloat(seed), RandomFloat(seed));
 }
-float3 RandomFloat3(out uint32_t seed)
+float3 RandomFloat3(inout uint32_t seed)
 {
     return float3(RandomFloat(seed), RandomFloat(seed), RandomFloat(seed));
 }
-float3 RandomUnitFloat3(out uint32_t seed)
+float3 RandomUnitFloat3(inout uint32_t seed)
 {
     return normalize(float3(RandomFloat(seed), RandomFloat(seed), RandomFloat(seed)));
 }
-float3 RandomOnHemisphere(in float3 normal, out uint32_t seed)
+float3 RandomOnHemisphere(in float3 normal, inout uint32_t seed)
 {
     float3 random = RandomUnitFloat3(seed);
     if (dot(random, normal) > 0.0f)
         return random;
     return -random;
 }
-float3 RandomCosineOnHemisphere(in float3 normal, out uint32_t seed)
+float3 RandomCosineOnHemisphere(in float3 normal, inout uint32_t seed)
 {
     float u1 = RandomFloat(seed);
     float u2 = RandomFloat(seed);

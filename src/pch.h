@@ -17,6 +17,8 @@
 #include <fstream>
 #include <iostream>
 #include <numeric>
+#include <thread>
+#include <chrono>
 
 // Third-party
 #include <vulkan/vulkan.h>
@@ -44,3 +46,7 @@
 #include <types.h>
 #include <input.h>
 #include <slang_compiler.h>
+
+#define PRINT_ERROR(str) fmt::print("\033[31m[ERROR] {}\033[0m\n", str)
+#define PRINT_WARNING(str) fmt::print("\033[33m[WARNING] {}\033[0m\n", str)
+#define PRINT_INFO(str) fmt::print("[INFO] {}\n", str)

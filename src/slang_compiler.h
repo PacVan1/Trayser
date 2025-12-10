@@ -39,8 +39,9 @@ public:
 
 private:
     Slang::ComPtr<slang::IGlobalSession> m_slangGlobalSession;
-    slang::SessionDesc                   m_sessionDesc;
+    slang::SessionDesc                   m_sessionDesc; 
     slang::TargetDesc                    m_targetDesc;
+    slang::PreprocessorMacroDesc         m_preprocessorMacros;
     std::vector<const char*>             m_searchPaths;
 };
 

@@ -33,7 +33,7 @@ class Engine
 {
 public:
 	void Init();
-	void Cleanup();
+	void Destroy();
 	void Render();
 	void Run();
 	gpu::MeshBuffers UploadMesh(std::span<uint32_t> indices, std::span<Vertex> vertices);
@@ -82,7 +82,7 @@ public:
 	ResourcePool<Image, kTextureCount> m_texturePool;
 	ResourcePool<Material2, kMaterialCount> m_materialPool;
 
-	bool			m_rayTraced = false;
+	bool			m_rayTraced = true;
 
 	AllocatedBuffer m_gpuScene;
 	VkDeviceAddress m_gpuSceneAddr;
@@ -94,6 +94,8 @@ public:
 	VkDeviceAddress m_materialBufferAddr;
 
 	std::vector<Pipeline*> m_pipelines;
+	Equi2CubemapPipeline m_equi2cubemapPipeline;
+	Image						m_skybox;
 
 	DescriptorAllocatorGrowable	m_globalDescriptorAllocator;
 	VkDescriptorSet				m_renderImageDescriptors;
@@ -104,6 +106,7 @@ public:
 
 	VkExtent2D					m_windowExtent{1700, 900};
 	VkSampler m_sampler;
+	VkSampler m_samplerCube;
 	Material m_defaultMaterial;
 
 	VkDescriptorSetLayout m_allTexturesLayout;
@@ -114,6 +117,6 @@ private:
 	VkDescriptorSetLayout m_gpuSceneDataDescriptorLayout;
 };
 
-extern Engine g_engine;
+inline Engine g_engine;
 
 } // namespace trayser

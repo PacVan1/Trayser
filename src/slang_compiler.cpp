@@ -21,7 +21,7 @@ static VkShaderModule CreateShaderModule(VkDevice device, const Slang::ComPtr<sl
     VkShaderModule module;
     if (vkCreateShaderModule(device, &createInfo, nullptr, &module) != VK_SUCCESS)
     {
-        fmt::println("Slang compiler: Failed to create shader module.\n");
+        PRINT_ERROR("Slang compiler: Failed to create shader module.");
         return VK_NULL_HANDLE;
     }
 
@@ -34,8 +34,8 @@ void trayser::SlangCompiler::Init()
     result = slang::createGlobalSession(m_slangGlobalSession.writeRef());
     if (SLANG_FAILED(result))
     {
-        fmt::println("Slang compiler: Failed to create global session.\n");
-        return;
+        PRINT_ERROR("Slang compiler: Failed to create global session.");
+        abort();
     }
 
     m_searchPaths =
@@ -49,6 +49,22 @@ void trayser::SlangCompiler::Init()
         "../../shaders",
         "../../../shaders",
     };
+
+    m_targetDesc.format   = SLANG_SPIRV;
+    m_targetDesc.profile  = m_slangGlobalSession->findProfile(kSpirVProfileStr);
+    m_targetDesc.flags    = 0;
+
+    m_sessionDesc.targets                     = &m_targetDesc;
+    m_sessionDesc.targetCount                 = 1;
+    m_sessionDesc.compilerOptionEntryCount    = 0;
+    m_sessionDesc.searchPaths                 = m_searchPaths.data();
+    m_sessionDesc.searchPathCount             = m_searchPaths.size();
+    m_sessionDesc.preprocessorMacroCount      = 1;
+
+    m_preprocessorMacros = { "__SLANG__", "1" };
+    m_sessionDesc.preprocessorMacros = &m_preprocessorMacros;
+
+    PRINT_INFO("Initialized Slang compiler.");
 }
 
 VkShaderModule trayser::SlangCompiler::LoadSpirV(const char* fileName)
@@ -57,6 +73,7 @@ VkShaderModule trayser::SlangCompiler::LoadSpirV(const char* fileName)
 
     if (filePath.empty())
     {
+        PRINT_WARNING("Slang compiler: Unable to find file.");
         return VK_NULL_HANDLE;
     }
 
@@ -64,6 +81,7 @@ VkShaderModule trayser::SlangCompiler::LoadSpirV(const char* fileName)
 
     if (!file.is_open())
     {
+        PRINT_WARNING("Slang compiler: Unable to open file.");
         return VK_NULL_HANDLE;
     }
 
@@ -82,10 +100,11 @@ VkShaderModule trayser::SlangCompiler::LoadSpirV(const char* fileName)
     VkShaderModule module;
     if (vkCreateShaderModule(g_engine.m_device.m_device, &createInfo, nullptr, &module) != VK_SUCCESS)
     {
-        fmt::println("Slang compiler: Failed to create shader module.\n");
+        PRINT_WARNING("Slang compiler: Failed to create shader module.");
         return VK_NULL_HANDLE;
     }
 
+    PRINT_INFO("Slang compiler: Succesfully loaded SPIR-V.");
     return module;
 }
 
@@ -97,7 +116,10 @@ VkShaderModule trayser::SlangCompiler::Compile(SlangCompileInfo& info)
     // Load the Slang module (source file)
     slang::IModule* slangModule = LoadModule(info.fileName, session);
     if (!slangModule)
+    {
+        PRINT_WARNING("Slang compiler: Unable to create slang module.");
         return VK_NULL_HANDLE;
+    }
 
     // Collect module + entry points into a composite
     std::vector<slang::IComponentType*> componentTypes;
@@ -122,7 +144,10 @@ VkShaderModule trayser::SlangCompiler::Compile(SlangCompileInfo& info)
 
         Diagnose(diagnosticsBlob);
         if (result == SLANG_FAIL)
+        {
+            PRINT_WARNING("Slang compiler: Unable to compose shader program.");
             return VK_NULL_HANDLE;
+        }
     }
 
     // Request SPIR-V target code for the whole program
@@ -133,8 +158,12 @@ VkShaderModule trayser::SlangCompiler::Compile(SlangCompileInfo& info)
 
     Diagnose(diagnosticBlob);
     if (result == SLANG_FAIL)
+    {
+        PRINT_WARNING("Slang compiler: Unable to find target code.");
         return VK_NULL_HANDLE;
+    }
 
+    PRINT_INFO("Slang compiler: Succesfully compiled.");
     return CreateShaderModule(g_engine.m_device.m_device, spirvBlob);
 }
 
@@ -145,7 +174,10 @@ VkShaderModule trayser::SlangCompiler::CompileAll(const char* fileName)
 
     slang::IModule* slangModule = LoadModule(fileName, session);
     if (!slangModule)
+    {
+        PRINT_WARNING("Slang compiler: Unable to create slang module.");
         return VK_NULL_HANDLE;
+    }
 
     std::vector<slang::IComponentType*> componentTypes;
     componentTypes.push_back(slangModule);
@@ -171,7 +203,10 @@ VkShaderModule trayser::SlangCompiler::CompileAll(const char* fileName)
 
         Diagnose(diagnosticsBlob);
         if (result == SLANG_FAIL)
+        {
+            PRINT_WARNING("Slang compiler: Unable to compose shader program.");
             return VK_NULL_HANDLE;
+        }
     }
 
     // Emit one SPIR-V blob with all entry points
@@ -184,31 +219,22 @@ VkShaderModule trayser::SlangCompiler::CompileAll(const char* fileName)
 
     Diagnose(diagnosticBlob);
     if (result == SLANG_FAIL)
+    {
+        PRINT_WARNING("Slang compiler: Unable to find target code.");
         return VK_NULL_HANDLE;
+    }
 
+    PRINT_INFO("Slang compiler: Succesfully compiled.");
     return CreateShaderModule(g_engine.m_device.m_device, spirvBlob);
 }
 
 void trayser::SlangCompiler::CreateSlangSession(Slang::ComPtr<slang::ISession>& session) const
 {
-    slang::TargetDesc targetDesc{};
-    targetDesc.format   = SLANG_SPIRV;
-    targetDesc.profile  = m_slangGlobalSession->findProfile(kSpirVProfileStr);
-    targetDesc.flags    = 0;
-
-    slang::SessionDesc sessionDesc{};
-    sessionDesc.targets = &targetDesc;
-    sessionDesc.targetCount = 1;
-    sessionDesc.compilerOptionEntryCount = 0;
-    sessionDesc.searchPaths = m_searchPaths.data();
-    sessionDesc.searchPathCount = m_searchPaths.size();
-    sessionDesc.preprocessorMacroCount = 1;
-
-    slang::PreprocessorMacroDesc preprocessorMacros;
-    preprocessorMacros = {"__SLANG__", "1"};
-    sessionDesc.preprocessorMacros = &preprocessorMacros;
-
-    m_slangGlobalSession->createSession(sessionDesc, session.writeRef());
+    if (m_slangGlobalSession->createSession(m_sessionDesc, session.writeRef()) == SLANG_FAIL)
+    {
+        PRINT_WARNING("Slang compiler: Unable to create session.");
+        abort();
+    }
 }
 
 slang::IModule* trayser::SlangCompiler::LoadModule(const char* fileName, Slang::ComPtr<slang::ISession>& session)

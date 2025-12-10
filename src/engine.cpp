@@ -1,34 +1,12 @@
 ﻿#include <pch.h>
-#include "engine.h"
 
-#include <SDL.h>
-#include <SDL_vulkan.h>
-
+#include <engine.h>
 #include <types.h>
 #include <images.h>
 #include <pipelines.h>
-#include <tonemap_pipeline.h>
-
-#include "VkBootstrap.h"
-
-#include "imgui.h"
-#include "imgui_impl_sdl2.h"
-#include "imgui_impl_vulkan.h"
-
-#include "vk_mem_alloc.h"
-
+#include <vk_mem_alloc.h>
 #include <stb_image.h>
-
-#include <chrono>
-#include <thread>
 #include <iostream>
-
-namespace trayser 
-{
-
-Engine g_engine;
-
-}
 
 void trayser::Engine::Init()
 {
@@ -59,32 +37,18 @@ void trayser::Engine::Init()
     InitPipelines();
 
     InitGpuScene();
+
+    //m_skybox = Image("../../assets/environments/climbing_gym_4k.hdr", VK_FORMAT_UNDEFINED, VK_IMAGE_USAGE_SAMPLED_BIT);
 }
 
-void trayser::Engine::Cleanup()
+void trayser::Engine::Destroy()
 {
     // Make sure the gpu is done with its work
     vkDeviceWaitIdle(m_device.m_device);
 
-    //for (int i = 0; i < kFrameCount; i++) 
-    //{
-    //    vkDestroyCommandPool(m_device.m_device, m_frames[i].commandPool, nullptr);
-    //    vkDestroyFence(m_device.m_device, m_frames[i].renderFence, nullptr);
-    //    vkDestroySemaphore(m_device.m_device, m_frames[i].renderSemaphore, nullptr);
-    //    vkDestroySemaphore(m_device.m_device, m_frames[i].swapchainSemaphore, nullptr);
-    //    m_frames[i].deletionQueue.Flush();
-    //}
-
     m_deletionQueue.Flush();
 
-    DestroySwapchain();
-
-    vkDestroySurfaceKHR(m_device.m_instance, m_device.m_surface, nullptr);
-    vkDestroyDevice(m_device.m_device, nullptr);
-
-    //vkb::destroy_debug_utils_messenger(m_device.m_instance, m_device.m_debugMessenger);
-    vkDestroyInstance(m_device.m_instance, nullptr);
-    SDL_DestroyWindow(m_device.m_window);
+    m_device.Destroy();
 }
 
 void trayser::Engine::Render()
@@ -208,6 +172,8 @@ void trayser::Engine::InitPipelines()
 	{
 		pipeline->Init();
 	}
+
+    m_equi2cubemapPipeline.Init();
 }
 
 void trayser::Engine::InitImGuiStyle()
@@ -273,11 +239,16 @@ void trayser::Engine::InitDefaultData()
 {
     InitDefaultMaterial();
 
-    VkSamplerCreateInfo sampl = { .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
+    VkSamplerCreateInfo sampl = SamplerCreateInfo();
 
     sampl.magFilter = VK_FILTER_LINEAR;
     sampl.minFilter = VK_FILTER_LINEAR;
     vkCreateSampler(m_device.m_device, &sampl, nullptr, &m_sampler);
+
+    VkSamplerCreateInfo samplerCreateInfo = SamplerCreateInfo();
+    samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+    samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+    vkCreateSampler(m_device.m_device, &samplerCreateInfo, nullptr, &m_samplerCube);
 }
 
 void trayser::Engine::InitDefaultMaterial()
@@ -354,10 +325,22 @@ void trayser::Engine::InitTextureDescriptor()
         VK_SHADER_STAGE_RAYGEN_BIT_KHR; // or whichever stage
     textureBinding.pImmutableSamplers = nullptr;
 
+    VkDescriptorSetLayoutBinding skyboxBinding{};
+    skyboxBinding.binding = 1; // binding slot in shader
+    skyboxBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    skyboxBinding.descriptorCount = 1;
+    skyboxBinding.stageFlags =
+        VK_SHADER_STAGE_FRAGMENT_BIT |
+        VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR |
+        VK_SHADER_STAGE_MISS_BIT_KHR |
+        VK_SHADER_STAGE_RAYGEN_BIT_KHR; // or whichever stage
+    skyboxBinding.pImmutableSamplers = nullptr;
+
+    VkDescriptorSetLayoutBinding bindings[2] = { textureBinding, skyboxBinding };
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutInfo.bindingCount = 1;
-    layoutInfo.pBindings = &textureBinding;
+    layoutInfo.pBindings = bindings;
 
     vkCreateDescriptorSetLayout(m_device.m_device, &layoutInfo, nullptr, &m_allTexturesLayout);
 
@@ -440,6 +423,21 @@ void trayser::Engine::UpdateGpuScene()
         write.descriptorCount = 1;
         write.pImageInfo = &imageInfo;
     }
+
+    // Skybox
+    VkDescriptorImageInfo& imageInfo = imageInfos.emplace_back();
+    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageInfo.imageView = m_skybox.imageView; // your VkImageView
+    imageInfo.sampler = m_samplerCube;   // your VkSampler
+
+    VkWriteDescriptorSet& write = writes.emplace_back();
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet = m_allTexturesSet;
+    write.dstBinding = 1;
+    write.dstArrayElement = 0;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write.descriptorCount = 1;
+    write.pImageInfo = &imageInfo;
 
     vkUpdateDescriptorSets(m_device.m_device, writes.size(), writes.data(), 0, nullptr);
 }

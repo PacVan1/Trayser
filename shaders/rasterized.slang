@@ -2,6 +2,7 @@
 
 [[vk::push_constant]] ConstantBuffer<RasterPushConstants> pushConsts;
 [[vk::binding(0, 0)]] Sampler2D textures[100];
+[[vk::binding(1, 0)]] SamplerCube skybox;
 
 struct PBRInfo
 {

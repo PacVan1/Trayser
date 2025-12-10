@@ -3,6 +3,7 @@
 [[vk::push_constant]] ConstantBuffer<RTPushConstants> pushConsts;
 
 [[vk::binding(0, 0)]] Sampler2D textures[100];
+[[vk::binding(1, 0)]] SamplerCube skybox;
 [[vk::binding(0, 1)]] RaytracingAccelerationStructure topLevelAS;
 [[vk::binding(1, 1)]] RWTexture2D<float4> outImage;
 
@@ -16,19 +17,24 @@ struct HitPayload
     float       distance;
     int         depth;
     uint32_t    rngState;
+    uint32_t    _pad;
 };
 
 struct HitInfo
 {
     float3  albedo;
-    float3  normal;
-    float3  position;
-    float3  tangent;
-    float3  bitangent;
-    float3  emission;
-    float2  uv;
     float   metallic;
+    float3  normal;
     float   roughness;
+    float3  position;
+    float   _pad1;
+    float3  tangent;
+    float   _pad2;
+    float3  bitangent;
+    float   _pad3;
+    float3  emission;
+    float   _pad4;
+    float2  uv;
 }
 
 [shader("raygeneration")]
@@ -79,8 +85,8 @@ void rgMain()
     // Get the final color from the ray tracing result
     float3 color = payload.color;
     
-    if (payload.depth == 0)
-        return;
+    //if (payload.depth == 0)
+    //    return;
 
     // Write the result to the output image
     outImage[int2(launchID)] = float4(payload.color, 1.0);
@@ -162,7 +168,6 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
 
         TraceRay(topLevelAS, RAY_FLAG_NONE, 0xff, 0, 0, 0, ray, payload);
         return;
-        break;
     case RenderMode.TexCoord0:
         payload.color = float3(hit.uv, 0.0);
         break;
@@ -203,7 +208,6 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
 
         TraceRay(topLevelAS, RAY_FLAG_NONE, 0xff, 0, 0, 0, ray, payload);
         return;
-        break;
     }
     case RenderMode.Emission:
         payload.color = float3(LinearToSrgb(hit.emission));
@@ -226,5 +230,5 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
 [shader("miss")]
 void mMain(inout HitPayload payload)
 {
-    //payload.color *= 1.0; // Gray background
+    payload.color *= float3(1.0);
 }
