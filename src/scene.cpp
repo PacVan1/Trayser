@@ -4,16 +4,24 @@
 #include <scene.h>
 #include <engine.h>
 
-trayser::Scene::Scene() :
-    m_dirty(true)
+void trayser::Scene::Init()
 {
+    m_sceneGraphDirty = true;
+    m_TLasDirty = true;
     m_root = CreateNode(entt::null);
+    //BuildTLas();
+    m_TLasInitialized = false;
+}
+
+void trayser::Scene::Destroy()
+{
+    DestroyTLas();
 }
 
 void trayser::Scene::Update(float dt)
 {
-    if (m_dirty)
-        Build();
+    if (m_sceneGraphDirty)
+        BuildSceneGraph();
 
     auto view = m_registry.view<LocalTransform, WorldTransform>();
 
@@ -49,6 +57,8 @@ void trayser::Scene::Update(float dt)
                 auto& pWorldTf = view.get<WorldTransform>(parent);
                 cWorldTf.matrix = pWorldTf.matrix * cLocalTf.matrix;
             }
+
+            m_TLasDirty = true;
         }
 
         if (parent != entt::null)
@@ -58,6 +68,8 @@ void trayser::Scene::Update(float dt)
             cWorldTf.matrix = pWorldTf.matrix * cLocalTf.matrix;
         }
     }
+
+    RebuildTLas();
 }
 
 Entity trayser::Scene::CreateNode()
@@ -123,7 +135,7 @@ Entity trayser::Scene::CreateModel(const Model& model, Entity parent)
     {
         node = TraverseModel(model, rootNode, &m_registry.get<SGNode>(parent));
     }
-    m_dirty = true;
+    m_sceneGraphDirty = true;
 
     return node;
 }
@@ -144,7 +156,7 @@ void trayser::Scene::AddNode(Entity parent, Entity child)
     m_registry.emplace<WorldTransform>(child);
     m_registry.emplace<SGNode>(child);
 
-    m_dirty = true;
+    m_sceneGraphDirty = true;
 }
 
 void trayser::Scene::Clear()
@@ -153,7 +165,11 @@ void trayser::Scene::Clear()
     m_root = CreateNode(entt::null);
 }
 
-void trayser::Scene::Build()
+void trayser::Scene::Rebuild()
+{
+}
+
+void trayser::Scene::BuildSceneGraph()
 {
     auto view = m_registry.view<SGNode>();
     m_traversalBuffer.clear();
@@ -185,5 +201,137 @@ void trayser::Scene::Build()
             }
         }
     }
-    m_dirty = false;
+    m_sceneGraphDirty = false;
+}
+
+void trayser::Scene::BuildTLas()
+{
+    auto toTransformMatrixKHR = [](const glm::mat4& m) {
+        VkTransformMatrixKHR t;
+        memcpy(&t, glm::value_ptr(glm::transpose(m)), sizeof(t));
+        return t;
+        };
+
+    // First create the instance data for the TLAS
+    std::vector<VkAccelerationStructureInstanceKHR> tlasInstances;
+    auto view = g_engine.m_scene.m_registry.view<WorldTransform, RenderComponent>();
+    int i = 0;
+    for (const auto& [entity, transform, render] : view.each())
+    {
+        VkAccelerationStructureInstanceKHR asInstance{};
+        asInstance.transform = toTransformMatrixKHR(transform.matrix);  // Position of the instance
+        asInstance.instanceCustomIndex = render.mesh;                       // gl_InstanceCustomIndexEXT
+        asInstance.accelerationStructureReference = g_engine.m_meshPool.Get(render.mesh).BLas.address;
+        asInstance.instanceShaderBindingTableRecordOffset = 0;  // We will use the same hit group for all objects
+        asInstance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV;  // No culling - double sided
+        asInstance.mask = 0xFF;
+        tlasInstances.emplace_back(asInstance);
+        i++;
+    }
+
+    Buffer tlasInstancesBuffer;
+    {
+        // 1) Create destination TLAS instance buffer (device-local, not mapped)
+        VkBufferCreateInfo dstInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+        dstInfo.size = std::span<VkAccelerationStructureInstanceKHR const>(tlasInstances).size_bytes(); // sizeof(VkAccelerationStructureInstanceKHR) * count
+        dstInfo.usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
+            VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+            VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+
+        VmaAllocationCreateInfo dstAlloc{};
+        dstAlloc.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+        //dstAlloc.flags = VMA_ALLOCATION_CREATE_BUFFER_DEVICE_ADDRESS_BIT; // for device address
+
+        VmaAllocationInfo dstAllocInfo;
+        vmaCreateBuffer(g_engine.m_device.m_allocator, &dstInfo, &dstAlloc,
+            &tlasInstancesBuffer.buffer, &tlasInstancesBuffer.allocation, &dstAllocInfo);
+
+        // 2) Create staging buffer (host-visible, mapped or map manually)
+        VkBufferCreateInfo stagingInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+        stagingInfo.size = dstInfo.size;
+        stagingInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+        VmaAllocationCreateInfo stagingAlloc{};
+        stagingAlloc.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+        stagingAlloc.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT; // optional
+
+        Buffer staging;
+        VmaAllocationInfo stagingInfoOut;
+        vmaCreateBuffer(g_engine.m_device.m_allocator, &stagingInfo, &stagingAlloc,
+            &staging.buffer, &staging.allocation, &stagingInfoOut);
+
+        // 3) Write instance data into staging
+        void* mapped = stagingInfoOut.pMappedData;
+        if (!mapped) {
+            vmaMapMemory(g_engine.m_device.m_allocator, staging.allocation, &mapped);
+        }
+        memcpy(mapped, tlasInstances.data(), dstInfo.size);
+        if (stagingInfoOut.pMappedData == nullptr) {
+            vmaUnmapMemory(g_engine.m_device.m_allocator, staging.allocation);
+        }
+
+        // 4) Copy staging -> destination
+        VkCommandBuffer cmd;
+        g_engine.m_device.BeginOneTimeSubmit(cmd);
+
+        VkBufferCopy region{ };
+        region.srcOffset = 0;
+        region.dstOffset = 0;
+        region.size = dstInfo.size;
+        vkCmdCopyBuffer(cmd, staging.buffer, tlasInstancesBuffer.buffer, 1, &region);
+
+        g_engine.m_device.EndOneTimeSubmit(); // ensure it waits for completion
+
+        VkBufferDeviceAddressInfo addrInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
+        addrInfo.buffer = tlasInstancesBuffer.buffer;
+        tlasInstancesBuffer.address = vkGetBufferDeviceAddress(g_engine.m_device.m_device, &addrInfo);
+
+        // 5) Destroy staging buffer
+        vmaDestroyBuffer(g_engine.m_device.m_allocator, staging.buffer, staging.allocation);
+
+        //EndOneTimeSubmit();
+    }
+
+    // Then create the TLAS geometry
+    {
+        VkAccelerationStructureGeometryKHR       asGeometry{};
+        VkAccelerationStructureBuildRangeInfoKHR asBuildRangeInfo{};
+
+        // Convert the instance information to acceleration structure geometry, similar to primitiveToGeometry()
+        VkAccelerationStructureGeometryInstancesDataKHR geometryInstances
+        {
+            .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR,
+            .pNext = nullptr,
+            .arrayOfPointers = VK_FALSE,
+            .data = {.deviceAddress = tlasInstancesBuffer.address}
+        };
+        asGeometry = { .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
+                            .geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR,
+                            .geometry = {.instances = geometryInstances} };
+        asBuildRangeInfo = { .primitiveCount = static_cast<uint32_t>(i) };
+
+        g_engine.m_device.CreateAccelerationStructure(VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR, m_TLas, asGeometry,
+            asBuildRangeInfo, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
+    }
+
+    vmaDestroyBuffer(g_engine.m_device.m_allocator, tlasInstancesBuffer.buffer, tlasInstancesBuffer.allocation);
+}
+
+void trayser::Scene::RebuildTLas()
+{
+    if (m_TLasDirty)
+    {
+        if (m_TLasInitialized)
+            DestroyTLas();
+
+        BuildTLas();
+        m_TLasDirty = false;
+        m_TLasInitialized = true;
+    }
+}
+
+void trayser::Scene::DestroyTLas()
+{
+    g_engine.m_device.m_rtFuncs.vkDestroyAccelerationStructureKHR(g_engine.m_device.m_device, m_TLas.accel, nullptr);
+    vmaDestroyBuffer(g_engine.m_device.m_allocator, m_TLas.buffer.buffer, m_TLas.buffer.allocation);
 }

@@ -77,6 +77,7 @@ struct RuntimeFuncs
 	PFN_vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR;
 	PFN_vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandlesKHR;
 	PFN_vkCmdTraceRaysKHR vkCmdTraceRaysKHR;
+	PFN_vkDestroyAccelerationStructureKHR vkDestroyAccelerationStructureKHR;
 };
 
 class Device;
@@ -123,7 +124,7 @@ public:
 	bool ShouldQuit() const;
 	void CreateBottomLevelAs();
 	void CreateBLas2();
-	void CreateTopLevelAs();
+	//void CreateTopLevelAs();
 
 	VkCommandBuffer GetCmd() const	{ return m_swapchain.GetCmd(); }
 	VkCommandBuffer& GetCmd()		{ return m_swapchain.GetCmd(); }
@@ -249,7 +250,7 @@ public:
 	RuntimeFuncs				m_rtFuncs;
 
 	// Ray tracing test
-	AccelerationStructure              m_tlasAccel;     // Top-level acceleration structure
+	//AccelerationStructure              m_tlasAccel;     // Top-level acceleration structure
 	VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties;
 	VkPhysicalDeviceAccelerationStructurePropertiesKHR m_asProperties;
 };

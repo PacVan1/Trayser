@@ -520,128 +520,128 @@ void trayser::Device::CreateBLas2()
     //}
 }
 
-void trayser::Device::CreateTopLevelAs()
-{
-    // VkTransformMatrixKHR is row-major 3x4, glm::mat4 is column-major; transpose before memcpy.
-    auto toTransformMatrixKHR = [](const glm::mat4& m) {
-        VkTransformMatrixKHR t;
-        memcpy(&t, glm::value_ptr(glm::transpose(m)), sizeof(t));
-        return t;
-        };
-
-    // First create the instance data for the TLAS
-    std::vector<VkAccelerationStructureInstanceKHR> tlasInstances;
-    auto view = g_engine.m_scene.m_registry.view<WorldTransform, RenderComponent>();
-    int i = 0;
-    for (const auto& [entity, transform, render] : view.each())
-    {
-        VkAccelerationStructureInstanceKHR asInstance{};
-        asInstance.transform = toTransformMatrixKHR(transform.matrix);  // Position of the instance
-        asInstance.instanceCustomIndex = render.mesh;                       // gl_InstanceCustomIndexEXT
-        asInstance.accelerationStructureReference = g_engine.m_meshPool.Get(render.mesh).accelStruct.address;
-        asInstance.instanceShaderBindingTableRecordOffset = 0;  // We will use the same hit group for all objects
-        asInstance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV;  // No culling - double sided
-        asInstance.mask = 0xFF;
-        tlasInstances.emplace_back(asInstance);
-        i++;
-    }
-
-    // Then create the buffer with the instance data
-    Buffer tlasInstancesBuffer;
-    {
-        //CreateBuffer(
-        //    tlasInstancesBuffer, std::span<VkAccelerationStructureInstanceKHR const>(tlasInstances).size_bytes(),
-        //    VK_BUFFER_USAGE_2_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-
-        //VkCommandBuffer cmd;
-		//BeginOneTimeSubmit(cmd);
-        //StageBuffer(tlasInstancesBuffer, tlasInstances.data(), tlasInstancesBuffer.info.size);
-
-        // 1) Create destination TLAS instance buffer (device-local, not mapped)
-        VkBufferCreateInfo dstInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
-        dstInfo.size = std::span<VkAccelerationStructureInstanceKHR const>(tlasInstances).size_bytes(); // sizeof(VkAccelerationStructureInstanceKHR) * count
-        dstInfo.usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
-            VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
-            VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-
-        VmaAllocationCreateInfo dstAlloc{};
-        dstAlloc.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-        //dstAlloc.flags = VMA_ALLOCATION_CREATE_BUFFER_DEVICE_ADDRESS_BIT; // for device address
-
-        VmaAllocationInfo dstAllocInfo;
-        vmaCreateBuffer(g_engine.m_device.m_allocator, &dstInfo, &dstAlloc,
-            &tlasInstancesBuffer.buffer, &tlasInstancesBuffer.allocation, &dstAllocInfo);
-
-        // 2) Create staging buffer (host-visible, mapped or map manually)
-        VkBufferCreateInfo stagingInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
-        stagingInfo.size = dstInfo.size;
-        stagingInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-
-        VmaAllocationCreateInfo stagingAlloc{};
-        stagingAlloc.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
-        stagingAlloc.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT; // optional
-
-        Buffer staging;
-        VmaAllocationInfo stagingInfoOut;
-        vmaCreateBuffer(g_engine.m_device.m_allocator, &stagingInfo, &stagingAlloc,
-            &staging.buffer, &staging.allocation, &stagingInfoOut);
-
-        // 3) Write instance data into staging
-        void* mapped = stagingInfoOut.pMappedData;
-        if (!mapped) {
-            vmaMapMemory(g_engine.m_device.m_allocator, staging.allocation, &mapped);
-        }
-        memcpy(mapped, tlasInstances.data(), dstInfo.size);
-        if (stagingInfoOut.pMappedData == nullptr) {
-            vmaUnmapMemory(g_engine.m_device.m_allocator, staging.allocation);
-        }
-
-        // 4) Copy staging -> destination
-        VkCommandBuffer cmd;
-        g_engine.m_device.BeginOneTimeSubmit(cmd);
-
-        VkBufferCopy region{ };
-        region.srcOffset = 0;
-        region.dstOffset = 0;
-        region.size = dstInfo.size;
-        vkCmdCopyBuffer(cmd, staging.buffer, tlasInstancesBuffer.buffer, 1, &region);
-
-        g_engine.m_device.EndOneTimeSubmit(); // ensure it waits for completion
-
-        VkBufferDeviceAddressInfo addrInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
-        addrInfo.buffer = tlasInstancesBuffer.buffer;
-        tlasInstancesBuffer.address = vkGetBufferDeviceAddress(g_engine.m_device.m_device, &addrInfo);
-
-        // 5) Destroy staging buffer
-        vmaDestroyBuffer(g_engine.m_device.m_allocator, staging.buffer, staging.allocation);
-
-        //EndOneTimeSubmit();
-    }
-
-    // Then create the TLAS geometry
-    {
-        VkAccelerationStructureGeometryKHR       asGeometry{};
-        VkAccelerationStructureBuildRangeInfoKHR asBuildRangeInfo{};
-
-        // Convert the instance information to acceleration structure geometry, similar to primitiveToGeometry()
-        VkAccelerationStructureGeometryInstancesDataKHR geometryInstances
-        {
-            .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR,
-            .pNext = nullptr,
-            .arrayOfPointers = VK_FALSE,
-            .data = {.deviceAddress = tlasInstancesBuffer.address}
-        };
-        asGeometry = { .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
-                            .geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR,
-                            .geometry = {.instances = geometryInstances} };
-        asBuildRangeInfo = { .primitiveCount = static_cast<uint32_t>(i) };
-
-        CreateAccelerationStructure(VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR, m_tlasAccel, asGeometry,
-            asBuildRangeInfo, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
-    }
-
-    //m_allocator.destroyBuffer(tlasInstancesBuffer);  // Cleanup
-}
+//void trayser::Device::CreateTopLevelAs()
+//{
+//    // VkTransformMatrixKHR is row-major 3x4, glm::mat4 is column-major; transpose before memcpy.
+//    auto toTransformMatrixKHR = [](const glm::mat4& m) {
+//        VkTransformMatrixKHR t;
+//        memcpy(&t, glm::value_ptr(glm::transpose(m)), sizeof(t));
+//        return t;
+//        };
+//
+//    // First create the instance data for the TLAS
+//    std::vector<VkAccelerationStructureInstanceKHR> tlasInstances;
+//    auto view = g_engine.m_scene.m_registry.view<WorldTransform, RenderComponent>();
+//    int i = 0;
+//    for (const auto& [entity, transform, render] : view.each())
+//    {
+//        VkAccelerationStructureInstanceKHR asInstance{};
+//        asInstance.transform = toTransformMatrixKHR(transform.matrix);  // Position of the instance
+//        asInstance.instanceCustomIndex = render.mesh;                       // gl_InstanceCustomIndexEXT
+//        asInstance.accelerationStructureReference = g_engine.m_meshPool.Get(render.mesh).accelStruct.address;
+//        asInstance.instanceShaderBindingTableRecordOffset = 0;  // We will use the same hit group for all objects
+//        asInstance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV;  // No culling - double sided
+//        asInstance.mask = 0xFF;
+//        tlasInstances.emplace_back(asInstance);
+//        i++;
+//    }
+//
+//    // Then create the buffer with the instance data
+//    Buffer tlasInstancesBuffer;
+//    {
+//        //CreateBuffer(
+//        //    tlasInstancesBuffer, std::span<VkAccelerationStructureInstanceKHR const>(tlasInstances).size_bytes(),
+//        //    VK_BUFFER_USAGE_2_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+//
+//        //VkCommandBuffer cmd;
+//		//BeginOneTimeSubmit(cmd);
+//        //StageBuffer(tlasInstancesBuffer, tlasInstances.data(), tlasInstancesBuffer.info.size);
+//
+//        // 1) Create destination TLAS instance buffer (device-local, not mapped)
+//        VkBufferCreateInfo dstInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+//        dstInfo.size = std::span<VkAccelerationStructureInstanceKHR const>(tlasInstances).size_bytes(); // sizeof(VkAccelerationStructureInstanceKHR) * count
+//        dstInfo.usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
+//            VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+//            VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+//
+//        VmaAllocationCreateInfo dstAlloc{};
+//        dstAlloc.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+//        //dstAlloc.flags = VMA_ALLOCATION_CREATE_BUFFER_DEVICE_ADDRESS_BIT; // for device address
+//
+//        VmaAllocationInfo dstAllocInfo;
+//        vmaCreateBuffer(g_engine.m_device.m_allocator, &dstInfo, &dstAlloc,
+//            &tlasInstancesBuffer.buffer, &tlasInstancesBuffer.allocation, &dstAllocInfo);
+//
+//        // 2) Create staging buffer (host-visible, mapped or map manually)
+//        VkBufferCreateInfo stagingInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+//        stagingInfo.size = dstInfo.size;
+//        stagingInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+//
+//        VmaAllocationCreateInfo stagingAlloc{};
+//        stagingAlloc.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+//        stagingAlloc.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT; // optional
+//
+//        Buffer staging;
+//        VmaAllocationInfo stagingInfoOut;
+//        vmaCreateBuffer(g_engine.m_device.m_allocator, &stagingInfo, &stagingAlloc,
+//            &staging.buffer, &staging.allocation, &stagingInfoOut);
+//
+//        // 3) Write instance data into staging
+//        void* mapped = stagingInfoOut.pMappedData;
+//        if (!mapped) {
+//            vmaMapMemory(g_engine.m_device.m_allocator, staging.allocation, &mapped);
+//        }
+//        memcpy(mapped, tlasInstances.data(), dstInfo.size);
+//        if (stagingInfoOut.pMappedData == nullptr) {
+//            vmaUnmapMemory(g_engine.m_device.m_allocator, staging.allocation);
+//        }
+//
+//        // 4) Copy staging -> destination
+//        VkCommandBuffer cmd;
+//        g_engine.m_device.BeginOneTimeSubmit(cmd);
+//
+//        VkBufferCopy region{ };
+//        region.srcOffset = 0;
+//        region.dstOffset = 0;
+//        region.size = dstInfo.size;
+//        vkCmdCopyBuffer(cmd, staging.buffer, tlasInstancesBuffer.buffer, 1, &region);
+//
+//        g_engine.m_device.EndOneTimeSubmit(); // ensure it waits for completion
+//
+//        VkBufferDeviceAddressInfo addrInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
+//        addrInfo.buffer = tlasInstancesBuffer.buffer;
+//        tlasInstancesBuffer.address = vkGetBufferDeviceAddress(g_engine.m_device.m_device, &addrInfo);
+//
+//        // 5) Destroy staging buffer
+//        vmaDestroyBuffer(g_engine.m_device.m_allocator, staging.buffer, staging.allocation);
+//
+//        //EndOneTimeSubmit();
+//    }
+//
+//    // Then create the TLAS geometry
+//    {
+//        VkAccelerationStructureGeometryKHR       asGeometry{};
+//        VkAccelerationStructureBuildRangeInfoKHR asBuildRangeInfo{};
+//
+//        // Convert the instance information to acceleration structure geometry, similar to primitiveToGeometry()
+//        VkAccelerationStructureGeometryInstancesDataKHR geometryInstances
+//        {
+//            .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR,
+//            .pNext = nullptr,
+//            .arrayOfPointers = VK_FALSE,
+//            .data = {.deviceAddress = tlasInstancesBuffer.address}
+//        };
+//        asGeometry = { .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
+//                            .geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR,
+//                            .geometry = {.instances = geometryInstances} };
+//        asBuildRangeInfo = { .primitiveCount = static_cast<uint32_t>(i) };
+//
+//        CreateAccelerationStructure(VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR, m_tlasAccel, asGeometry,
+//            asBuildRangeInfo, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
+//    }
+//
+//    //m_allocator.destroyBuffer(tlasInstancesBuffer);  // Cleanup
+//}
 
 void trayser::Device::Init()
 {
@@ -1416,6 +1416,9 @@ void trayser::RuntimeFuncs::Init()
 
     vkCmdTraceRaysKHR =
         (PFN_vkCmdTraceRaysKHR)vkGetDeviceProcAddr(g_engine.m_device.m_device, "vkCmdTraceRaysKHR");
+
+    vkDestroyAccelerationStructureKHR =
+        (PFN_vkDestroyAccelerationStructureKHR)vkGetDeviceProcAddr(g_engine.m_device.m_device, "vkDestroyAccelerationStructureKHR");
 }
 
 void trayser::Swapchain::Init(const Device& device)

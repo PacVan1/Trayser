@@ -90,7 +90,7 @@ struct Instance
 
 struct Mesh
 {
-    AccelerationStructure   accelStruct;
+    AccelerationStructure   BLas;
     std::vector<Primitive>  primitives;
     AllocatedBuffer         indexBuffer;
     AllocatedBuffer         vertexBuffer;

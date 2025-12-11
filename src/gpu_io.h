@@ -222,7 +222,7 @@ float3 RandomCosineOnHemisphere(in float3 normal, inout uint32_t seed)
 }
 uint32_t InitRNGState(uint32_t x, uint32_t y, uint32_t frame)
 {
-    return WangHash((x * 0x1f123bb5u) ^ (y * 0x9e3779b9u) ^ (frame * 0x85ebca6bu));
+    return WangHash((x * 0x1f123bb5u) ^ (y * 0x9e3779b9u) ^ (frame * 0x85ebca6bu)) + 1;
 }
 float SrgbToLinear(float color)
 {

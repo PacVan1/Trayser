@@ -112,8 +112,8 @@ void trayser::Model::TraverseNode(tinygltf::Model& loaded, const tinygltf::Node&
 
 trayser::Mesh::~Mesh()
 {
-    //vkDestroyAccelerationStructureKHR(g_engine.m_device.m_device, accelStruct.accel, nullptr);
-    //vmaDestroyBuffer(g_engine.m_device.m_allocator, accelStruct.buffer.buffer, accelStruct.buffer.allocation);
+    g_engine.m_device.m_rtFuncs.vkDestroyAccelerationStructureKHR(g_engine.m_device.m_device, BLas.accel, nullptr);
+    vmaDestroyBuffer(g_engine.m_device.m_allocator, BLas.buffer.buffer, BLas.buffer.allocation);
 }
 
 trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mesh& loadedMesh, const std::string& folder)
@@ -435,7 +435,7 @@ void trayser::Mesh::InitBLas()
 
     PrimitivesToGeometries(geometries, rangeInfos);
 
-    g_engine.m_device.CreateAccelerationStructure2(VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR, accelStruct, geometries,
+    g_engine.m_device.CreateAccelerationStructure2(VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR, BLas, geometries,
         rangeInfos, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
 }
 

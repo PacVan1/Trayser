@@ -25,14 +25,16 @@ void trayser::Engine::Init()
     m_meshPool.Init();
     m_materialPool.Init();
     m_texturePool.Init();
-    ModelHandle handle = m_modelPool.Create(kModelPaths[ModelResource_Sponza], kModelPaths[ModelResource_Sponza], this);
+    ModelHandle handle = m_modelPool.Create(kModelPaths[ModelResource_DamagedHelmet], kModelPaths[ModelResource_DamagedHelmet], this);
+    const Model& model1 = m_modelPool.Get(handle);
+    m_scene.Init();
+    m_scene.CreateModel(model1);
+
+    m_scene.Update(1.0f);
 
     //m_device.CreateBLas2();
 
-    const Model& model1 = m_modelPool.Get(handle);
-    m_scene.CreateModel(model1);
-    m_scene.Update(1.0f);
-    m_device.CreateTopLevelAs();
+    //m_device.CreateTopLevelAs();
 
     InitPipelines();
 

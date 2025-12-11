@@ -5,6 +5,7 @@
 #include <components.h>
 #include <loader.h>
 #include <memory>
+#include <device.h>
 
 namespace trayser
 {
@@ -12,7 +13,8 @@ namespace trayser
 class Scene
 {
 public:
-            Scene();
+    void    Init();
+    void    Destroy();
     void    Update(float dt);
     Entity  CreateNode();
     Entity  CreateNode(Entity parent);
@@ -27,15 +29,25 @@ public:
     const SGNode&   GetRootNode() const { return m_registry.get<SGNode>(m_root); }
 
 private:
-    void Build();
+    void Rebuild();
+    void BuildSceneGraph();
+    void BuildTLas();
+    void RebuildTLas();
+    void DestroyTLas();
 
 public:
 	entt::registry       m_registry;
+    AccelerationStructure   m_TLas;
 
 private:
+    // Scene graph
     std::vector<Entity>  m_traversalBuffer;
     Entity               m_root;
-    bool                 m_dirty;
+    bool                 m_sceneGraphDirty;
+
+    // Ray tracing
+    bool                m_TLasDirty;
+    bool                m_TLasInitialized;
 };
 
 } // namespace trayser
