@@ -366,20 +366,12 @@ void trayser::Renderer::NewFrame(Device& device)
 
 void trayser::Renderer::EndFrame(Device& device)
 {
-    // set swapchain image layout to Attachment Optimal so we can draw it
     vkutil::TransitionImage(GetCmdBuffer(), GetSwapchainImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-
-    //draw imgui into the swapchain image
     RenderImGui();
-
-    // set swapchain image layout to Present so we can draw it
     vkutil::TransitionImage(GetCmdBuffer(), GetSwapchainImage(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
     VK_CHECK(vkEndCommandBuffer(GetCmdBuffer()));
 
-    // Prepare the submission to the queue. 
-    // We want to wait on the _presentSemaphore, as that semaphore is signaled when the swapchain is ready
-    // We will signal the _renderSemaphore, to signal that rendering has finished
     VkCommandBufferSubmitInfo cmdSubmitInfo = CommandBufferSubmitInfo();
     cmdSubmitInfo.commandBuffer = GetCmdBuffer();
     cmdSubmitInfo.deviceMask = 0;
@@ -403,15 +395,8 @@ void trayser::Renderer::EndFrame(Device& device)
     submitInfo.signalSemaphoreInfoCount = 1;
     submitInfo.pCommandBufferInfos = &cmdSubmitInfo;
     submitInfo.commandBufferInfoCount = 1;
-
-    // Submit command buffer to the queue and execute it.
-    // _renderFence will now block until the graphic commands finish execution
     VK_CHECK(vkQueueSubmit2(device.m_graphicsQueue, 1, &submitInfo, GetRenderFence()));
 
-    // Prepare present
-    // This will put the image we just rendered to into the visible window.
-    // We want to wait on the _renderSemaphore for that, 
-    // as its necessary that drawing commands have finished before the image is displayed to the user
     VkPresentInfoKHR presentInfo = {};
     presentInfo.sType               = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.pNext               = nullptr;
@@ -420,7 +405,6 @@ void trayser::Renderer::EndFrame(Device& device)
     presentInfo.pWaitSemaphores     = &GetRenderSemaphore();
     presentInfo.waitSemaphoreCount  = 1;
     presentInfo.pImageIndices       = &m_frameIndex;
-
     vkQueuePresentKHR(device.m_graphicsQueue, &presentInfo);
 }
 

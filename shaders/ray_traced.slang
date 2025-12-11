@@ -131,7 +131,7 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     HitInfo hit;
     hit.position    = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
     hit.uv          = v0.texCoord.xy * w0 + v1.texCoord.xy * w1 + v2.texCoord.xy * w2;
-    float4 albedo   = baseColorTexture.Sample(hit.uv);
+    float4 albedo   = baseColorTexture.SampleLevel(hit.uv, 0.0);
     
     // Continue at fully transparent surfaces
     if (albedo.a == 0.0)
@@ -150,16 +150,17 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     hit.normal      = normalize(v0.normal.xyz * w0 + v1.normal.xyz * w1 + v2.normal.xyz * w2);
     hit.tangent     = v0.tangent.xyz * w0 + v1.tangent.xyz * w1 + v2.tangent.xyz * w2;
     hit.albedo      = albedo.rgb;
-    hit.emission    = emissiveTexture.Sample(hit.uv).rgb;
-    hit.metallic    = metalRoughTexture.Sample(hit.uv).b;
-    hit.roughness   = metalRoughTexture.Sample(hit.uv).g;
+    hit.emission    = emissiveTexture.SampleLevel(hit.uv, 0.0).rgb;
+    hit.metallic    = metalRoughTexture.SampleLevel(hit.uv, 0.0).b;
+    hit.roughness   = metalRoughTexture.SampleLevel(hit.uv, 0.0).g;
 
-    hit.normal = normalize(mul(instance.normalTransform, hit.normal));
+    float3x3 normalTransform = float3x3(instance.normalTransform);
+    hit.normal = normalize(mul(normalTransform, hit.normal));
     hit.tangent = normalize(mul((float3x3)instance.transform, hit.tangent.xyz));
     hit.tangent = normalize(hit.tangent - hit.normal * dot(hit.normal, hit.tangent));
     hit.bitangent = cross(hit.normal, hit.tangent) * v0.tangent.w;
     float3x3 tbn = float3x3(hit.tangent, hit.bitangent, hit.normal);
-    float3 mapNormal = normalize(normalMapTexture.Sample(hit.uv.xy).xyz * 2.0 - 1.0);
+    float3 mapNormal = normalize(normalMapTexture.SampleLevel(hit.uv.xy, 0.0).xyz * 2.0 - 1.0);
     hit.normal = normalize(mul(mapNormal, tbn));
 
     switch (pushConsts.renderMode)
@@ -257,5 +258,5 @@ void mMain(inout HitPayload payload)
     uv *= kInvTan;
     uv += 0.5;
 
-    payload.color *= textures[scene.skydomeHandle].Sample(uv).rgb;
+    payload.color *= textures[scene.skydomeHandle].SampleLevel(uv, 0.0).rgb;
 }

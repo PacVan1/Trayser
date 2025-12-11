@@ -43,7 +43,8 @@ VsFsInterface vsMain(Vertex v)
     // Outputs
     o.uv = v.texCoord;
 
-    float3 normal = normalize(mul(instance.normalTransform, v.normal.xyz));
+    float3x3 normalTransform = float3x3(instance.normalTransform);
+    float3 normal = normalize(mul(normalTransform, v.normal.xyz));
     float3 tangent = normalize(mul((float3x3)instance.transform, v.tangent.xyz));
     tangent         = normalize(tangent - normal * dot(normal, tangent));
     float3 bitangent = cross(normal, tangent) * v.tangent.w;

@@ -99,7 +99,7 @@ struct Mesh
 struct Instance
 {
     FLOAT4X4 transform;         // Transformation matrix
-    FLOAT3X3 normalTransform;   // Transformation matrix
+    FLOAT4X3 normalTransform;   // 4x3 because of alignment
     uint32_t meshHandle;        // Index to mesh buffer
     uint32_t _pad[3];
 };
