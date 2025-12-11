@@ -33,6 +33,12 @@ struct QueueFamilyIndices
 	}
 };
 
+struct QueueFamilies
+{
+	uint32_t graphics;
+	uint32_t present;
+};
+
 struct Buffer
 {
 	VkBuffer            buffer;
@@ -59,7 +65,7 @@ struct FrameData
 	DescriptorAllocatorGrowable descriptors;
 };
 
-struct SwapChainSupportDetails
+struct SwapchainSupport
 {
 	VkSurfaceCapabilitiesKHR capabilities;
 	std::vector<VkSurfaceFormatKHR> formats;
@@ -80,37 +86,6 @@ struct RuntimeFuncs
 	PFN_vkDestroyAccelerationStructureKHR vkDestroyAccelerationStructureKHR;
 };
 
-class Device;
-
-class Swapchain
-{
-public:
-	void Init(const Device& device);
-	void Destroy(const Device& device);
-
-	FrameData& GetFrame()				{ return m_frames[m_frameIdx]; }
-	const FrameData& GetFrame() const	{ return m_frames[m_frameIdx]; }
-	VkFence& GetFence()					{ return GetFrame().renderFence; }
-	VkImage GetImage() const			{ return m_images[m_imageIdx]; }
-	VkCommandBuffer GetCmd() const		{ return GetFrame().commandBuffer; }
-	VkCommandBuffer& GetCmd()			{ return GetFrame().commandBuffer; }
-	VkImageView GetImageView() const	{ return m_imageViews[m_imageIdx]; }
-
-private:
-	SwapChainSupportDetails QuerySwapChainSupport(const Device& device) const;
-	VkExtent2D ChooseSwapExtent(const Device& device, const VkSurfaceCapabilitiesKHR& capabilities);
-
-public:
-	VkSwapchainKHR				m_swapchain;
-	VkFormat					m_format;
-	std::vector<VkImage>		m_images; // Are getting destroyed with vkDestroySwapchainKHR
-	std::vector<VkImageView>	m_imageViews;
-	VkExtent2D					m_extent;
-	u32 						m_frameIdx;
-	u32 						m_imageIdx; // From vkAcquireNextImageKHR
-	FrameData					m_frames[kFrameCount];
-};
-
 class Device
 {
 public:
@@ -119,16 +94,15 @@ public:
 	void ShowCursor(bool show);
 	void BeginOneTimeSubmit(VkCommandBuffer& outCmd) const;
 	void EndOneTimeSubmit() const;
-	void BeginFrame();
+	void NewFrame();
 	void EndFrame();
 	bool ShouldQuit() const;
 	void CreateBottomLevelAs();
 	void CreateBLas2();
 	//void CreateTopLevelAs();
 
-	VkCommandBuffer GetCmd() const	{ return m_swapchain.GetCmd(); }
-	VkCommandBuffer& GetCmd()		{ return m_swapchain.GetCmd(); }
-	FrameData& GetFrame() 			{ return m_swapchain.GetFrame(); }
+	SwapchainSupport GetSwapchainSupport() const;
+	QueueFamilyIndices GetQueueFamilies();
 
 	VkResult CreateBuffer(Buffer& outBuffer,
 		VkDeviceSize              size,
@@ -184,21 +158,18 @@ private:
 	void InitCommands();
 	void InitSyncStructures();
 	void InitVMA();
-	void InitImGui();
 	void DestroySDL() const;
 	void DestroyInstance() const;
 	void DestroySurface() const;
 	void DestroyDebugMessenger() const;
 	void DestroyLogicalDevice() const;
 	void DestroyVMA() const;
-	void DestroyImGui() const;
 	void DestroyCommands() const;
 	void DestroySyncStructures() const;
 
 	// Testing
 	void InitRayTracing();
 
-	void RenderImGui() const;
 	void ProcessSDLEvents();
 
 	bool CheckValidationLayerSupport();
@@ -207,7 +178,7 @@ private:
 	QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device);
 	bool IsPhysicalDeviceSuitable(VkPhysicalDevice device);
 	bool CheckPhysicalDeviceExtensionSupport(VkPhysicalDevice device);
-	SwapChainSupportDetails QuerySwapChainSupport(VkPhysicalDevice device) const;
+	SwapchainSupport QuerySwapChainSupport(VkPhysicalDevice device) const;
 	VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 
 public:
@@ -229,6 +200,7 @@ public:
 	VkQueue						m_graphicsQueue;
 	VkQueue						m_presentQueue;
 	u32							m_graphicsQueueFamily;
+	QueueFamilies				m_queueFamilies;
 
 	// Immediate / one time submits
 	VkFence						m_oneTimeFence;
@@ -236,7 +208,7 @@ public:
 	VkCommandPool				m_oneTimeCommandPool;
 
 	// Swapchain
-	Swapchain 					m_swapchain;
+	//Swapchain 					m_swapchain;
 	bool 						m_windowResized;
 
 	// SDL

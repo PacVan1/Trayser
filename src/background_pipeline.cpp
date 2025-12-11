@@ -47,7 +47,7 @@ void trayser::BackgroundPipeline::Load(VkShaderModule module)
 
 void trayser::BackgroundPipeline::Update()
 {
-    auto cmd = g_engine.m_device.GetCmd();
+    auto cmd = g_engine.m_renderer.GetCmdBuffer();
 
     // bind the gradient drawing compute pipeline
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline);

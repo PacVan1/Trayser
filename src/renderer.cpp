@@ -1,23 +1,34 @@
 #include <pch.h>
 
+#include <images.h>
+
 #include <engine.h>
 #include <renderer.h>
 #include <gpu_io.h>
+
+#include <imgui.h>
+#include <imgui_impl_vulkan.h>
+#include <imgui_impl_sdl2.h>
 
 void trayser::Renderer::Init(Device& device)
 {
     InitCmdPool(device);
 	InitTextureDescLayout(device);
+    InitSwapchain(device);
 	InitFrames(device);
+    InitImGui(device);
 }
 
 void trayser::Renderer::Destroy(Device& device)
 {
+    DestroyImGui();
+    DestroyFrames(device);
     DestroyCmdPool(device);
 }
 
 void trayser::Renderer::Render(uint32_t frameIndex)
 {
+    m_frameCounter++;
 }
 
 void trayser::Renderer::InitCmdPool(Device& device)
@@ -26,6 +37,63 @@ void trayser::Renderer::InitCmdPool(Device& device)
     createInfo.queueFamilyIndex = device.m_graphicsQueueFamily;
     createInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     VK_CHECK(vkCreateCommandPool(device.m_device, &createInfo, nullptr, &m_cmdPool));
+}
+
+void trayser::Renderer::InitSwapchain(Device& device)
+{
+    SwapchainSupport swapChainSupport   = device.GetSwapchainSupport();
+    VkSurfaceFormatKHR surfaceFormat    = ChooseSwapchainFormat(swapChainSupport.formats);
+    VkPresentModeKHR presentMode        = ChoosePresentMode(swapChainSupport.presentModes);
+    VkExtent2D extent                   = ChooseSwapchainExtent(device, swapChainSupport.capabilities);
+
+    uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
+
+    if (swapChainSupport.capabilities.maxImageCount > 0 &&
+        imageCount > swapChainSupport.capabilities.maxImageCount)
+    {
+        imageCount = swapChainSupport.capabilities.maxImageCount;
+    }
+
+    VkSwapchainCreateInfoKHR createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    createInfo.surface = device.m_surface;
+    createInfo.minImageCount = imageCount;
+    createInfo.imageFormat = surfaceFormat.format;
+    createInfo.imageColorSpace = surfaceFormat.colorSpace;
+    createInfo.imageExtent = extent;
+    createInfo.imageArrayLayers = 1;
+    createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+    QueueFamilyIndices indices = device.GetQueueFamilies();
+    uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.presentFamily.value() };
+
+    if (indices.graphicsFamily != indices.presentFamily)
+    {
+        createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+        createInfo.queueFamilyIndexCount = 2;
+        createInfo.pQueueFamilyIndices = queueFamilyIndices;
+    }
+    else
+    {
+        createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        createInfo.queueFamilyIndexCount = 0; // Optional
+        createInfo.pQueueFamilyIndices = nullptr; // Optional
+    }
+
+    createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
+    createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    createInfo.presentMode = presentMode;
+    createInfo.clipped = VK_TRUE;
+    createInfo.oldSwapchain = VK_NULL_HANDLE;
+
+    VK_CHECK(vkCreateSwapchainKHR(device.m_device, &createInfo, nullptr, &m_swapchain.swapchain));
+
+    VK_CHECK(vkGetSwapchainImagesKHR(device.m_device, m_swapchain.swapchain, &m_swapchain.frameCount, nullptr));
+
+    m_swapchain.format = surfaceFormat.format;
+    m_swapchain.extent = extent;
+
+    PRINT_INFO("Initialized Vulkan swapchain.");
 }
 
 void trayser::Renderer::InitTextureDescLayout(Device& device)
@@ -47,7 +115,12 @@ void trayser::Renderer::InitTextureDescLayout(Device& device)
 
 void trayser::Renderer::InitFrames(Device& device)
 {
+    m_frames = new PerFrame[m_swapchain.frameCount];
+
     InitCmdBuffers(device);
+    InitSwapchainImages(device);
+    InitSwapchainImageViews(device);
+    InitSyncStructures(device);
     InitTextureDescSets(device);
 }
 
@@ -57,25 +130,318 @@ void trayser::Renderer::InitCmdBuffers(Device& device)
     allocInfo.commandPool        = m_cmdPool;
     allocInfo.commandBufferCount = kFrameCount;
     allocInfo.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-
-    VkCommandBuffer cmdBuffers[kFrameCount] = {};
+;
+    VkCommandBuffer* cmdBuffers = new VkCommandBuffer[m_swapchain.frameCount];
     VK_CHECK(vkAllocateCommandBuffers(device.m_device, &allocInfo, cmdBuffers));
 
-    for (int i = 0; i < kFrameCount; i++)
+    for (int i = 0; i < m_swapchain.frameCount; i++)
     {
         m_frames[i].cmdBuffer = cmdBuffers[i];
+    }
+
+    delete[] cmdBuffers;
+}
+
+void trayser::Renderer::InitSwapchainImages(Device& device)
+{
+    std::vector<VkImage> images(m_swapchain.frameCount);
+    vkGetSwapchainImagesKHR(device.m_device, m_swapchain.swapchain, &m_swapchain.frameCount, images.data());
+
+    for (int i = 0; i < m_swapchain.frameCount; i++)
+    {
+        m_frames[i].swapchainImage = images[i];
+    }
+}
+
+void trayser::Renderer::InitSwapchainImageViews(Device& device)
+{
+    for (int i = 0; i < m_swapchain.frameCount; i++)
+    {
+        VkImageViewCreateInfo createInfo = ImageViewCreateInfo();
+        createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        createInfo.format = m_swapchain.format;
+        createInfo.image = m_frames[i].swapchainImage;
+        createInfo.subresourceRange.baseMipLevel = 0;
+        createInfo.subresourceRange.levelCount = 1;
+        createInfo.subresourceRange.baseArrayLayer = 0;
+        createInfo.subresourceRange.layerCount = 1;
+        createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        VK_CHECK(vkCreateImageView(device.m_device, &createInfo, nullptr, &m_frames[i].swapchainImageView));
+    }
+}
+
+void trayser::Renderer::InitSyncStructures(Device& device)
+{
+    VkFenceCreateInfo fenceCreateInfo = FenceCreateInfo();
+    fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+    VkSemaphoreCreateInfo semaphoreCreateInfo = SemaphoreCreateInfo();
+    semaphoreCreateInfo.flags = 0;
+
+    for (int i = 0; i < m_swapchain.frameCount; i++)
+    {
+        VK_CHECK(vkCreateFence(device.m_device, &fenceCreateInfo, nullptr, &m_frames[i].renderFence));
+        VK_CHECK(vkCreateSemaphore(device.m_device, &semaphoreCreateInfo, nullptr, &m_frames[i].swapchainSemaphore));
+        VK_CHECK(vkCreateSemaphore(device.m_device, &semaphoreCreateInfo, nullptr, &m_frames[i].renderSemaphore));
     }
 }
 
 void trayser::Renderer::InitTextureDescSets(Device& device)
 {
-    for (int i = 0; i < kFrameCount; i++)
+    for (int i = 0; i < m_swapchain.frameCount; i++)
     {
         m_frames[i].textureDescSet = g_engine.m_globalDescriptorAllocator.Allocate(device.m_device, m_textureDescLayout);
     }
 }
 
+void trayser::Renderer::InitImGui(Device& device)
+{
+    VkDescriptorPoolSize poolSizes[] =
+    {
+        { VK_DESCRIPTOR_TYPE_SAMPLER,                   1000 },
+        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,    1000 },
+        { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,             1000 },
+        { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,             1000 },
+        { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER,      1000 },
+        { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER,      1000 },
+        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,            1000 },
+        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,            1000 },
+        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,    1000 },
+        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,    1000 },
+        { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,          1000 }
+    };
+
+    VkDescriptorPoolCreateInfo poolInfo =
+    {
+    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+    .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+    .maxSets = 1000,
+    .poolSizeCount = (u32)std::size(poolSizes),
+    .pPoolSizes = poolSizes
+    };
+
+    VkDescriptorPool pool;
+    VK_CHECK(vkCreateDescriptorPool(device.m_device, &poolInfo, nullptr, &pool));
+
+    ImGui_ImplVulkan_InitInfo initInfo =
+    {
+        .Instance               = device.m_instance,
+        .PhysicalDevice         = device.m_physDevice,
+        .Device                 = device.m_device,
+        .Queue                  = device.m_graphicsQueue,
+        .DescriptorPool         = pool,
+        .MinImageCount          = m_swapchain.frameCount,
+        .ImageCount             = m_swapchain.frameCount,
+        .UseDynamicRendering    = true
+    };
+
+    initInfo.PipelineRenderingCreateInfo = { .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO };
+    initInfo.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
+    initInfo.PipelineRenderingCreateInfo.pColorAttachmentFormats = &m_swapchain.format;
+    initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+
+    ImGui::CreateContext();
+    ImGui_ImplSDL2_InitForVulkan(device.m_window);
+    ImGui_ImplVulkan_Init(&initInfo);
+    ImGui_ImplVulkan_CreateFontsTexture();
+
+    PRINT_INFO("Initialized ImGui.");
+}
+
 void trayser::Renderer::DestroyCmdPool(Device& device) const
 {
     vkDestroyCommandPool(device.m_device, m_cmdPool, nullptr);
+}
+
+void trayser::Renderer::DestroySwapchain(Device& device) const
+{
+    vkDestroySwapchainKHR(device.m_device, m_swapchain.swapchain, nullptr);
+}
+
+void trayser::Renderer::DestroySwapchainImageViews(Device& device) const
+{
+    for (int i = 0; i < m_swapchain.frameCount; i++)
+    {
+        vkDestroyImageView(device.m_device, m_frames[i].swapchainImageView, nullptr);
+    }
+}
+
+void trayser::Renderer::DestroyFrames(Device& device) const
+{
+    DestroyTextureDescSets(device);
+    DestroySyncStructures(device);
+    DestroySwapchainImageViews(device);
+
+    delete[] m_frames;
+}
+
+void trayser::Renderer::DestroySyncStructures(Device& device) const
+{
+    for (int i = 0; i < m_swapchain.frameCount; i++)
+    {
+        vkDestroySemaphore(device.m_device, m_frames[i].renderSemaphore, nullptr);
+        vkDestroySemaphore(device.m_device, m_frames[i].swapchainSemaphore, nullptr);
+        vkDestroyFence(device.m_device, m_frames[i].renderFence, nullptr);
+    }
+}
+
+void trayser::Renderer::DestroyTextureDescSets(Device& device) const
+{
+    // TODO
+}
+
+void trayser::Renderer::DestroyImGui() const
+{
+    ImGui_ImplVulkan_Shutdown();
+    ImGui::DestroyContext();
+}
+
+VkSurfaceFormatKHR trayser::Renderer::ChooseSwapchainFormat(const std::vector<VkSurfaceFormatKHR>& formats)
+{
+    for (const auto& availableFormat : formats)
+    {
+        if (availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM &&
+            availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+        {
+            return availableFormat;
+        }
+    }
+
+    return formats[0];
+}
+
+VkPresentModeKHR trayser::Renderer::ChoosePresentMode(const std::vector<VkPresentModeKHR>& presentModes)
+{
+    for (const auto& availablePresentMode : presentModes)
+    {
+        if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR)
+        {
+            return availablePresentMode;
+        }
+    }
+
+    return VK_PRESENT_MODE_FIFO_KHR;
+}
+
+VkExtent2D trayser::Renderer::ChooseSwapchainExtent(const Device& device, const VkSurfaceCapabilitiesKHR& capabilities)
+{
+    if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max())
+    {
+        return capabilities.currentExtent;
+    }
+    else
+    {
+        int width, height;
+        SDL_GetWindowSize(device.m_window, &width, &height);
+
+        VkExtent2D actualExtent =
+        {
+            static_cast<uint32_t>(width),
+            static_cast<uint32_t>(height)
+        };
+
+        actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+        actualExtent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+
+        return actualExtent;
+    }
+}
+
+void trayser::Renderer::ImGuiNewFrame()
+{
+    ImGui_ImplVulkan_NewFrame();
+    ImGui_ImplSDL2_NewFrame();
+    ImGui::NewFrame();
+}
+
+void trayser::Renderer::NewFrame(Device& device)
+{
+    VK_CHECK(vkWaitForFences(device.m_device, 1, &GetRenderFence(), true, UINT64_MAX));
+    VK_CHECK(vkResetFences(device.m_device, 1, &GetRenderFence()));
+
+    vkAcquireNextImageKHR(device.m_device, m_swapchain.swapchain, UINT64_MAX, GetSwapchainSemaphore(), nullptr, &m_frameIndex);
+
+    ImGuiNewFrame();
+}
+
+void trayser::Renderer::EndFrame(Device& device)
+{
+    // set swapchain image layout to Attachment Optimal so we can draw it
+    vkutil::TransitionImage(GetCmdBuffer(), GetSwapchainImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+    //draw imgui into the swapchain image
+    RenderImGui();
+
+    // set swapchain image layout to Present so we can draw it
+    vkutil::TransitionImage(GetCmdBuffer(), GetSwapchainImage(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+
+    VK_CHECK(vkEndCommandBuffer(GetCmdBuffer()));
+
+    // Prepare the submission to the queue. 
+    // We want to wait on the _presentSemaphore, as that semaphore is signaled when the swapchain is ready
+    // We will signal the _renderSemaphore, to signal that rendering has finished
+    VkCommandBufferSubmitInfo cmdSubmitInfo = CommandBufferSubmitInfo();
+    cmdSubmitInfo.commandBuffer = GetCmdBuffer();
+    cmdSubmitInfo.deviceMask = 0;
+
+    VkSemaphoreSubmitInfo waitInfo = SemaphoreSubmitInfo();
+    waitInfo.semaphore = GetSwapchainSemaphore();
+    waitInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
+    waitInfo.deviceIndex = 0;
+    waitInfo.value = 1;
+
+    VkSemaphoreSubmitInfo signalInfo = SemaphoreSubmitInfo();
+    signalInfo.semaphore = GetRenderSemaphore();
+    signalInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT;
+    signalInfo.deviceIndex = 0;
+    signalInfo.value = 1;
+
+    VkSubmitInfo2 submitInfo = SubmitInfo2();
+    submitInfo.pWaitSemaphoreInfos = &waitInfo;
+    submitInfo.waitSemaphoreInfoCount = 1;
+    submitInfo.pSignalSemaphoreInfos = &signalInfo;
+    submitInfo.signalSemaphoreInfoCount = 1;
+    submitInfo.pCommandBufferInfos = &cmdSubmitInfo;
+    submitInfo.commandBufferInfoCount = 1;
+
+    // Submit command buffer to the queue and execute it.
+    // _renderFence will now block until the graphic commands finish execution
+    VK_CHECK(vkQueueSubmit2(device.m_graphicsQueue, 1, &submitInfo, GetRenderFence()));
+
+    // Prepare present
+    // This will put the image we just rendered to into the visible window.
+    // We want to wait on the _renderSemaphore for that, 
+    // as its necessary that drawing commands have finished before the image is displayed to the user
+    VkPresentInfoKHR presentInfo = {};
+    presentInfo.sType               = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    presentInfo.pNext               = nullptr;
+    presentInfo.pSwapchains         = &m_swapchain.swapchain;
+    presentInfo.swapchainCount      = 1;
+    presentInfo.pWaitSemaphores     = &GetRenderSemaphore();
+    presentInfo.waitSemaphoreCount  = 1;
+    presentInfo.pImageIndices       = &m_frameIndex;
+
+    vkQueuePresentKHR(device.m_graphicsQueue, &presentInfo);
+}
+
+void trayser::Renderer::RenderImGui()
+{
+    ImGui::Render();
+    VkRenderingAttachmentInfo colorAttachment = RenderingAttachmentInfo();
+    colorAttachment.imageView   = GetSwapchainImageView();
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.loadOp      = VK_ATTACHMENT_LOAD_OP_LOAD;
+    colorAttachment.storeOp     = VK_ATTACHMENT_STORE_OP_STORE;
+
+    VkRenderingInfo renderInfo      = RenderingInfo();
+    renderInfo.renderArea           = VkRect2D{ VkOffset2D { 0, 0 }, m_swapchain.extent };
+    renderInfo.pColorAttachments    = &colorAttachment;
+    renderInfo.pStencilAttachment   = nullptr;
+    renderInfo.pDepthAttachment     = nullptr;
+    renderInfo.colorAttachmentCount = 1;
+    renderInfo.layerCount           = 1;
+
+    vkCmdBeginRendering(GetCmdBuffer(), &renderInfo);
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), GetCmdBuffer());
+    vkCmdEndRendering(GetCmdBuffer());
 }

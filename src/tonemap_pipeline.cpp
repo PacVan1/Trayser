@@ -66,7 +66,7 @@ void trayser::TonemapPipeline::Load(VkShaderModule module)
 
 void trayser::TonemapPipeline::Update()
 {
-    auto cmd = g_engine.m_device.GetCmd();
+    auto cmd = g_engine.m_renderer.GetCmdBuffer();
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline);
 

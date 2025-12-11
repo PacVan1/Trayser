@@ -379,95 +379,13 @@ void trayser::Device::EndOneTimeSubmit() const
     VK_CHECK(vkWaitForFences(m_device, 1, &m_oneTimeFence, true, 9999999999999));
 }
 
-void trayser::Device::BeginFrame()
+void trayser::Device::NewFrame()
 {
     ProcessSDLEvents();
-
-    VK_CHECK(vkWaitForFences(m_device, 1, &m_swapchain.GetFence(), true, 1000000000));
-    // Destroy resources (descriptors, etc)
-    VK_CHECK(vkResetFences(m_device, 1, &m_swapchain.GetFence()));
-
-    uint32_t swapchainIdx;
-    VkResult e = vkAcquireNextImageKHR(m_device, m_swapchain.m_swapchain, 1000000000, m_swapchain.GetFrame().swapchainSemaphore, nullptr, &swapchainIdx);
-    if (e == VK_ERROR_OUT_OF_DATE_KHR)
-    {
-        m_windowResized = true;
-    }
-
-    if (m_windowResized)
-        //ResizeSwapchain();
-
-    // imgui new frame
-    ImGui_ImplVulkan_NewFrame();
-    ImGui_ImplSDL2_NewFrame();
-    ImGui::NewFrame();
 }
 
 void trayser::Device::EndFrame()
 {
-    // set swapchain image layout to Attachment Optimal so we can draw it
-    vkutil::TransitionImage(GetCmd(), m_swapchain.GetImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-
-    //draw imgui into the swapchain image
-    RenderImGui();
-
-    // set swapchain image layout to Present so we can draw it
-    vkutil::TransitionImage(GetCmd(), m_swapchain.GetImage(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-
-    VK_CHECK(vkEndCommandBuffer(GetCmd()));
-
-    // Prepare the submission to the queue. 
-    // We want to wait on the _presentSemaphore, as that semaphore is signaled when the swapchain is ready
-    // We will signal the _renderSemaphore, to signal that rendering has finished
-    VkCommandBufferSubmitInfo cmdSubmitInfo = CommandBufferSubmitInfo();
-	cmdSubmitInfo.commandBuffer = GetCmd();
-    cmdSubmitInfo.deviceMask    = 0;
-
-    VkSemaphoreSubmitInfo waitInfo = SemaphoreSubmitInfo();
-	waitInfo.semaphore = m_swapchain.GetFrame().swapchainSemaphore;
-    waitInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
-    waitInfo.deviceIndex = 0;
-    waitInfo.value = 1;
-
-    VkSemaphoreSubmitInfo signalInfo = SemaphoreSubmitInfo();
-    signalInfo.semaphore = m_swapchain.GetFrame().renderSemaphore;
-    signalInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT;
-    signalInfo.deviceIndex = 0;
-    signalInfo.value = 1;
-
-    VkSubmitInfo2 submitInfo            = SubmitInfo2();
-    submitInfo.pWaitSemaphoreInfos      = &waitInfo;
-    submitInfo.waitSemaphoreInfoCount   = 1;
-	submitInfo.pSignalSemaphoreInfos    = &signalInfo;
-    submitInfo.signalSemaphoreInfoCount = 1;
-    submitInfo.pCommandBufferInfos      = &cmdSubmitInfo;
-	submitInfo.commandBufferInfoCount   = 1;
-
-    // Submit command buffer to the queue and execute it.
-    // _renderFence will now block until the graphic commands finish execution
-    VK_CHECK(vkQueueSubmit2(m_graphicsQueue, 1, &submitInfo, m_swapchain.GetFence()));
-
-    // Prepare present
-    // This will put the image we just rendered to into the visible window.
-    // We want to wait on the _renderSemaphore for that, 
-    // as its necessary that drawing commands have finished before the image is displayed to the user
-    VkPresentInfoKHR presentInfo = {};
-    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    presentInfo.pNext = nullptr;
-    presentInfo.pSwapchains = &m_swapchain.m_swapchain;
-    presentInfo.swapchainCount = 1;
-    presentInfo.pWaitSemaphores = &m_swapchain.GetFrame().renderSemaphore;
-    presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pImageIndices = &m_swapchain.m_imageIdx;
-
-    VkResult presentResult = vkQueuePresentKHR(m_graphicsQueue, &presentInfo);
-    if (presentResult == VK_ERROR_OUT_OF_DATE_KHR)
-    {
-        m_windowResized = true;
-    }
-
-    m_swapchain.m_frameIdx = (m_swapchain.m_frameIdx + 1) % kFrameCount;
-
     m_input.UpdatePrevious();
 }
 
@@ -651,11 +569,10 @@ void trayser::Device::Init()
 	InitDebugMessenger();
 	InitPhysicalDevice();
 	InitLogicalDevice();
-    m_swapchain.Init(*this);
     InitVMA();
     InitCommands();
     InitSyncStructures();
-    InitImGui();
+    //InitImGui();
     InitRayTracing();
     m_rtFuncs.Init();
 
@@ -664,11 +581,10 @@ void trayser::Device::Init()
 
 void trayser::Device::Destroy()
 {
-    DestroyImGui();
+    //DestroyImGui();
     DestroySyncStructures();
     DestroyCommands();
     DestroyVMA();
-    m_swapchain.Destroy(*this);
     DestroyLogicalDevice();
     DestroyDebugMessenger();
     DestroySurface();
@@ -705,7 +621,7 @@ void trayser::Device::InitSDL()
         SDL_WINDOWPOS_UNDEFINED,
         kInitWindowWidth,
         kInitWindowHeight,
-        SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
+        SDL_WINDOW_VULKAN);
 
     if (!m_window)
     {
@@ -1039,60 +955,6 @@ void trayser::Device::InitVMA()
     PRINT_INFO("Initialized VMA.");
 }
 
-void trayser::Device::InitImGui()
-{
-    VkDescriptorPoolSize poolSizes[] = 
-    { 
-        { VK_DESCRIPTOR_TYPE_SAMPLER,                   1000 },
-        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,    1000 },
-        { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,             1000 },
-        { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,             1000 },
-        { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER,      1000 },
-        { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER,      1000 },
-        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,            1000 },
-        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,            1000 },
-        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,    1000 },
-        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,    1000 },
-        { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,          1000 } 
-    };
-
-    VkDescriptorPoolCreateInfo poolInfo = 
-    {
-    .sType          = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-    .flags          = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-    .maxSets        = 1000,
-    .poolSizeCount  = (u32)std::size(poolSizes),
-    .pPoolSizes     = poolSizes 
-    };
-
-    VkDescriptorPool pool;
-    VK_CHECK(vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &pool));
-
-    ImGui_ImplVulkan_InitInfo initInfo = 
-    {
-    .Instance              = m_instance,
-    .PhysicalDevice        = m_physDevice,
-    .Device                = m_device,
-    .Queue                 = m_graphicsQueue,
-    .DescriptorPool        = pool,
-    .MinImageCount         = 3,
-    .ImageCount            = 3,
-    .UseDynamicRendering   = true
-    };
-
-    initInfo.PipelineRenderingCreateInfo = { .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO };
-    initInfo.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
-    initInfo.PipelineRenderingCreateInfo.pColorAttachmentFormats = &m_swapchain.m_format;
-    initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-
-    ImGui::CreateContext();
-    ImGui_ImplSDL2_InitForVulkan(m_window);
-    ImGui_ImplVulkan_Init(&initInfo);
-    ImGui_ImplVulkan_CreateFontsTexture();
-
-    PRINT_INFO("Initialized ImGui.");
-}
-
 void trayser::Device::DestroySDL() const
 {
     SDL_DestroyWindow(m_window);
@@ -1131,12 +993,6 @@ void trayser::Device::DestroyVMA() const
     vmaDestroyAllocator(m_allocator);
 }
 
-void trayser::Device::DestroyImGui() const
-{
-    ImGui_ImplVulkan_Shutdown();
-    ImGui::DestroyContext();
-}
-
 void trayser::Device::DestroyCommands() const
 {
     vkDestroyCommandPool(m_device, m_oneTimeCommandPool, nullptr);
@@ -1159,28 +1015,6 @@ void trayser::Device::InitRayTracing()
     properties.pNext = &m_rtProperties;
     m_rtProperties.pNext = &m_asProperties;
     vkGetPhysicalDeviceProperties2(m_physDevice, &properties);
-}
-
-void trayser::Device::RenderImGui() const
-{
-    ImGui::Render();
-    VkRenderingAttachmentInfo colorAttachment = RenderingAttachmentInfo();
-    colorAttachment.imageView   = m_swapchain.GetImageView();
-    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    colorAttachment.loadOp      = VK_ATTACHMENT_LOAD_OP_LOAD;
-    colorAttachment.storeOp     = VK_ATTACHMENT_STORE_OP_STORE;
-
-    VkRenderingInfo renderInfo = RenderingInfo();
-    renderInfo.renderArea = VkRect2D{ VkOffset2D { 0, 0 }, m_swapchain.m_extent };
-    renderInfo.pColorAttachments = &colorAttachment;
-    renderInfo.pStencilAttachment = nullptr;
-    renderInfo.pDepthAttachment = nullptr;
-    renderInfo.colorAttachmentCount = 1;
-    renderInfo.layerCount = 1;
-    
-    vkCmdBeginRendering(GetCmd(), &renderInfo);
-    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), GetCmd());
-    vkCmdEndRendering(GetCmd());
 }
 
 void trayser::Device::ProcessSDLEvents()
@@ -1319,7 +1153,7 @@ bool trayser::Device::IsPhysicalDeviceSuitable(VkPhysicalDevice device)
     bool swapChainAdequate = false;
     if (extensionsSupported)
     {
-        SwapChainSupportDetails swapChainSupport = QuerySwapChainSupport(device);
+        SwapchainSupport swapChainSupport = QuerySwapChainSupport(device);
         swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
 
         printf("Swapchain formats count: %zu\n", swapChainSupport.formats.size());
@@ -1363,9 +1197,9 @@ bool trayser::Device::CheckPhysicalDeviceExtensionSupport(VkPhysicalDevice devic
     return requiredExtensions.empty();
 }
 
-trayser::SwapChainSupportDetails trayser::Device::QuerySwapChainSupport(VkPhysicalDevice device) const
+trayser::SwapchainSupport trayser::Device::QuerySwapChainSupport(VkPhysicalDevice device) const
 {
-    SwapChainSupportDetails details;
+    SwapchainSupport details;
 
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, m_surface, &details.capabilities);
     printf("Surface capabilities: minImageCount=%u, maxImageCount=%u\n",
@@ -1421,180 +1255,38 @@ void trayser::RuntimeFuncs::Init()
         (PFN_vkDestroyAccelerationStructureKHR)vkGetDeviceProcAddr(g_engine.m_device.m_device, "vkDestroyAccelerationStructureKHR");
 }
 
-void trayser::Swapchain::Init(const Device& device)
+trayser::SwapchainSupport trayser::Device::GetSwapchainSupport() const
 {
-    SwapChainSupportDetails swapChainSupport = QuerySwapChainSupport(device);
-    VkSurfaceFormatKHR surfaceFormat = ChooseSwapSurfaceFormat(swapChainSupport.formats);
-    VkPresentModeKHR presentMode = ChooseSwapPresentMode(swapChainSupport.presentModes);
-    VkExtent2D extent = ChooseSwapExtent(device, swapChainSupport.capabilities);
+    SwapchainSupport details;
 
-    uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
-
-    if (swapChainSupport.capabilities.maxImageCount > 0 &&
-        imageCount > swapChainSupport.capabilities.maxImageCount)
-    {
-        imageCount = swapChainSupport.capabilities.maxImageCount;
-    }
-
-    VkSwapchainCreateInfoKHR createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    createInfo.surface = device.m_surface;
-    createInfo.minImageCount = imageCount;
-    createInfo.imageFormat = surfaceFormat.format;
-    createInfo.imageColorSpace = surfaceFormat.colorSpace;
-    createInfo.imageExtent = extent;
-    createInfo.imageArrayLayers = 1;
-    createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-
-    QueueFamilyIndices indices = FindQueueFamilies(device.m_physDevice, device.m_surface);
-    uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.presentFamily.value() };
-
-    if (indices.graphicsFamily != indices.presentFamily)
-    {
-        createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-        createInfo.queueFamilyIndexCount = 2;
-        createInfo.pQueueFamilyIndices = queueFamilyIndices;
-    }
-    else
-    {
-        createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        createInfo.queueFamilyIndexCount = 0; // Optional
-        createInfo.pQueueFamilyIndices = nullptr; // Optional
-    }
-
-    createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
-    createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-    createInfo.presentMode = presentMode;
-    createInfo.clipped = VK_TRUE;
-    createInfo.oldSwapchain = VK_NULL_HANDLE;
-
-    VK_CHECK(vkCreateSwapchainKHR(device.m_device, &createInfo, nullptr, &m_swapchain));
-
-    vkGetSwapchainImagesKHR(device.m_device, m_swapchain, &imageCount, nullptr);
-    m_images.resize(imageCount);
-    vkGetSwapchainImagesKHR(device.m_device, m_swapchain, &imageCount, m_images.data());
-
-    m_format = surfaceFormat.format;
-    m_extent = extent;
-
-    // Build a image-view for the draw image to use for rendering
-    m_imageViews.resize(imageCount);
-    for (int i = 0; i < m_images.size(); i++)
-    {
-        VkImageViewCreateInfo createInfo = ImageViewCreateInfo();
-        createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        createInfo.format = m_format;
-        createInfo.image = m_images[i];
-        createInfo.subresourceRange.baseMipLevel = 0;
-        createInfo.subresourceRange.levelCount = 1;
-        createInfo.subresourceRange.baseArrayLayer = 0;
-        createInfo.subresourceRange.layerCount = 1;
-        createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        VK_CHECK(vkCreateImageView(device.m_device, &createInfo, nullptr, &m_imageViews[i]));
-    }
-
-	// Initialize command pools/buffers for each frame
-    u32 graphicsQueueFamily = 0; // TODO temp
-    VkCommandPoolCreateInfo commandPoolInfo = CommandPoolCreateInfo();
-    commandPoolInfo.queueFamilyIndex = graphicsQueueFamily;
-    commandPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-
-    for (int i = 0; i < kFrameCount; i++)
-    {
-        VK_CHECK(vkCreateCommandPool(device.m_device, &commandPoolInfo, nullptr, &m_frames[i].commandPool));
-
-        VkCommandBufferAllocateInfo cmdAllocInfo = CommandBufferAllocateInfo();
-        cmdAllocInfo.commandPool = m_frames[i].commandPool;
-        cmdAllocInfo.commandBufferCount = 1;
-        cmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-
-        VK_CHECK(vkAllocateCommandBuffers(device.m_device, &cmdAllocInfo, &m_frames[i].commandBuffer));
-    }
-
-	// Create synchronization structures
-    VkFenceCreateInfo fenceCreateInfo = FenceCreateInfo();
-    fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-    VkSemaphoreCreateInfo semaphoreCreateInfo = SemaphoreCreateInfo();
-    semaphoreCreateInfo.flags = 0;
-
-    for (int i = 0; i < kFrameCount; i++)
-    {
-        VK_CHECK(vkCreateFence(device.m_device, &fenceCreateInfo, nullptr, &m_frames[i].renderFence));
-        VK_CHECK(vkCreateSemaphore(device.m_device, &semaphoreCreateInfo, nullptr, &m_frames[i].swapchainSemaphore));
-        VK_CHECK(vkCreateSemaphore(device.m_device, &semaphoreCreateInfo, nullptr, &m_frames[i].renderSemaphore));
-    }
-
-    PRINT_INFO("Initialized Vulkan swapchain.");
-}
-
-void trayser::Swapchain::Destroy(const Device& device)
-{
-    for (auto& frame : m_frames)
-    {
-        vkDestroySemaphore(device.m_device, frame.renderSemaphore, nullptr);
-        vkDestroySemaphore(device.m_device, frame.swapchainSemaphore, nullptr);
-        vkDestroyFence(device.m_device, frame.renderFence, nullptr);
-        vkDestroyCommandPool(device.m_device, frame.commandPool, nullptr);
-    }
-
-    for (auto imageView : m_imageViews)
-        vkDestroyImageView(device.m_device, imageView, nullptr);
-
-    vkDestroySwapchainKHR(device.m_device, m_swapchain, nullptr);
-}
-
-trayser::SwapChainSupportDetails trayser::Swapchain::QuerySwapChainSupport(const Device& device) const
-{
-    SwapChainSupportDetails details;
-
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device.m_physDevice, device.m_surface, &details.capabilities);
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physDevice, m_surface, &details.capabilities);
     printf("Surface capabilities: minImageCount=%u, maxImageCount=%u\n",
         details.capabilities.minImageCount, details.capabilities.maxImageCount);
 
     uint32_t formatCount;
-    vkGetPhysicalDeviceSurfaceFormatsKHR(device.m_physDevice, device.m_surface, &formatCount, nullptr);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(m_physDevice, m_surface, &formatCount, nullptr);
 
     if (formatCount != 0)
     {
         details.formats.resize(formatCount);
-        vkGetPhysicalDeviceSurfaceFormatsKHR(device.m_physDevice, device.m_surface, &formatCount, details.formats.data());
+        vkGetPhysicalDeviceSurfaceFormatsKHR(m_physDevice, m_surface, &formatCount, details.formats.data());
     }
     printf("Surface formats count: %u\n", formatCount);
 
     uint32_t presentModeCount;
-    vkGetPhysicalDeviceSurfacePresentModesKHR(device.m_physDevice, device.m_surface, &presentModeCount, nullptr);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(m_physDevice, m_surface, &presentModeCount, nullptr);
 
     if (presentModeCount != 0)
     {
         details.presentModes.resize(presentModeCount);
-        vkGetPhysicalDeviceSurfacePresentModesKHR(device.m_physDevice, device.m_surface, &presentModeCount, details.presentModes.data());
+        vkGetPhysicalDeviceSurfacePresentModesKHR(m_physDevice, m_surface, & presentModeCount, details.presentModes.data());
     }
     printf("Present modes count: %u\n", presentModeCount);
 
     return details;
 }
 
-VkExtent2D trayser::Swapchain::ChooseSwapExtent(const Device& device, const VkSurfaceCapabilitiesKHR& capabilities)
+trayser::QueueFamilyIndices trayser::Device::GetQueueFamilies()
 {
-    if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max())
-    {
-        return capabilities.currentExtent;
-    }
-    else
-    {
-        int width, height;
-        SDL_GetWindowSize(device.m_window, &width, &height);
-
-        VkExtent2D actualExtent =
-        {
-            static_cast<uint32_t>(width),
-            static_cast<uint32_t>(height)
-        };
-
-        actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
-        actualExtent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
-
-        return actualExtent;
-    }
+    return FindQueueFamilies(m_physDevice);
 }

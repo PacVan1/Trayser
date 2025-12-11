@@ -181,7 +181,7 @@ void trayser::RayTracedPipeline::Update()
     ClearIfAccumulatorReset();
 
     // Ray trace pipeline
-    vkCmdBindPipeline(g_engine.m_device.GetCmd(), VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pipeline);
+    vkCmdBindPipeline(g_engine.m_renderer.GetCmdBuffer(), VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pipeline);
 
     VkAccelerationStructureDeviceAddressInfoKHR ai{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR };
     ai.accelerationStructure = g_engine.m_scene.m_TLas.accel;
@@ -194,15 +194,15 @@ void trayser::RayTracedPipeline::Update()
         writer.UpdateSet(g_engine.m_device.m_device, m_descriptorSet);
     }
 
-    VkDescriptorSet descSets[2] = { g_engine.m_renderer.m_frames[g_engine.m_device.m_swapchain.m_frameIdx].textureDescSet, m_descriptorSet};
-    vkCmdBindDescriptorSets(g_engine.m_device.GetCmd(), VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_layout, 0, 2, descSets, 0, nullptr);
+    VkDescriptorSet descSets[2] = { g_engine.m_renderer.GetTextureDescSet(), m_descriptorSet};
+    vkCmdBindDescriptorSets(g_engine.m_renderer.GetCmdBuffer(), VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_layout, 0, 2, descSets, 0, nullptr);
 
     gpu::RTPushConstants pushConsts{};
     pushConsts.sceneRef = g_engine.m_gpuSceneAddr;
     pushConsts.renderMode = g_engine.m_renderMode;
     pushConsts.frame = g_engine.m_frame;
 
-    vkCmdPushConstants(g_engine.m_device.GetCmd(),
+    vkCmdPushConstants(g_engine.m_renderer.GetCmdBuffer(),
         m_layout,
         VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
         0,
@@ -211,7 +211,7 @@ void trayser::RayTracedPipeline::Update()
 
     // Ray trace
     const VkExtent2D size = { kInitWindowWidth, kInitWindowHeight };
-    g_engine.m_device.m_rtFuncs.vkCmdTraceRaysKHR(g_engine.m_device.GetCmd(), &m_raygenRegion, &m_missRegion, &m_hitRegion, &m_callableRegion, size.width, size.height, 1);
+    g_engine.m_device.m_rtFuncs.vkCmdTraceRaysKHR(g_engine.m_renderer.GetCmdBuffer(), &m_raygenRegion, &m_missRegion, &m_hitRegion, &m_callableRegion, size.width, size.height, 1);
 
     // Barrier to make sure the image is ready for Tonemapping
     PipelineBarrier();
@@ -254,7 +254,7 @@ void trayser::RayTracedPipeline::PipelineBarrier() const
     depInfo.imageMemoryBarrierCount = 2;
     depInfo.pImageMemoryBarriers = imageBarriers;
 
-    vkCmdPipelineBarrier2(g_engine.m_device.GetCmd(), &depInfo);
+    vkCmdPipelineBarrier2(g_engine.m_renderer.GetCmdBuffer(), &depInfo);
 }
 
 void trayser::RayTracedPipeline::ClearIfAccumulatorReset()
@@ -285,7 +285,7 @@ void trayser::RayTracedPipeline::ClearIfAccumulatorReset()
 
     // Transition the image layout to transfer destination
     vkCmdPipelineBarrier(
-        g_engine.m_device.GetCmd(),
+        g_engine.m_renderer.GetCmdBuffer(),
         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
         0, // dependencyFlags
@@ -299,7 +299,7 @@ void trayser::RayTracedPipeline::ClearIfAccumulatorReset()
 
     // Clear the image to the specified color
     vkCmdClearColorImage(
-        g_engine.m_device.GetCmd(),
+        g_engine.m_renderer.GetCmdBuffer(),
         g_engine.m_gBuffer.accumulatorImage.image,
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
         &clearColor,
@@ -313,7 +313,7 @@ void trayser::RayTracedPipeline::ClearIfAccumulatorReset()
     imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
 
     vkCmdPipelineBarrier(
-        g_engine.m_device.GetCmd(),
+        g_engine.m_renderer.GetCmdBuffer(),
         VK_PIPELINE_STAGE_TRANSFER_BIT,
         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier

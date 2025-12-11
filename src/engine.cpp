@@ -16,10 +16,10 @@ void trayser::Engine::Init()
 
     InitDescriptors();
     InitDefaultData();
-    InitImGuiStyle();
     //InitTextureDescriptor();
 
     m_renderer.Init(m_device);
+    InitImGuiStyle();
 
     Model::MikkTSpaceInit();
 
@@ -55,7 +55,7 @@ void trayser::Engine::Destroy()
 
 void trayser::Engine::Render()
 {
-    VkCommandBuffer cmd = m_device.GetCmd();
+    VkCommandBuffer cmd = m_renderer.GetCmdBuffer();
     BeginRecording(cmd);
 
     //vkutil::TransitionImage(cmd, m_gBuffer.colorImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
@@ -77,9 +77,9 @@ void trayser::Engine::Render()
 
     // Transition the draw image and the swapchain image into their correct transfer layouts
     vkutil::TransitionImage(cmd, m_gBuffer.colorImage.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-    vkutil::TransitionImage(cmd, m_device.m_swapchain.m_images[m_device.m_swapchain.m_imageIdx], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    vkutil::TransitionImage(cmd, m_renderer.GetSwapchainImage(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     VkExtent2D extent = { m_gBuffer.colorImage.imageExtent.width, m_gBuffer.colorImage.imageExtent.height };
-    vkutil::CopyImageToImage(cmd, m_gBuffer.colorImage.image, m_device.m_swapchain.m_images[m_device.m_swapchain.m_imageIdx], extent, m_device.m_swapchain.m_extent);
+    vkutil::CopyImageToImage(cmd, m_gBuffer.colorImage.image, m_renderer.GetSwapchainImage(), extent, m_renderer.m_swapchain.extent);
 
     m_frame++;
 }
@@ -88,7 +88,8 @@ void trayser::Engine::Run()
 {
     while (!m_device.ShouldQuit())
     {
-		m_device.BeginFrame();
+		m_device.NewFrame();
+        m_renderer.NewFrame(m_device);
 
         m_scene.Update(1.0f);
         if (!m_editor.m_update)
@@ -96,6 +97,7 @@ void trayser::Engine::Run()
         m_editor.Update();
 
         Render();
+        m_renderer.EndFrame(m_device);
         m_device.EndFrame();
 
         HotReloadPipelines();
@@ -142,26 +144,6 @@ void trayser::Engine::InitDescriptors()
         vkDestroyDescriptorSetLayout(m_device.m_device, m_renderImageDescriptorLayout, nullptr);
         vkDestroyDescriptorSetLayout(m_device.m_device, m_gpuSceneDataDescriptorLayout, nullptr);
     });
-
-    for (int i = 0; i < kFrameCount; i++) 
-    {
-        // create a descriptor pool
-        std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> frame_sizes = 
-        {
-            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 3 },
-            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3 },
-            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3 },
-            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4 },
-        };
-
-        m_device.m_swapchain.m_frames[i].descriptors = DescriptorAllocatorGrowable{};
-        m_device.m_swapchain.m_frames[i].descriptors.Init(m_device.m_device, 1000, frame_sizes);
-
-        m_deletionQueue.Push([&, i]() 
-        {
-                m_device.m_swapchain.m_frames[i].descriptors.DestroyPools(m_device.m_device);
-        });
-    }
 }
 
 void trayser::Engine::InitPipelines()
@@ -410,7 +392,7 @@ void trayser::Engine::UpdateGpuScene()
 
         VkWriteDescriptorSet& write = writes.emplace_back();
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        write.dstSet = m_renderer.m_frames[m_device.m_swapchain.m_frameIdx].textureDescSet;
+        write.dstSet = m_renderer.GetTextureDescSet();
         write.dstBinding = 0;
         write.dstArrayElement = i;
         write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -643,12 +625,12 @@ void trayser::Engine::SetAccumulatorDirty()
 
 void trayser::Engine::DestroySwapchain()
 {
-    vkDestroySwapchainKHR(m_device.m_device, m_device.m_swapchain.m_swapchain, nullptr);
-
-    for (int i = 0; i < m_device.m_swapchain.m_imageViews.size(); i++)
-    {
-        vkDestroyImageView(m_device.m_device, m_device.m_swapchain.m_imageViews[i], nullptr);
-    }
+    //vkDestroySwapchainKHR(m_device.m_device, m_device.m_swapchain.m_swapchain, nullptr);
+    //
+    //for (int i = 0; i < m_device.m_swapchain.m_imageViews.size(); i++)
+    //{
+    //    vkDestroyImageView(m_device.m_device, m_device.m_swapchain.m_imageViews[i], nullptr);
+    //}
 }
 
 void trayser::Engine::BeginRecording(VkCommandBuffer cmd)

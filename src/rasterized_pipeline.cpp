@@ -137,7 +137,7 @@ void trayser::RasterizedPipeline::Load(VkShaderModule module)
 
 void trayser::RasterizedPipeline::Update()
 {
-    auto cmd = g_engine.m_device.GetCmd();
+    auto cmd = g_engine.m_renderer.GetCmdBuffer();
 
     VkExtent2D extent = { g_engine.m_gBuffer.colorImage.imageExtent.width, g_engine.m_gBuffer.colorImage.imageExtent.height };
 
@@ -184,7 +184,7 @@ void trayser::RasterizedPipeline::Update()
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
 
-    vkCmdBindDescriptorSets(g_engine.m_device.GetCmd(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_layout, 0, 1, &g_engine.m_renderer.m_frames[g_engine.m_device.m_swapchain.m_frameIdx].textureDescSet, 0, nullptr);
+    vkCmdBindDescriptorSets(g_engine.m_renderer.GetCmdBuffer(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_layout, 0, 1, &g_engine.m_renderer.GetTextureDescSet(), 0, nullptr);
 
     auto view = g_engine.m_scene.m_registry.view<WorldTransform, RenderComponent>();
     int i = 0;
@@ -204,7 +204,7 @@ void trayser::RasterizedPipeline::Update()
             pushConsts.instanceIdx = i;
             pushConsts.primitiveIdx = j;
 
-            vkCmdPushConstants(g_engine.m_device.GetCmd(),
+            vkCmdPushConstants(g_engine.m_renderer.GetCmdBuffer(),
                 m_layout,
                 VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                 0,
