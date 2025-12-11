@@ -7,6 +7,7 @@
 #include <fstream>
 
 #include "engine.h"
+#include <device.h>
 #include "types.h"
 #include <images.h>
 #include <glm/gtx/quaternion.hpp>
@@ -107,6 +108,12 @@ void trayser::Model::TraverseNode(tinygltf::Model& loaded, const tinygltf::Node&
     {
         TraverseNode(loaded, loaded.nodes[nodeIdx], &node, folder);
     }
+}
+
+trayser::Mesh::~Mesh()
+{
+    //vkDestroyAccelerationStructureKHR(g_engine.m_device.m_device, accelStruct.accel, nullptr);
+    //vmaDestroyBuffer(g_engine.m_device.m_allocator, accelStruct.buffer.buffer, accelStruct.buffer.allocation);
 }
 
 trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mesh& loadedMesh, const std::string& folder)
@@ -370,6 +377,8 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
     engine->DestroyBuffer(indexStaging);
     engine->DestroyBuffer(primitiveStaging);
     //////////////////////////////////////////////////////////////
+
+    InitBLas();
 }
 
 trayser::MaterialHandle trayser::Mesh::LoadMaterial(const tinygltf::Model& model, int matIdx, const std::string& folder)
@@ -383,6 +392,51 @@ trayser::MaterialHandle trayser::Mesh::LoadMaterial(const tinygltf::Model& model
     auto& engine = g_engine;
 
     return engine.m_materialPool.Create(GetMaterialPath(matIdx), model, model.materials[matIdx], folder);
+}
+
+void trayser::Mesh::PrimitivesToGeometries(std::vector<VkAccelerationStructureGeometryKHR>& geometries,
+    std::vector<VkAccelerationStructureBuildRangeInfoKHR>& rangeInfos)
+{
+    geometries.clear();
+    rangeInfos.clear();
+    geometries.reserve(primitives.size());
+    rangeInfos.reserve(primitives.size());
+
+    for (auto& prim : primitives)
+    {
+        auto& geometry = geometries.emplace_back();
+        auto& rangeInfo = rangeInfos.emplace_back();
+
+        VkAccelerationStructureGeometryTrianglesDataKHR triangles{};
+        triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
+        triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
+        triangles.vertexData = { .deviceAddress = vertexBufferAddr + offsetof(Vertex, position) };
+        triangles.vertexStride = sizeof(Vertex);
+        triangles.maxVertex = vertexCount - 1;
+        triangles.indexType = VK_INDEX_TYPE_UINT32;
+        triangles.indexData = { .deviceAddress = indexBufferAddr };
+
+        geometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+        geometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+        geometry.flags = VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR | VK_GEOMETRY_OPAQUE_BIT_KHR;
+        geometry.geometry.triangles = triangles;
+
+        rangeInfo.primitiveCount = prim.indexCount / 3;
+        rangeInfo.primitiveOffset = prim.baseIndex * sizeof(uint32_t);
+        rangeInfo.firstVertex = prim.baseVertex;
+        rangeInfo.transformOffset = 0;
+    }
+}
+
+void trayser::Mesh::InitBLas()
+{
+    std::vector<VkAccelerationStructureGeometryKHR> geometries;
+    std::vector<VkAccelerationStructureBuildRangeInfoKHR> rangeInfos;
+
+    PrimitivesToGeometries(geometries, rangeInfos);
+
+    g_engine.m_device.CreateAccelerationStructure2(VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR, accelStruct, geometries,
+        rangeInfos, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
 }
 
 void trayser::Model::MikkTSpaceCalc(LoadingMesh* mesh)

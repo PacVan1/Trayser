@@ -7,7 +7,6 @@
 #include <vk_mem_alloc.h>
 
 #include <types.h>
-#include <loader.h>
 #include <input.h>
 #include <descriptors.h>
 #include <util.h>
@@ -23,6 +22,17 @@ static constexpr u32 kFrameCount			= 2;
 static constexpr u32 kInitWindowWidth		= 1700;
 static constexpr u32 kInitWindowHeight		= 900;
 
+struct QueueFamilyIndices
+{
+	std::optional<uint32_t> graphicsFamily;
+	std::optional<uint32_t> presentFamily;
+
+	bool IsComplete() const
+	{
+		return graphicsFamily.has_value() && presentFamily.has_value();
+	}
+};
+
 struct Buffer
 {
 	VkBuffer            buffer;
@@ -36,17 +46,6 @@ struct AccelerationStructure
 	VkAccelerationStructureKHR  accel{};
 	VkDeviceAddress             address{};
 	Buffer						buffer;  // Underlying buffer
-};
-
-struct QueueFamilyIndices
-{
-	std::optional<uint32_t> graphicsFamily;
-	std::optional<uint32_t> presentFamily;
-
-	bool IsComplete() const
-	{
-		return graphicsFamily.has_value() && presentFamily.has_value();
-	}
 };
 
 struct FrameData
@@ -174,14 +173,6 @@ public:
 		std::vector<VkAccelerationStructureBuildRangeInfoKHR>& rangeInfos,
 		VkBuildAccelerationStructureFlagsKHR flags);
 
-	void PrimitiveToGeometry(const Mesh& mesh,
-		VkAccelerationStructureGeometryKHR& geometry,
-		VkAccelerationStructureBuildRangeInfoKHR& rangeInfo);
-
-	void PrimitivesToGeometries(const Mesh& mesh,
-		std::vector<VkAccelerationStructureGeometryKHR>& geometries,
-		std::vector<VkAccelerationStructureBuildRangeInfoKHR>& rangeInfos);
-
 private:
 	void InitSDL();
 	void InitInstance();
@@ -258,7 +249,6 @@ public:
 	RuntimeFuncs				m_rtFuncs;
 
 	// Ray tracing test
-	std::vector<AccelerationStructure> m_blasAccel;     // Bottom-level acceleration structures
 	AccelerationStructure              m_tlasAccel;     // Top-level acceleration structure
 	VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties;
 	VkPhysicalDeviceAccelerationStructurePropertiesKHR m_asProperties;

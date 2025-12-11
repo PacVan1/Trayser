@@ -345,72 +345,6 @@ void trayser::Device::CreateAccelerationStructure2(VkAccelerationStructureTypeKH
     vmaDestroyBuffer(m_allocator, scratchBuffer.buffer, scratchBuffer.allocation);
 }
 
-void trayser::Device::PrimitiveToGeometry(const Mesh& mesh,
-    VkAccelerationStructureGeometryKHR& geometry,
-    VkAccelerationStructureBuildRangeInfoKHR& rangeInfo)
-{
-    VkAccelerationStructureGeometryTrianglesDataKHR triangles{
-        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR,
-        .vertexFormat = VK_FORMAT_R32G32B32_SFLOAT,  // vec3 vertex position data
-        .vertexData = {.deviceAddress = mesh.vertexBufferAddr + offsetof(Vertex, position) },
-        .vertexStride = sizeof(Vertex),
-        .maxVertex = mesh.vertexCount - 1,
-        .indexType = VK_INDEX_TYPE_UINT32,  // Index type (VK_INDEX_TYPE_UINT16 or VK_INDEX_TYPE_UINT32)
-        .indexData = {.deviceAddress = mesh.indexBufferAddr },
-    };
-
-    // Identify the above data as containing opaque triangles.
-    geometry = VkAccelerationStructureGeometryKHR{
-        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
-        .geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR,
-        .geometry = {.triangles = triangles},
-        .flags = VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR | VK_GEOMETRY_OPAQUE_BIT_KHR,
-    };
-
-    rangeInfo = VkAccelerationStructureBuildRangeInfoKHR
-    { 
-        .primitiveCount = mesh.indexCount / 3,
-        .primitiveOffset = 0,
-        .firstVertex = 0,
-        .transformOffset = 0
-    };
-}
-
-void trayser::Device::PrimitivesToGeometries(const Mesh& mesh, 
-    std::vector<VkAccelerationStructureGeometryKHR>& geometries, 
-    std::vector<VkAccelerationStructureBuildRangeInfoKHR>& rangeInfos)
-{
-    geometries.clear();
-    rangeInfos.clear();
-    geometries.reserve(mesh.primitives.size());
-    rangeInfos.reserve(mesh.primitives.size());
-
-    for (auto& prim : mesh.primitives)
-    {
-        auto& geometry = geometries.emplace_back();
-        auto& rangeInfo = rangeInfos.emplace_back();
-
-        VkAccelerationStructureGeometryTrianglesDataKHR triangles{};
-        triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
-        triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
-        triangles.vertexData = { .deviceAddress = mesh.vertexBufferAddr + offsetof(Vertex, position) };
-        triangles.vertexStride = sizeof(Vertex);
-        triangles.maxVertex = mesh.vertexCount - 1;
-        triangles.indexType = VK_INDEX_TYPE_UINT32;
-        triangles.indexData = { .deviceAddress = mesh.indexBufferAddr };
-
-        geometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
-        geometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
-        geometry.flags = VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR | VK_GEOMETRY_OPAQUE_BIT_KHR;
-        geometry.geometry.triangles = triangles;
-
-        rangeInfo.primitiveCount = prim.indexCount / 3;
-        rangeInfo.primitiveOffset = prim.baseIndex * sizeof(uint32_t);
-        rangeInfo.firstVertex = prim.baseVertex;
-        rangeInfo.transformOffset = 0;
-    }
-}
-
 void trayser::Device::BeginOneTimeSubmit(VkCommandBuffer& outCmd) const
 {
     VK_CHECK(vkResetFences(m_device, 1, &m_oneTimeFence));
@@ -544,46 +478,46 @@ bool trayser::Device::ShouldQuit() const
 
 void trayser::Device::CreateBottomLevelAs()
 {
-    m_blasAccel.resize(128);
+    //m_blasAccel.resize(128);
 
     // One BLAS per primitive
-    for (int i = 0; i < g_engine.m_meshPool.m_resources.size(); i++)
-    {
-        if (!g_engine.m_meshPool.m_takenSpots[i])
-            continue;
-
-        const Mesh& mesh = g_engine.m_meshPool.Get(i);
-
-        VkAccelerationStructureGeometryKHR       asGeometry{};
-        VkAccelerationStructureBuildRangeInfoKHR asBuildRangeInfo{};
-
-        // Convert the primitive information to acceleration structure geometry
-        PrimitiveToGeometry(mesh, asGeometry, asBuildRangeInfo);
-
-        m_blasAccel.emplace_back();
-        CreateAccelerationStructure(VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR, m_blasAccel[i], asGeometry,
-            asBuildRangeInfo, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
-    }
+    //for (int i = 0; i < g_engine.m_meshPool.m_resources.size(); i++)
+    //{
+    //    if (!g_engine.m_meshPool.m_takenSpots[i])
+    //        continue;
+    //
+    //    const Mesh& mesh = g_engine.m_meshPool.Get(i);
+    //
+    //    VkAccelerationStructureGeometryKHR       asGeometry{};
+    //    VkAccelerationStructureBuildRangeInfoKHR asBuildRangeInfo{};
+    //
+    //    // Convert the primitive information to acceleration structure geometry
+    //    PrimitiveToGeometry(mesh, asGeometry, asBuildRangeInfo);
+    //
+    //    //m_blasAccel.emplace_back();
+    //    //CreateAccelerationStructure(VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR, m_blasAccel[i], asGeometry,
+    //    //    asBuildRangeInfo, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
+    //}
 }
 
 void trayser::Device::CreateBLas2()
 {
-    m_blasAccel.resize(128);
+    //m_blasAccel.resize(128);
 
-    for (int i = 0; i < g_engine.m_meshPool.m_resources.size(); i++)
-    {
-        if (!g_engine.m_meshPool.m_takenSpots[i])
-            continue;
-
-        const Mesh& mesh = g_engine.m_meshPool.Get(i);
-        std::vector<VkAccelerationStructureGeometryKHR> geometries;
-        std::vector<VkAccelerationStructureBuildRangeInfoKHR> rangeInfos;
-
-        PrimitivesToGeometries(mesh, geometries, rangeInfos);
-
-        CreateAccelerationStructure2(VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR, m_blasAccel[i], geometries,
-            rangeInfos, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
-    }
+    //for (int i = 0; i < g_engine.m_meshPool.m_resources.size(); i++)
+    //{
+    //    if (!g_engine.m_meshPool.m_takenSpots[i])
+    //        continue;
+    //
+    //    const Mesh& mesh = g_engine.m_meshPool.Get(i);
+    //    std::vector<VkAccelerationStructureGeometryKHR> geometries;
+    //    std::vector<VkAccelerationStructureBuildRangeInfoKHR> rangeInfos;
+    //
+    //    PrimitivesToGeometries(mesh, geometries, rangeInfos);
+    //
+    //    //CreateAccelerationStructure2(VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR, m_blasAccel[i], geometries,
+    //    //    rangeInfos, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
+    //}
 }
 
 void trayser::Device::CreateTopLevelAs()
@@ -604,7 +538,7 @@ void trayser::Device::CreateTopLevelAs()
         VkAccelerationStructureInstanceKHR asInstance{};
         asInstance.transform = toTransformMatrixKHR(transform.matrix);  // Position of the instance
         asInstance.instanceCustomIndex = render.mesh;                       // gl_InstanceCustomIndexEXT
-        asInstance.accelerationStructureReference = m_blasAccel[render.mesh].address;  // Address of the BLAS
+        asInstance.accelerationStructureReference = g_engine.m_meshPool.Get(render.mesh).accelStruct.address;
         asInstance.instanceShaderBindingTableRecordOffset = 0;  // We will use the same hit group for all objects
         asInstance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV;  // No culling - double sided
         asInstance.mask = 0xFF;

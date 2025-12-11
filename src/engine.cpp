@@ -27,8 +27,7 @@ void trayser::Engine::Init()
     m_texturePool.Init();
     ModelHandle handle = m_modelPool.Create(kModelPaths[ModelResource_Sponza], kModelPaths[ModelResource_Sponza], this);
 
-    //m_device.CreateBottomLevelAs();
-    m_device.CreateBLas2();
+    //m_device.CreateBLas2();
 
     const Model& model1 = m_modelPool.Get(handle);
     m_scene.CreateModel(model1);

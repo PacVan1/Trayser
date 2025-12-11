@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <mikktspace.h>
 #include <resources.h>
+#include <device.h>
 
 namespace trayser
 {
@@ -89,6 +90,7 @@ struct Instance
 
 struct Mesh
 {
+    AccelerationStructure   accelStruct;
     std::vector<Primitive>  primitives;
     AllocatedBuffer         indexBuffer;
     AllocatedBuffer         vertexBuffer;
@@ -100,8 +102,12 @@ struct Mesh
 	u32                     indexCount;
 
     Mesh() = default;
+    ~Mesh();
     Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mesh& loadedMesh, const std::string& folder);
     MaterialHandle LoadMaterial(const tinygltf::Model&, int matIdx, const std::string& folder);
+    void PrimitivesToGeometries(std::vector<VkAccelerationStructureGeometryKHR>& geometries,
+        std::vector<VkAccelerationStructureBuildRangeInfoKHR>& rangeInfos);
+    void InitBLas();
 };
 
 struct Model
