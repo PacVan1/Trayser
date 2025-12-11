@@ -6,6 +6,8 @@
 using float4x4	= glm::mat4;
 using float3x3	= glm::mat3;
 using float2x2	= glm::mat2;
+using float3x4	= glm::mat3x4;
+using float4x3	= glm::mat4x3;
 using float4	= glm::vec4;
 using float3	= glm::vec3;
 using float2	= glm::vec2;
@@ -20,6 +22,8 @@ using int2      = glm::ivec2;
 #define FLOAT4X4 float4x4
 #define FLOAT3X3 float3x3
 #define FLOAT2X2 float2x2
+#define FLOAT4X3 float4x3
+#define FLOAT3X4 float3x4
 #define BEGIN_ENUM_DEF(type) enum type##_ {
 #define DEF_ENUM_ENTRY(type, entry) type##_##entry,
 #define DEF_ENUM_ENTRY_VAL(type, entry, value) type##_##entry = value,
@@ -30,6 +34,8 @@ using int2      = glm::ivec2;
 #define FLOAT4X4 column_major float4x4
 #define FLOAT3X3 column_major float3x3
 #define FLOAT2X2 column_major float2x2
+#define FLOAT4X3 column_major float4x3
+#define FLOAT3X4 column_major float3x4
 #define BEGIN_ENUM_DEF(type) enum type {
 #define DEF_ENUM_ENTRY(type, entry) entry,
 #define DEF_ENUM_ENTRY_VAL(type, entry, value) entry = value,
