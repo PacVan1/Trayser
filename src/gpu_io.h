@@ -42,11 +42,12 @@ using int2      = glm::ivec2;
 #define END_ENUM_DEF(type) kCount, };
 #endif
 
-static constexpr float kGamma       = 2.2;
-static constexpr float kInvGamma    = 1.0 / 2.2;
-static constexpr float kPi          = 3.14159265359;
-static constexpr float k2Pi         = 2.0 * kPi;
-static constexpr float2 kInvTan     = float2(0.1591, 0.3183);
+static constexpr uint32_t kTextureCount = 128;
+static constexpr float kGamma           = 2.2;
+static constexpr float kInvGamma        = 1.0 / 2.2;
+static constexpr float kPi              = 3.14159265359;
+static constexpr float k2Pi             = 2.0 * kPi;
+static constexpr float2 kInvTan         = float2(0.1591, 0.3183);
 
 BEGIN_ENUM_DEF(RenderMode)
 DEF_ENUM_ENTRY(RenderMode, FinalColor)

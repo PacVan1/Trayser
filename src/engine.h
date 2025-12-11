@@ -15,6 +15,8 @@
 #include <slang_compiler.h>
 #include <gpu_io.h>
 
+#include <renderer.h>
+
 static constexpr char const*	kEngineName	= "Trayser";
 static constexpr unsigned int	kFrameCount	= 2;
 
@@ -69,6 +71,7 @@ public:
 	Camera			m_camera;
 	Device			m_device;
 	GBuffer			m_gBuffer;
+	Renderer		m_renderer;
 
 	RenderMode		m_renderMode	= RenderMode_Depth;
 	TonemapMode		m_tonemapMode	= TonemapMode_ACES;
@@ -76,7 +79,6 @@ public:
 
 	static constexpr uint32_t kMeshCount		= 128;
 	static constexpr uint32_t kInstanceCount	= 128;
-	static constexpr uint32_t kTextureCount		= 128;
 	static constexpr uint32_t kMaterialCount	= 128;
 
 	ResourcePool<Model, 10> m_modelPool;
@@ -112,8 +114,8 @@ public:
 	VkSampler m_samplerCube;
 	Material m_defaultMaterial;
 
-	VkDescriptorSetLayout m_allTexturesLayout;
-	VkDescriptorSet m_allTexturesSet;
+	//VkDescriptorSetLayout m_allTexturesLayout;
+	//VkDescriptorSet m_allTexturesSet;
 
 private:
 	gpu::SceneData m_sceneData;

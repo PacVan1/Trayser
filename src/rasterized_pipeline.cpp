@@ -19,7 +19,7 @@ void trayser::RasterizedPipeline::Load(VkShaderModule module)
     VkPipelineLayoutCreateInfo pipLayoutInfo = PipelineLayoutCreateInfo();
     pipLayoutInfo.flags = 0;
     pipLayoutInfo.setLayoutCount = 1;
-    pipLayoutInfo.pSetLayouts = &g_engine.m_allTexturesLayout;
+    pipLayoutInfo.pSetLayouts = &g_engine.m_renderer.m_textureDescLayout;
     pipLayoutInfo.pushConstantRangeCount = 1;
     pipLayoutInfo.pPushConstantRanges = &pushConst;
     VK_CHECK(vkCreatePipelineLayout(g_engine.m_device.m_device, &pipLayoutInfo, nullptr, &m_layout));
@@ -184,7 +184,7 @@ void trayser::RasterizedPipeline::Update()
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
 
-    vkCmdBindDescriptorSets(g_engine.m_device.GetCmd(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_layout, 0, 1, &g_engine.m_allTexturesSet, 0, nullptr);
+    vkCmdBindDescriptorSets(g_engine.m_device.GetCmd(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_layout, 0, 1, &g_engine.m_renderer.m_frames[g_engine.m_device.m_swapchain.m_frameIdx].textureDescSet, 0, nullptr);
 
     auto view = g_engine.m_scene.m_registry.view<WorldTransform, RenderComponent>();
     int i = 0;

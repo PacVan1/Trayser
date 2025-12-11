@@ -17,7 +17,9 @@ void trayser::Engine::Init()
     InitDescriptors();
     InitDefaultData();
     InitImGuiStyle();
-    InitTextureDescriptor();
+    //InitTextureDescriptor();
+
+    m_renderer.Init(m_device);
 
     Model::MikkTSpaceInit();
 
@@ -313,25 +315,25 @@ void trayser::Engine::InitGpuScene()
 
 void trayser::Engine::InitTextureDescriptor()
 {
-    VkDescriptorSetLayoutBinding textureBinding{};
-    textureBinding.binding = 0; // binding slot in shader
-    textureBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    textureBinding.descriptorCount = kTextureCount; // number of textures
-    textureBinding.stageFlags =  
-        VK_SHADER_STAGE_FRAGMENT_BIT | 
-        VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | 
-        VK_SHADER_STAGE_MISS_BIT_KHR | 
-        VK_SHADER_STAGE_RAYGEN_BIT_KHR; // or whichever stage
-    textureBinding.pImmutableSamplers = nullptr;
-
-    VkDescriptorSetLayoutCreateInfo layoutInfo{};
-    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = 1;
-    layoutInfo.pBindings = &textureBinding;
-
-    vkCreateDescriptorSetLayout(m_device.m_device, &layoutInfo, nullptr, &m_allTexturesLayout);
-
-    m_allTexturesSet = m_globalDescriptorAllocator.Allocate(m_device.m_device, m_allTexturesLayout);
+    //VkDescriptorSetLayoutBinding textureBinding{};
+    //textureBinding.binding = 0; // binding slot in shader
+    //textureBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    //textureBinding.descriptorCount = kTextureCount; // number of textures
+    //textureBinding.stageFlags =  
+    //    VK_SHADER_STAGE_FRAGMENT_BIT | 
+    //    VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | 
+    //    VK_SHADER_STAGE_MISS_BIT_KHR | 
+    //    VK_SHADER_STAGE_RAYGEN_BIT_KHR; // or whichever stage
+    //textureBinding.pImmutableSamplers = nullptr;
+    //
+    //VkDescriptorSetLayoutCreateInfo layoutInfo{};
+    //layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    //layoutInfo.bindingCount = 1;
+    //layoutInfo.pBindings = &textureBinding;
+    //
+    //vkCreateDescriptorSetLayout(m_device.m_device, &layoutInfo, nullptr, &m_allTexturesLayout);
+    //
+    //m_allTexturesSet = m_globalDescriptorAllocator.Allocate(m_device.m_device, m_allTexturesLayout);
 }
 
 void trayser::Engine::UpdateGpuScene()
@@ -408,7 +410,7 @@ void trayser::Engine::UpdateGpuScene()
 
         VkWriteDescriptorSet& write = writes.emplace_back();
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        write.dstSet = m_allTexturesSet;
+        write.dstSet = m_renderer.m_frames[m_device.m_swapchain.m_frameIdx].textureDescSet;
         write.dstBinding = 0;
         write.dstArrayElement = i;
         write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;

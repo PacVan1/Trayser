@@ -54,11 +54,6 @@ inline VkRenderingInfo trayser::RenderingInfo(const void* pNext)
     return VkRenderingInfo{ .sType = VK_STRUCTURE_TYPE_RENDERING_INFO, .pNext = pNext };
 }
 
-inline VkDescriptorSetLayoutCreateInfo trayser::DescriptorSetLayoutCreateInfo(const void* pNext)
-{
-    return VkDescriptorSetLayoutCreateInfo{ .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, .pNext = pNext };
-}
-
 inline VkWriteDescriptorSet trayser::WriteDescriptorSet(const void* pNext)
 {
     return VkWriteDescriptorSet{ .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, .pNext = pNext };

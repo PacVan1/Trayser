@@ -1,5 +1,7 @@
 ﻿#include <pch.h>
+
 #include <descriptors.h>
+#include <device.h>
 
 void DescriptorLayoutBuilder::AddBinding(uint32_t binding, VkDescriptorType type)
 {
@@ -284,4 +286,32 @@ void DescriptorWriter::UpdateSet(VkDevice device, VkDescriptorSet set)
     }
 
     vkUpdateDescriptorSets(device, (uint32_t)writes.size(), writes.data(), 0, nullptr);
+}
+
+void trayser::DescriptorSetLayoutBuilder::AddBinding(const DescriptorSetLayoutBinding& binding)
+{
+    VkDescriptorSetLayoutBinding vkBinding{};
+    vkBinding.binding               = m_bindings.size();
+    vkBinding.descriptorCount       = binding.descriptorCount;
+    vkBinding.descriptorType        = binding.descriptorType;
+    vkBinding.pImmutableSamplers    = binding.pImmutableSamplers;
+    vkBinding.stageFlags            = binding.stageFlags;
+    m_bindings.push_back(vkBinding);
+}
+
+void trayser::DescriptorSetLayoutBuilder::Build(Device& device, const DescriptorSetLayoutCreateInfo& createInfo, VkDescriptorSetLayout& outLayout)
+{
+    VkDescriptorSetLayoutCreateInfo vkCreateInfo{};
+    vkCreateInfo.sType          = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    vkCreateInfo.pNext          = createInfo.pNext;
+    vkCreateInfo.flags          = createInfo.flags;
+    vkCreateInfo.bindingCount   = m_bindings.size();
+    vkCreateInfo.pBindings      = m_bindings.data();
+    VK_CHECK(vkCreateDescriptorSetLayout(device.m_device, &vkCreateInfo, nullptr, &outLayout));
+}
+
+void trayser::DescriptorSetLayoutBuilder::Build(Device& device, VkDescriptorSetLayout& outLayout)
+{
+    DescriptorSetLayoutCreateInfo createInfo{};
+    Build(device, createInfo, outLayout);
 }

@@ -93,7 +93,7 @@ void trayser::RayTracedPipeline::Load(VkShaderModule module)
     pipeline_layout_create_info.pPushConstantRanges = &pushConst;
 
     // Descriptor sets: one specific to ray tracing, and one shared with the rasterization pipeline
-    VkDescriptorSetLayout descLayouts[2] = {g_engine.m_allTexturesLayout, m_descriptorSetLayout};
+    VkDescriptorSetLayout descLayouts[2] = {g_engine.m_renderer.m_textureDescLayout, m_descriptorSetLayout};
     pipeline_layout_create_info.setLayoutCount = 2;
     pipeline_layout_create_info.pSetLayouts = descLayouts;
     VK_CHECK(vkCreatePipelineLayout(g_engine.m_device.m_device, &pipeline_layout_create_info, nullptr, &m_layout));
@@ -194,7 +194,7 @@ void trayser::RayTracedPipeline::Update()
         writer.UpdateSet(g_engine.m_device.m_device, m_descriptorSet);
     }
 
-    VkDescriptorSet descSets[2] = { g_engine.m_allTexturesSet, m_descriptorSet };
+    VkDescriptorSet descSets[2] = { g_engine.m_renderer.m_frames[g_engine.m_device.m_swapchain.m_frameIdx].textureDescSet, m_descriptorSet};
     vkCmdBindDescriptorSets(g_engine.m_device.GetCmd(), VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_layout, 0, 2, descSets, 0, nullptr);
 
     gpu::RTPushConstants pushConsts{};

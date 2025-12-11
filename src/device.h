@@ -266,7 +266,6 @@ public:
 [[nodiscard]] inline VkPresentInfoKHR					PresentInfoKHR(const void* pNext = nullptr);
 [[nodiscard]] inline VkRenderingAttachmentInfo			RenderingAttachmentInfo(const void* pNext = nullptr);
 [[nodiscard]] inline VkRenderingInfo					RenderingInfo(const void* pNext = nullptr);
-[[nodiscard]] inline VkDescriptorSetLayoutCreateInfo	DescriptorSetLayoutCreateInfo(const void* pNext = nullptr);
 [[nodiscard]] inline VkWriteDescriptorSet				WriteDescriptorSet(const void* pNext = nullptr);
 [[nodiscard]] inline VkImageCreateInfo					ImageCreateInfo(const void* pNext = nullptr);
 [[nodiscard]] inline VkImageViewCreateInfo				ImageViewCreateInfo(const void* pNext = nullptr);

@@ -75,3 +75,37 @@ struct DescriptorWriter
     void Clear();
     void UpdateSet(VkDevice device, VkDescriptorSet set);
 };
+
+namespace trayser
+{
+
+class Device;
+
+struct DescriptorSetLayoutBinding
+{
+    VkDescriptorType    descriptorType;
+    uint32_t            descriptorCount;
+    VkShaderStageFlags  stageFlags;
+    const VkSampler*    pImmutableSamplers = nullptr;
+};
+
+struct DescriptorSetLayoutCreateInfo
+{
+    const void*                         pNext = nullptr;
+    VkDescriptorSetLayoutCreateFlags    flags = 0;
+};
+
+class DescriptorSetLayoutBuilder
+{
+public:
+    DescriptorSetLayoutBuilder() = default;
+    ~DescriptorSetLayoutBuilder() = default;
+    void AddBinding(const DescriptorSetLayoutBinding& binding);
+    void Build(Device& device, const DescriptorSetLayoutCreateInfo& createInfo, VkDescriptorSetLayout& outLayout);
+    void Build(Device& device, VkDescriptorSetLayout& outLayout);
+
+private:
+    std::vector<VkDescriptorSetLayoutBinding> m_bindings;
+};
+
+} // namespace trayser
