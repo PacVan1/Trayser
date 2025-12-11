@@ -25,7 +25,7 @@ void trayser::Engine::Init()
     m_meshPool.Init();
     m_materialPool.Init();
     m_texturePool.Init();
-    ModelHandle handle = m_modelPool.Create(kModelPaths[ModelResource_DamagedHelmet], kModelPaths[ModelResource_DamagedHelmet], this);
+    ModelHandle handle = m_modelPool.Create(kModelPaths[ModelResource_Sponza], kModelPaths[ModelResource_Sponza], this);
     const Model& model1 = m_modelPool.Get(handle);
     m_scene.Init();
     m_scene.CreateModel(model1);
@@ -63,11 +63,11 @@ void trayser::Engine::Render()
 
     if (m_rayTraced)
     {
-        m_pipelines[PipelineType_Background]->Update();
         m_pipelines[PipelineType_RayTraced]->Update();
     }
     else
     {
+        m_pipelines[PipelineType_Background]->Update();
         m_pipelines[PipelineType_Rasterized]->Update();
     }
 
@@ -78,6 +78,8 @@ void trayser::Engine::Render()
     vkutil::TransitionImage(cmd, m_device.m_swapchain.m_images[m_device.m_swapchain.m_imageIdx], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     VkExtent2D extent = { m_gBuffer.colorImage.imageExtent.width, m_gBuffer.colorImage.imageExtent.height };
     vkutil::CopyImageToImage(cmd, m_gBuffer.colorImage.image, m_device.m_swapchain.m_images[m_device.m_swapchain.m_imageIdx], extent, m_device.m_swapchain.m_extent);
+
+    m_frame++;
 }
 
 void trayser::Engine::Run()
@@ -630,6 +632,11 @@ void trayser::Engine::LoadSkydome(const std::string& path)
 
     delete[] halfedData;
     stbi_image_free(stbiData);
+}
+
+void trayser::Engine::SetAccumulatorDirty()
+{
+    m_frame = 0;
 }
 
 void trayser::Engine::DestroySwapchain()

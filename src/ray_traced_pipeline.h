@@ -13,8 +13,7 @@ public:
     {
         BindingPoints_TLAS,
         BindingPoints_OutImage,
-        BindingPoints_Vertices,
-        BindingPoints_Indices,
+        BindingPoints_OutAccumulator,
     };
 
 public:
@@ -24,13 +23,13 @@ public:
     virtual VkShaderModule Compile() override;
 
     void PipelineBarrier() const;
+    void ClearIfAccumulatorReset();
 
 private:
     VkDescriptorSetLayout   m_descriptorSetLayout;
     VkDescriptorSet         m_descriptorSet;
     std::vector<u8>         m_shaderHandles;
     Buffer                  m_sbtBuffer;
-    uint32_t                m_frame;
     
     VkStridedDeviceAddressRegionKHR m_raygenRegion;    // Ray generation shader region
     VkStridedDeviceAddressRegionKHR m_missRegion;      // Miss shader region

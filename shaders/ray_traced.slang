@@ -5,6 +5,7 @@
 [[vk::binding(0, 0)]] Sampler2D textures[128];
 [[vk::binding(0, 1)]] RaytracingAccelerationStructure topLevelAS;
 [[vk::binding(1, 1)]] RWTexture2D<float4> outImage;
+[[vk::binding(2, 1)]] RWTexture2D<float4> outAccumulator;
 
 static const float kMinT = 0.001f;
 static const float kMaxT = 50.0f;
@@ -76,14 +77,11 @@ void rgMain()
     // Parameters: AS, flags, instance mask, sbt offset, sbt stride, miss offset, ray, payload
     TraceRay(topLevelAS, rayFlags, 0xff, 0, 0, 0, ray, payload);
 
-    // Get the final color from the ray tracing result
-    float3 color = payload.color;
-    
-    //if (payload.depth == 0)
-    //    return;
+    float fframe = float(pushConsts.frame);
+    float scale = 1.0 / (fframe + 1.0);
 
-    // Write the result to the output image
-    outImage[int2(launchID)] = float4(payload.color, 1.0);
+    outAccumulator[int2(launchID)] += float4(payload.color, 1.0);
+    outImage[int2(launchID)] += float4(outAccumulator[int2(launchID)].rgb * scale, 1.0);
 }
 
 // Closest hit shader - called when ray hits geometry

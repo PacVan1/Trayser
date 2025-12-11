@@ -10,6 +10,7 @@ struct GBuffer
 	void Init(u32 width, u32 height);
 
 	AllocatedImage colorImage;
+	AllocatedImage accumulatorImage; // TODO TEMP
 	AllocatedImage depthImage;
 };
 

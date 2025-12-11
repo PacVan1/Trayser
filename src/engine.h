@@ -44,6 +44,7 @@ public:
 	void DestroyBuffer(const AllocatedBuffer& buffer);
 	void HotReloadPipelines();
 	void LoadSkydome(const std::string& path);
+	void SetAccumulatorDirty();
 
 	[[nodiscard]] Input& GetInput()	{ return m_device.m_input; }
 
@@ -84,6 +85,7 @@ public:
 	ResourcePool<Material2, kMaterialCount> m_materialPool;
 
 	bool			m_rayTraced = true;
+	uint32_t		m_frame = 0;
 
 	TextureHandle m_skydomeHandle;
 

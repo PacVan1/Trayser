@@ -52,6 +52,39 @@ void trayser::GBuffer::Init(u32 width, u32 height)
         VK_CHECK(vkCreateImageView(g_engine.m_device.m_device, &viewCreateInfo, nullptr, &colorImage.imageView));
     }
 
+    accumulatorImage.imageFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
+    accumulatorImage.imageExtent = imageExtent;
+
+    { // Accumulator image
+        VkImageUsageFlags imageUsages{};
+        imageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+        imageUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+        imageUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
+        imageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+        VkImageCreateInfo imageCreateInfo = ImageCreateInfo();
+        imageCreateInfo.format = accumulatorImage.imageFormat;
+        imageCreateInfo.usage = imageUsages;
+        imageCreateInfo.extent = imageExtent;
+        imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageCreateInfo.mipLevels = 1;
+        imageCreateInfo.arrayLayers = 1;
+        imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        VK_CHECK(vmaCreateImage(g_engine.m_device.m_allocator, &imageCreateInfo, &imageAllocInfo, &accumulatorImage.image, &accumulatorImage.allocation, nullptr));
+
+        VkImageViewCreateInfo viewCreateInfo = ImageViewCreateInfo();
+        viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewCreateInfo.format = accumulatorImage.imageFormat;
+        viewCreateInfo.image = accumulatorImage.image;
+        viewCreateInfo.subresourceRange.baseMipLevel = 0;
+        viewCreateInfo.subresourceRange.levelCount = 1;
+        viewCreateInfo.subresourceRange.baseArrayLayer = 0;
+        viewCreateInfo.subresourceRange.layerCount = 1;
+        viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        VK_CHECK(vkCreateImageView(g_engine.m_device.m_device, &viewCreateInfo, nullptr, &accumulatorImage.imageView));
+    }
+
     // Depth image
     depthImage.imageFormat = VK_FORMAT_D32_SFLOAT;
     depthImage.imageExtent = imageExtent;

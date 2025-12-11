@@ -18,12 +18,14 @@ void trayser::RayTracedPipeline::Load(VkShaderModule module)
     DescriptorLayoutBuilder builder;
     builder.AddBinding(BindingPoints_TLAS, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
     builder.AddBinding(BindingPoints_OutImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    builder.AddBinding(BindingPoints_OutAccumulator, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
     m_descriptorSetLayout = builder.Build(g_engine.m_device.m_device, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
 
     m_descriptorSet = g_engine.m_globalDescriptorAllocator.Allocate(g_engine.m_device.m_device, m_descriptorSetLayout);
 
     DescriptorWriter writer;
     writer.WriteImage(BindingPoints_OutImage, g_engine.m_gBuffer.colorImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    writer.WriteImage(BindingPoints_OutAccumulator, g_engine.m_gBuffer.accumulatorImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
     writer.UpdateSet(g_engine.m_device.m_device, m_descriptorSet);
 
     // ---------------------
@@ -176,7 +178,7 @@ void trayser::RayTracedPipeline::Load(VkShaderModule module)
 
 void trayser::RayTracedPipeline::Update()
 {
-    m_frame++;
+    ClearIfAccumulatorReset();
 
     // Ray trace pipeline
     vkCmdBindPipeline(g_engine.m_device.GetCmd(), VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pipeline);
@@ -198,7 +200,7 @@ void trayser::RayTracedPipeline::Update()
     gpu::RTPushConstants pushConsts{};
     pushConsts.sceneRef = g_engine.m_gpuSceneAddr;
     pushConsts.renderMode = g_engine.m_renderMode;
-    pushConsts.frame = m_frame;
+    pushConsts.frame = g_engine.m_frame;
 
     vkCmdPushConstants(g_engine.m_device.GetCmd(),
         m_layout,
@@ -234,10 +236,86 @@ void trayser::RayTracedPipeline::PipelineBarrier() const
     barrier.image = g_engine.m_gBuffer.colorImage.image;
     barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 
+    // Barrier to make sure the image is ready for Tonemapping
+    VkImageMemoryBarrier2 barrier2{};
+    barrier2.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+    barrier2.srcStageMask = VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR;
+    barrier2.srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+    barrier2.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT; // or COMPUTE if tonemapping
+    barrier2.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+    barrier2.oldLayout = VK_IMAGE_LAYOUT_GENERAL; // whatever layout ray tracing used
+    barrier2.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; // for sampling
+    barrier2.image = g_engine.m_gBuffer.accumulatorImage.image;
+    barrier2.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+
+    VkImageMemoryBarrier2 imageBarriers[2] = { barrier, barrier2 };
     VkDependencyInfo depInfo{};
     depInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-    depInfo.imageMemoryBarrierCount = 1;
-    depInfo.pImageMemoryBarriers = &barrier;
+    depInfo.imageMemoryBarrierCount = 2;
+    depInfo.pImageMemoryBarriers = imageBarriers;
 
     vkCmdPipelineBarrier2(g_engine.m_device.GetCmd(), &depInfo);
+}
+
+void trayser::RayTracedPipeline::ClearIfAccumulatorReset()
+{
+    if (g_engine.m_frame != 0)
+        return;
+
+    // Clear the image to a specified color (e.g., black)
+    VkClearColorValue clearColor = {};
+    clearColor.float32[0] = 0.0f; // Set to black
+    clearColor.float32[1] = 0.0f;
+    clearColor.float32[2] = 0.0f;
+    clearColor.float32[3] = 1.0f;
+
+    // Create the image memory barrier for transitioning to the correct layout
+    VkImageMemoryBarrier imageMemoryBarrier = {};
+    imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    imageMemoryBarrier.srcAccessMask = 0;
+    imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    imageMemoryBarrier.image = g_engine.m_gBuffer.accumulatorImage.image;
+    imageMemoryBarrier.subresourceRange = {
+        VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1
+    };
+
+    // Transition the image layout to transfer destination
+    vkCmdPipelineBarrier(
+        g_engine.m_device.GetCmd(),
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        0, // dependencyFlags
+        0, // memoryBarrierCount
+        nullptr, // pMemoryBarriers
+        0, // bufferMemoryBarrierCount
+        nullptr, // pBufferMemoryBarriers
+        1, // imageMemoryBarrierCount
+        &imageMemoryBarrier// pImageMemoryBarriers
+    );
+
+    // Clear the image to the specified color
+    vkCmdClearColorImage(
+        g_engine.m_device.GetCmd(),
+        g_engine.m_gBuffer.accumulatorImage.image,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        &clearColor,
+        1, &imageMemoryBarrier.subresourceRange
+    );
+
+    // Transition the image back to a layout for use in a compute shader
+    imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;  // Or VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL if reading
+    imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+
+    vkCmdPipelineBarrier(
+        g_engine.m_device.GetCmd(),
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier
+    );
 }
