@@ -28,6 +28,14 @@ struct PerFrame
 	VkFence			renderFence;
 };
 
+struct DefaultImage
+{
+	VkImage			image;
+	VkImageView		view;
+	VkSampler		sampler;
+	VmaAllocation	allocation;
+};
+
 class Renderer
 {
 public:
@@ -55,6 +63,7 @@ private:
 	void InitSwapchainImageViews(Device& device);
 	void InitSyncStructures(Device& device);
 	void InitTextureDescLayout(Device& device);
+	void InitDefaultImage(Device& device);
 	void InitTextureDescSets(Device& device);
 	void InitImGui(Device& device);
 
@@ -63,6 +72,7 @@ private:
 	void DestroySwapchainImageViews(Device& device) const;
 	void DestroyFrames(Device& device) const;
 	void DestroySyncStructures(Device& device) const;
+	void DestroyDefaultImage(Device& device) const;
 	void DestroyTextureDescSets(Device& device) const;
 	void DestroyImGui() const;
 
@@ -78,6 +88,7 @@ public:
 	VkCommandPool			m_cmdPool;
 	VkDescriptorSetLayout	m_textureDescLayout;
 	PerFrame*				m_frames;
+	DefaultImage			m_defaultImage; // 1x1 black image to initialize
 	uint32_t				m_frameCounter;
 	uint32_t				m_frameIndex;
 };

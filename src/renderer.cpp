@@ -15,6 +15,7 @@ void trayser::Renderer::Init(Device& device)
     InitCmdPool(device);
 	InitTextureDescLayout(device);
     InitSwapchain(device);
+    InitDefaultImage(device);
 	InitFrames(device);
     InitImGui(device);
 }
@@ -23,6 +24,8 @@ void trayser::Renderer::Destroy(Device& device)
 {
     DestroyImGui();
     DestroyFrames(device);
+    DestroyDefaultImage(device);
+    DestroySwapchain(device);
     DestroyCmdPool(device);
 }
 
@@ -113,6 +116,43 @@ void trayser::Renderer::InitTextureDescLayout(Device& device)
     builder.Build(device, m_textureDescLayout);
 }
 
+void trayser::Renderer::InitDefaultImage(Device& device)
+{
+    VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
+    VkImageUsageFlags usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+
+    VkImageCreateInfo imageCreateInfo = ImageCreateInfo();
+    imageCreateInfo.format      = format;
+    imageCreateInfo.usage       = usage;
+    imageCreateInfo.extent      = VkExtent3D{1, 1, 1};
+    imageCreateInfo.imageType   = VK_IMAGE_TYPE_2D;
+    imageCreateInfo.mipLevels   = 1;
+    imageCreateInfo.arrayLayers = 1;
+    imageCreateInfo.samples     = VK_SAMPLE_COUNT_1_BIT;
+
+    VmaAllocationCreateInfo allocInfo{};
+    allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+    allocInfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    VK_CHECK(vmaCreateImage(device.m_allocator, &imageCreateInfo, &allocInfo, &m_defaultImage.image, &m_defaultImage.allocation, nullptr));
+
+    VkImageViewCreateInfo viewCreateInfo = ImageViewCreateInfo();
+    viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewCreateInfo.format = format;
+    viewCreateInfo.image = m_defaultImage.image;
+    viewCreateInfo.subresourceRange.baseMipLevel = 0;
+    viewCreateInfo.subresourceRange.levelCount = 1;
+    viewCreateInfo.subresourceRange.baseArrayLayer = 0;
+    viewCreateInfo.subresourceRange.layerCount = 1;
+    viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    viewCreateInfo.subresourceRange.levelCount = imageCreateInfo.mipLevels;
+    VK_CHECK(vkCreateImageView(device.m_device, &viewCreateInfo, nullptr, &m_defaultImage.view));
+
+    VkSamplerCreateInfo samplerCreateInfo = SamplerCreateInfo();
+    samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+    samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
+    vkCreateSampler(device.m_device, &samplerCreateInfo, nullptr, &m_defaultImage.sampler);
+}
+
 void trayser::Renderer::InitFrames(Device& device)
 {
     m_frames = new PerFrame[m_swapchain.frameCount];
@@ -191,6 +231,25 @@ void trayser::Renderer::InitTextureDescSets(Device& device)
     for (int i = 0; i < m_swapchain.frameCount; i++)
     {
         m_frames[i].textureDescSet = g_engine.m_globalDescriptorAllocator.Allocate(device.m_device, m_textureDescLayout);
+
+        VkDescriptorImageInfo imageInfo{};
+        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageInfo.imageView = m_defaultImage.view;
+        imageInfo.sampler = m_defaultImage.sampler;
+
+        std::vector<VkDescriptorImageInfo> imageInfos(kTextureCount);
+        std::fill(imageInfos.begin(), imageInfos.end(), imageInfo);
+
+        VkWriteDescriptorSet write{};
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.dstSet = m_frames[i].textureDescSet;
+        write.dstBinding = 0;
+        write.dstArrayElement = 0;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        write.descriptorCount = kTextureCount;
+        write.pImageInfo = imageInfos.data();
+
+        vkUpdateDescriptorSets(device.m_device, 1, &write, 0, nullptr);
     }
 }
 
@@ -283,6 +342,13 @@ void trayser::Renderer::DestroySyncStructures(Device& device) const
         vkDestroySemaphore(device.m_device, m_frames[i].swapchainSemaphore, nullptr);
         vkDestroyFence(device.m_device, m_frames[i].renderFence, nullptr);
     }
+}
+
+void trayser::Renderer::DestroyDefaultImage(Device& device) const
+{
+    vmaDestroyImage(device.m_allocator, m_defaultImage.image, m_defaultImage.allocation);
+    vkDestroyImageView(device.m_device, m_defaultImage.view, nullptr);
+    vkDestroySampler(device.m_device, m_defaultImage.sampler, nullptr);
 }
 
 void trayser::Renderer::DestroyTextureDescSets(Device& device) const
