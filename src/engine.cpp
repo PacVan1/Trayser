@@ -27,7 +27,7 @@ void trayser::Engine::Init()
     m_meshPool.Init();
     m_materialPool.Init();
     m_texturePool.Init();
-    ModelHandle handle = m_modelPool.Create(kModelPaths[ModelResource_DamagedHelmet], kModelPaths[ModelResource_DamagedHelmet], this);
+    ModelHandle handle = m_modelPool.Create(kModelPaths[ModelResource_FlightHelmet], kModelPaths[ModelResource_FlightHelmet], this);
     const Model& model1 = m_modelPool.Get(handle);
     m_scene.Init();
     m_scene.CreateModel(model1);
@@ -37,6 +37,8 @@ void trayser::Engine::Init()
     //m_device.CreateBLas2();
 
     //m_device.CreateTopLevelAs();
+
+    LoadSkydome(kSkydomePaths[0]);
 
     InitPipelines();
 

@@ -376,7 +376,7 @@ void trayser::Device::EndOneTimeSubmit() const
 	submitInfo.commandBufferInfoCount   = 1;
 
     VK_CHECK(vkQueueSubmit2(m_graphicsQueue, 1, &submitInfo, m_oneTimeFence));
-    VK_CHECK(vkWaitForFences(m_device, 1, &m_oneTimeFence, true, 9999999999999));
+    VK_CHECK(vkWaitForFences(m_device, 1, &m_oneTimeFence, true, UINT64_MAX));
 }
 
 void trayser::Device::NewFrame()
