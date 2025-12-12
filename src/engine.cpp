@@ -56,7 +56,7 @@ void trayser::Engine::Destroy()
 void trayser::Engine::Render()
 {
     VkCommandBuffer cmd = m_renderer.GetCmdBuffer();
-    BeginRecording(cmd);
+    //BeginRecording(cmd);
 
     //vkutil::TransitionImage(cmd, m_gBuffer.colorImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     vkutil::TransitionImage(cmd, m_gBuffer.depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
@@ -76,7 +76,7 @@ void trayser::Engine::Render()
     m_pipelines[PipelineType_Tonemap]->Update();
 
     // Transition the draw image and the swapchain image into their correct transfer layouts
-    vkutil::TransitionImage(cmd, m_gBuffer.colorImage.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    vkutil::TransitionImage(cmd, m_gBuffer.colorImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
     vkutil::TransitionImage(cmd, m_renderer.GetSwapchainImage(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     VkExtent2D extent = { m_gBuffer.colorImage.imageExtent.width, m_gBuffer.colorImage.imageExtent.height };
     vkutil::CopyImageToImage(cmd, m_gBuffer.colorImage.image, m_renderer.GetSwapchainImage(), extent, m_renderer.m_swapchain.extent);
@@ -98,6 +98,7 @@ void trayser::Engine::Run()
 
         Render();
         m_renderer.EndFrame(m_device);
+        m_device.EndFrame();
         m_device.EndFrame();
 
         HotReloadPipelines();
@@ -220,8 +221,6 @@ void trayser::Engine::InitImGuiStyle()
 
 void trayser::Engine::InitDefaultData()
 {
-    InitDefaultMaterial();
-
     VkSamplerCreateInfo sampl = SamplerCreateInfo();
 
     sampl.magFilter = VK_FILTER_LINEAR;
@@ -232,20 +231,6 @@ void trayser::Engine::InitDefaultData()
     samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
     samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
     vkCreateSampler(m_device.m_device, &samplerCreateInfo, nullptr, &m_samplerCube);
-}
-
-void trayser::Engine::InitDefaultMaterial()
-{
-    uint32_t black  = glm::packUnorm4x8(glm::vec4(0.0, 0.0, 0.0, 1.0));
-    uint32_t gray   = glm::packUnorm4x8(glm::vec4(0.5, 0.5, 0.5, 1.0));
-    uint32_t normal = glm::packUnorm4x8(glm::vec4(0.5, 0.5, 1.0, 1.0));
-    uint32_t white  = glm::packUnorm4x8(glm::vec4(1.0, 1.0, 1.0, 1.0));
-
-    m_defaultMaterial.baseColor         = m_resources.Create<Image>("default_base_color_image", &black, 1, 1, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_SAMPLED_BIT);
-    m_defaultMaterial.metallicRoughness = m_resources.Create<Image>("default_metallic_roughness_image", &gray, 1, 1, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT);
-    m_defaultMaterial.emissive          = m_resources.Create<Image>("default_emissive_image", &black, 1, 1, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_SAMPLED_BIT);
-    m_defaultMaterial.occlusion         = m_resources.Create<Image>("default_ambient_occlusion_image", &white, 1, 1, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT);
-    m_defaultMaterial.normalMap         = m_resources.Create<Image>("default_normal_map_image", &normal, 1, 1, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT);
 }
 
 void trayser::Engine::InitGpuScene()

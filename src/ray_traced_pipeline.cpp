@@ -232,7 +232,7 @@ void trayser::RayTracedPipeline::PipelineBarrier() const
     barrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT; // or COMPUTE if tonemapping
     barrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
     barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL; // whatever layout ray tracing used
-    barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; // for sampling
+    barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL; // for sampling
     barrier.image = g_engine.m_gBuffer.colorImage.image;
     barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 
@@ -244,7 +244,7 @@ void trayser::RayTracedPipeline::PipelineBarrier() const
     barrier2.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT; // or COMPUTE if tonemapping
     barrier2.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
     barrier2.oldLayout = VK_IMAGE_LAYOUT_GENERAL; // whatever layout ray tracing used
-    barrier2.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; // for sampling
+    barrier2.newLayout = VK_IMAGE_LAYOUT_GENERAL; // for sampling
     barrier2.image = g_engine.m_gBuffer.accumulatorImage.image;
     barrier2.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 

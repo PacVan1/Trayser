@@ -184,7 +184,7 @@ void trayser::RasterizedPipeline::Update()
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
 
-    vkCmdBindDescriptorSets(g_engine.m_renderer.GetCmdBuffer(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_layout, 0, 1, &g_engine.m_renderer.GetTextureDescSet(), 0, nullptr);
+    vkCmdBindDescriptorSets(g_engine.m_renderer.GetCmdBuffer(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_layout, 0, 1, &g_engine.m_renderer.GetFrame().textureDescSet, 0, nullptr);
 
     auto view = g_engine.m_scene.m_registry.view<WorldTransform, RenderComponent>();
     int i = 0;

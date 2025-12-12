@@ -96,6 +96,24 @@ void trayser::Renderer::InitSwapchain(Device& device)
     m_swapchain.format = surfaceFormat.format;
     m_swapchain.extent = extent;
 
+    m_swapchain.images.resize(m_swapchain.frameCount);
+    vkGetSwapchainImagesKHR(device.m_device, m_swapchain.swapchain, &m_swapchain.frameCount, m_swapchain.images.data());
+
+    m_swapchain.views.resize(m_swapchain.frameCount);
+    for (int i = 0; i < m_swapchain.frameCount; i++)
+    {
+        VkImageViewCreateInfo createInfo = ImageViewCreateInfo();
+        createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        createInfo.format = m_swapchain.format;
+        createInfo.image = m_swapchain.images[i];
+        createInfo.subresourceRange.baseMipLevel = 0;
+        createInfo.subresourceRange.levelCount = 1;
+        createInfo.subresourceRange.baseArrayLayer = 0;
+        createInfo.subresourceRange.layerCount = 1;
+        createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        VK_CHECK(vkCreateImageView(device.m_device, &createInfo, nullptr, &m_swapchain.views[i]));
+    }
+
     PRINT_INFO("Initialized Vulkan swapchain.");
 }
 
@@ -155,11 +173,7 @@ void trayser::Renderer::InitDefaultImage(Device& device)
 
 void trayser::Renderer::InitFrames(Device& device)
 {
-    m_frames = new PerFrame[m_swapchain.frameCount];
-
     InitCmdBuffers(device);
-    InitSwapchainImages(device);
-    InitSwapchainImageViews(device);
     InitSyncStructures(device);
     InitTextureDescSets(device);
 }
@@ -168,46 +182,18 @@ void trayser::Renderer::InitCmdBuffers(Device& device)
 {
     VkCommandBufferAllocateInfo allocInfo = CommandBufferAllocateInfo();
     allocInfo.commandPool        = m_cmdPool;
-    allocInfo.commandBufferCount = kFrameCount;
+    allocInfo.commandBufferCount = kMaxFramesInFlight;
     allocInfo.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 ;
-    VkCommandBuffer* cmdBuffers = new VkCommandBuffer[m_swapchain.frameCount];
+    VkCommandBuffer* cmdBuffers = new VkCommandBuffer[kMaxFramesInFlight];
     VK_CHECK(vkAllocateCommandBuffers(device.m_device, &allocInfo, cmdBuffers));
 
-    for (int i = 0; i < m_swapchain.frameCount; i++)
+    for (int i = 0; i < kMaxFramesInFlight; i++)
     {
         m_frames[i].cmdBuffer = cmdBuffers[i];
     }
 
     delete[] cmdBuffers;
-}
-
-void trayser::Renderer::InitSwapchainImages(Device& device)
-{
-    std::vector<VkImage> images(m_swapchain.frameCount);
-    vkGetSwapchainImagesKHR(device.m_device, m_swapchain.swapchain, &m_swapchain.frameCount, images.data());
-
-    for (int i = 0; i < m_swapchain.frameCount; i++)
-    {
-        m_frames[i].swapchainImage = images[i];
-    }
-}
-
-void trayser::Renderer::InitSwapchainImageViews(Device& device)
-{
-    for (int i = 0; i < m_swapchain.frameCount; i++)
-    {
-        VkImageViewCreateInfo createInfo = ImageViewCreateInfo();
-        createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        createInfo.format = m_swapchain.format;
-        createInfo.image = m_frames[i].swapchainImage;
-        createInfo.subresourceRange.baseMipLevel = 0;
-        createInfo.subresourceRange.levelCount = 1;
-        createInfo.subresourceRange.baseArrayLayer = 0;
-        createInfo.subresourceRange.layerCount = 1;
-        createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        VK_CHECK(vkCreateImageView(device.m_device, &createInfo, nullptr, &m_frames[i].swapchainImageView));
-    }
 }
 
 void trayser::Renderer::InitSyncStructures(Device& device)
@@ -218,17 +204,17 @@ void trayser::Renderer::InitSyncStructures(Device& device)
     VkSemaphoreCreateInfo semaphoreCreateInfo = SemaphoreCreateInfo();
     semaphoreCreateInfo.flags = 0;
 
-    for (int i = 0; i < m_swapchain.frameCount; i++)
+    for (int i = 0; i < kMaxFramesInFlight; i++)
     {
-        VK_CHECK(vkCreateFence(device.m_device, &fenceCreateInfo, nullptr, &m_frames[i].renderFence));
-        VK_CHECK(vkCreateSemaphore(device.m_device, &semaphoreCreateInfo, nullptr, &m_frames[i].swapchainSemaphore));
-        VK_CHECK(vkCreateSemaphore(device.m_device, &semaphoreCreateInfo, nullptr, &m_frames[i].renderSemaphore));
+        VK_CHECK(vkCreateFence(device.m_device, &fenceCreateInfo, nullptr, &m_frames[i].renderedFence));
+        VK_CHECK(vkCreateSemaphore(device.m_device, &semaphoreCreateInfo, nullptr, &m_frames[i].acquisitionSemaphore));
+        VK_CHECK(vkCreateSemaphore(device.m_device, &semaphoreCreateInfo, nullptr, &m_frames[i].renderedSemaphore));
     }
 }
 
 void trayser::Renderer::InitTextureDescSets(Device& device)
 {
-    for (int i = 0; i < m_swapchain.frameCount; i++)
+    for (int i = 0; i < kMaxFramesInFlight; i++)
     {
         m_frames[i].textureDescSet = g_engine.m_globalDescriptorAllocator.Allocate(device.m_device, m_textureDescLayout);
 
@@ -314,22 +300,18 @@ void trayser::Renderer::DestroyCmdPool(Device& device) const
 
 void trayser::Renderer::DestroySwapchain(Device& device) const
 {
-    vkDestroySwapchainKHR(device.m_device, m_swapchain.swapchain, nullptr);
-}
-
-void trayser::Renderer::DestroySwapchainImageViews(Device& device) const
-{
     for (int i = 0; i < m_swapchain.frameCount; i++)
     {
-        vkDestroyImageView(device.m_device, m_frames[i].swapchainImageView, nullptr);
+        vkDestroyImageView(device.m_device, m_swapchain.views[i], nullptr);
     }
+
+    vkDestroySwapchainKHR(device.m_device, m_swapchain.swapchain, nullptr);
 }
 
 void trayser::Renderer::DestroyFrames(Device& device) const
 {
     DestroyTextureDescSets(device);
     DestroySyncStructures(device);
-    DestroySwapchainImageViews(device);
 
     delete[] m_frames;
 }
@@ -338,9 +320,9 @@ void trayser::Renderer::DestroySyncStructures(Device& device) const
 {
     for (int i = 0; i < m_swapchain.frameCount; i++)
     {
-        vkDestroySemaphore(device.m_device, m_frames[i].renderSemaphore, nullptr);
-        vkDestroySemaphore(device.m_device, m_frames[i].swapchainSemaphore, nullptr);
-        vkDestroyFence(device.m_device, m_frames[i].renderFence, nullptr);
+        vkDestroySemaphore(device.m_device, m_frames[i].renderedSemaphore, nullptr);
+        vkDestroySemaphore(device.m_device, m_frames[i].acquisitionSemaphore, nullptr);
+        vkDestroyFence(device.m_device, m_frames[i].renderedFence, nullptr);
     }
 }
 
@@ -422,12 +404,16 @@ void trayser::Renderer::ImGuiNewFrame()
 
 void trayser::Renderer::NewFrame(Device& device)
 {
-    VK_CHECK(vkWaitForFences(device.m_device, 1, &GetRenderFence(), true, UINT64_MAX));
-    VK_CHECK(vkResetFences(device.m_device, 1, &GetRenderFence()));
-
-    vkAcquireNextImageKHR(device.m_device, m_swapchain.swapchain, UINT64_MAX, GetSwapchainSemaphore(), nullptr, &m_frameIndex);
+    VK_CHECK(vkWaitForFences(device.m_device, 1, &m_frames[m_frameIndex].renderedFence, true, UINT64_MAX));
+    VK_CHECK(vkResetFences(device.m_device, 1, &m_frames[m_frameIndex].renderedFence));
+    VK_CHECK(vkAcquireNextImageKHR(device.m_device, m_swapchain.swapchain, UINT64_MAX, GetAcquisitionSemaphore(), nullptr, &m_swapchain.imageIndex));
+    VK_CHECK(vkResetCommandBuffer(GetCmdBuffer(), 0));
 
     ImGuiNewFrame();
+
+    VkCommandBufferBeginInfo cmdBeginInfo = CommandBufferBeginInfo();
+    cmdBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    VK_CHECK(vkBeginCommandBuffer(GetCmdBuffer(), &cmdBeginInfo));
 }
 
 void trayser::Renderer::EndFrame(Device& device)
@@ -443,13 +429,13 @@ void trayser::Renderer::EndFrame(Device& device)
     cmdSubmitInfo.deviceMask = 0;
 
     VkSemaphoreSubmitInfo waitInfo = SemaphoreSubmitInfo();
-    waitInfo.semaphore = GetSwapchainSemaphore();
+    waitInfo.semaphore = GetAcquisitionSemaphore();
     waitInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
     waitInfo.deviceIndex = 0;
     waitInfo.value = 1;
 
     VkSemaphoreSubmitInfo signalInfo = SemaphoreSubmitInfo();
-    signalInfo.semaphore = GetRenderSemaphore();
+    signalInfo.semaphore = GetRenderedSemaphore();
     signalInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT;
     signalInfo.deviceIndex = 0;
     signalInfo.value = 1;
@@ -461,17 +447,19 @@ void trayser::Renderer::EndFrame(Device& device)
     submitInfo.signalSemaphoreInfoCount = 1;
     submitInfo.pCommandBufferInfos = &cmdSubmitInfo;
     submitInfo.commandBufferInfoCount = 1;
-    VK_CHECK(vkQueueSubmit2(device.m_graphicsQueue, 1, &submitInfo, GetRenderFence()));
+    VK_CHECK(vkQueueSubmit2(device.m_graphicsQueue, 1, &submitInfo, GetRenderedFence()));
 
     VkPresentInfoKHR presentInfo = {};
     presentInfo.sType               = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.pNext               = nullptr;
     presentInfo.pSwapchains         = &m_swapchain.swapchain;
     presentInfo.swapchainCount      = 1;
-    presentInfo.pWaitSemaphores     = &GetRenderSemaphore();
+    presentInfo.pWaitSemaphores     = &m_frames[m_frameIndex].renderedSemaphore;
     presentInfo.waitSemaphoreCount  = 1;
-    presentInfo.pImageIndices       = &m_frameIndex;
+    presentInfo.pImageIndices       = &m_swapchain.imageIndex;
     vkQueuePresentKHR(device.m_graphicsQueue, &presentInfo);
+
+    AdvanceFrame();
 }
 
 void trayser::Renderer::RenderImGui()
@@ -494,4 +482,10 @@ void trayser::Renderer::RenderImGui()
     vkCmdBeginRendering(GetCmdBuffer(), &renderInfo);
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), GetCmdBuffer());
     vkCmdEndRendering(GetCmdBuffer());
+}
+
+void trayser::Renderer::AdvanceFrame()
+{
+    m_frameCounter++;
+    m_frameIndex = (m_frameIndex + 1) % kMaxFramesInFlight;
 }

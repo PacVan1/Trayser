@@ -55,7 +55,6 @@ private:
 	void InitPipelines();
 	void InitImGuiStyle();
 	void InitDefaultData();
-	void InitDefaultMaterial();
 	void InitGpuScene();
 	void InitTextureDescriptor();
 	void UpdateGpuScene();
@@ -112,7 +111,6 @@ public:
 	VkExtent2D					m_windowExtent{1700, 900};
 	VkSampler m_sampler;
 	VkSampler m_samplerCube;
-	Material m_defaultMaterial;
 
 	//VkDescriptorSetLayout m_allTexturesLayout;
 	//VkDescriptorSet m_allTexturesSet;
