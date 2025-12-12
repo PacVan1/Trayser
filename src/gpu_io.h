@@ -52,9 +52,11 @@ static constexpr float2 kInvTan         = float2(0.1591, 0.3183);
 BEGIN_ENUM_DEF(RenderMode)
 DEF_ENUM_ENTRY(RenderMode, FinalColor)
 DEF_ENUM_ENTRY(RenderMode, TexCoord0)
-DEF_ENUM_ENTRY(RenderMode, Tangent)
-DEF_ENUM_ENTRY(RenderMode, Bitangent)
+DEF_ENUM_ENTRY(RenderMode, GeometryTangent)
+DEF_ENUM_ENTRY(RenderMode, GeometryBitangent)
 DEF_ENUM_ENTRY(RenderMode, GeometryNormal)
+DEF_ENUM_ENTRY(RenderMode, TransformedTangent)
+DEF_ENUM_ENTRY(RenderMode, TransformedBitangent)
 DEF_ENUM_ENTRY(RenderMode, ShadingNormal)
 DEF_ENUM_ENTRY(RenderMode, BaseColor)
 DEF_ENUM_ENTRY(RenderMode, NormalMap)
@@ -99,7 +101,7 @@ struct Mesh
 struct Instance
 {
     FLOAT4X4 transform;         // Transformation matrix
-    FLOAT4X3 normalTransform;   // 4x3 because of alignment
+    FLOAT4X4 normalTransform;   // 4x3 because of alignment
     uint32_t meshHandle;        // Index to mesh buffer
     uint32_t _pad[3];
 };

@@ -72,8 +72,8 @@ public:
 	GBuffer			m_gBuffer;
 	Renderer		m_renderer;
 
-	RenderMode		m_renderMode	= RenderMode_Depth;
-	TonemapMode		m_tonemapMode	= TonemapMode_ACES;
+	RenderMode		m_renderMode	= RenderMode_BaseColor;
+	TonemapMode		m_tonemapMode	= TonemapMode_Reinhard;
 	PipelineMode	m_pipelineMode	= PipelineMode_Rasterized;
 
 	static constexpr uint32_t kMeshCount		= 128;

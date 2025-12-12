@@ -81,7 +81,7 @@ void rgMain()
     float scale = 1.0 / (fframe + 1.0);
 
     outAccumulator[int2(launchID)] += float4(payload.color, 1.0);
-    outImage[int2(launchID)] += float4(outAccumulator[int2(launchID)].rgb * scale, 1.0);
+    outImage[int2(launchID)] = outAccumulator[int2(launchID)] * scale;
 }
 
 // Closest hit shader - called when ray hits geometry
@@ -181,14 +181,14 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     case RenderMode.TexCoord0:
         payload.color = float3(hit.uv, 0.0);
         break;
-    case RenderMode.Tangent:
-        payload.color = (float3(hit.tangent) + 1.0) * 0.5;
-        break;
-    case RenderMode.Bitangent:
-        payload.color = (float3(hit.bitangent) + 1.0) * 0.5;
-        break;
     case RenderMode.GeometryNormal:
         payload.color = (float3(hit.normal) + 1.0) * 0.5;
+        break;
+    case RenderMode.TransformedTangent:
+        payload.color = (float3(hit.tangent) + 1.0) * 0.5;
+        break;
+    case RenderMode.TransformedBitangent:
+        payload.color = (float3(hit.bitangent) + 1.0) * 0.5;
         break;
     case RenderMode.ShadingNormal:
         payload.color = (float3(hit.normal) + 1.0) * 0.5;

@@ -59,6 +59,7 @@ void trayser::Scene::Update(float dt)
             }
 
             m_TLasDirty = true;
+            cLocalTf.dirty = false;
         }
 
         if (parent != entt::null)
@@ -136,6 +137,7 @@ Entity trayser::Scene::CreateModel(const Model& model, Entity parent)
         node = TraverseModel(model, rootNode, &m_registry.get<SGNode>(parent));
     }
     m_sceneGraphDirty = true;
+    m_TLasDirty = true;
 
     return node;
 }
@@ -157,6 +159,7 @@ void trayser::Scene::AddNode(Entity parent, Entity child)
     m_registry.emplace<SGNode>(child);
 
     m_sceneGraphDirty = true;
+    m_TLasDirty = true;
 }
 
 void trayser::Scene::Clear()
@@ -332,6 +335,8 @@ void trayser::Scene::RebuildTLas()
 
 void trayser::Scene::DestroyTLas()
 {
+    vkDeviceWaitIdle(g_engine.m_device.m_device);
+
     g_engine.m_device.m_rtFuncs.vkDestroyAccelerationStructureKHR(g_engine.m_device.m_device, m_TLas.accel, nullptr);
     vmaDestroyBuffer(g_engine.m_device.m_allocator, m_TLas.buffer.buffer, m_TLas.buffer.allocation);
 }

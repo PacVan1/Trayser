@@ -339,7 +339,7 @@ void trayser::Engine::UpdateGpuScene()
     for (const auto& [entity, transform, render] : view.each())
     {
         instanceBufferRef[i].transform = transform.matrix;
-        instanceBufferRef[i].normalTransform = float4x3(glm::transpose(glm::inverse(float3x3(transform.matrix))));
+        instanceBufferRef[i].normalTransform = float4x4(glm::transpose(glm::inverse(float3x3(transform.matrix))));
         instanceBufferRef[i].meshHandle = render.mesh;
 
         auto& mesh = m_meshPool.m_resources[render.mesh];
