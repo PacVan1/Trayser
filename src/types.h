@@ -12,7 +12,7 @@
 #include <entt/entt.hpp>
 
 #include <magic_enum/magic_enum.hpp>
-#include <gpu_io.h>
+#include <../shaders/gpu_io.h>
 
 #define VK_CHECK(x)                                                     \
     do {                                                                \

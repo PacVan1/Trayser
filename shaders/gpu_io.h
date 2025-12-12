@@ -29,6 +29,7 @@ using int2      = glm::ivec2;
 #define DEF_ENUM_ENTRY_VAL(type, entry, value) type##_##entry = value,
 #define END_ENUM_DEF(type) k##type##Count };
 #else
+#include "brdf.h"
 #define REF(type) type*
 #define PUSH_CONST(type) type
 #define FLOAT4X4 column_major float4x4
@@ -47,6 +48,7 @@ static constexpr float kGamma           = 2.2;
 static constexpr float kInvGamma        = 1.0 / 2.2;
 static constexpr float kPi              = 3.14159265359;
 static constexpr float k2Pi             = 2.0 * kPi;
+static constexpr float kInvPi           = 1.0 / kPi;
 static constexpr float2 kInvTan         = float2(0.1591, 0.3183);
 
 BEGIN_ENUM_DEF(RenderMode)
@@ -69,6 +71,8 @@ DEF_ENUM_ENTRY(RenderMode, ViewDir)
 DEF_ENUM_ENTRY(RenderMode, Depth)
 DEF_ENUM_ENTRY(RenderMode, GeometryIndex)
 DEF_ENUM_ENTRY(RenderMode, PrimitiveIndex)
+DEF_ENUM_ENTRY(RenderMode, Lambertian)
+DEF_ENUM_ENTRY(RenderMode, Phong)
 END_ENUM_DEF(RenderMode)
 
 namespace gpu

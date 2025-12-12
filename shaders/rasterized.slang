@@ -1,4 +1,4 @@
-#include "../src/gpu_io.h"
+#include "gpu_io.h"
 
 [[vk::push_constant]] ConstantBuffer<RasterPushConstants> pushConsts;
 [[vk::binding(0, 0)]] Sampler2D textures[100];
@@ -182,11 +182,11 @@ FSOutput fsMain(VsFsInterface input)
         o.fragColor = float4(input.uv.xy, 0.0, 1.0);
         break;
 
-    case RenderMode.Tangent:
+    case RenderMode.GeometryTangent:
         o.fragColor = float4((normalize(input.tbn[0]) + 1.0) * 0.5, 1.0);
         break;
 
-    case RenderMode.Bitangent:
+    case RenderMode.GeometryBitangent:
         o.fragColor = float4((normalize(input.tbn[1]) + 1.0) * 0.5, 1.0);
         break;
 

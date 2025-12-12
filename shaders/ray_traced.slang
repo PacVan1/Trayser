@@ -1,4 +1,4 @@
-#include "../src/gpu_io.h"
+#include "gpu_io.h"
 
 [[vk::push_constant]] ConstantBuffer<RTPushConstants> pushConsts;
 
@@ -12,30 +12,20 @@ static const float kMaxT = 50.0f;
 
 struct HitPayload
 {
-    float3      color;
-    float       weight;
-    float       distance;
-    int         depth;
-    uint32_t    rngState;
-    uint32_t    _pad;
-};
+    //float       w0; // barycentric weight 0
+    //float       w1; // barycentric weight 0
+    //float       w2; // barycentric weight 0
+    //uint32_t    geometryIndex;
+    //uint32_t    instanceIndex;
+    //uint32_t    primitiveIndex;
 
-struct HitInfo
-{
-    float3  albedo;
-    float   metallic;
-    float3  normal;
-    float   roughness;
-    float3  position;
-    float   _pad1;
-    float3  tangent;
-    float   _pad2;
-    float3  bitangent;
-    float   _pad3;
-    float3  emission;
-    float   _pad4;
-    float2  uv;
-}
+    float3 color;
+    float weight;
+    float distance;
+    int depth;
+    uint32_t rngState;
+    uint32_t _pad;
+};
 
 [shader("raygeneration")]
 void rgMain()
@@ -82,12 +72,39 @@ void rgMain()
 
     outAccumulator[int2(launchID)] += float4(payload.color, 1.0);
     outImage[int2(launchID)] = outAccumulator[int2(launchID)] * scale;
+    //outImage[int2(launchID)] = float4(payload.color, 1.0);
+}
+
+float getBrdfProbability(MaterialProperties material, float3 V, float3 shadingNormal) {
+
+    // Evaluate Fresnel term using the shading normal
+    // Note: we use the shading normal instead of the microfacet normal (half-vector) for Fresnel term here. That's suboptimal for rough surfaces at grazing angles, but half-vector is yet unknown at this point
+    float specularF0 = luminance(baseColorToSpecularF0(material.baseColor, material.metalness));
+    float diffuseReflectance = luminance(baseColorToDiffuseReflectance(material.baseColor, material.metalness));
+    float Fresnel = saturate(luminance(evalFresnel(specularF0, shadowedF90(specularF0), max(0.0f, dot(V, shadingNormal)))));
+
+    // Approximate relative contribution of BRDFs using the Fresnel term
+    float specular = Fresnel;
+    float diffuse = diffuseReflectance * (1.0f - Fresnel); //< If diffuse term is weighted by Fresnel, apply it here as well
+
+    // Return probability of selecting specular BRDF over diffuse BRDF
+    float p = (specular / max(0.0001f, (specular + diffuse)));
+
+    // Clamp probability to avoid undersampling of less prominent BRDF
+    return clamp(p, 0.1f, 0.9f);
 }
 
 // Closest hit shader - called when ray hits geometry
 [shader("closesthit")]
 void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
+    //payload.w0              = 1.0 - attr.barycentrics.x - attr.barycentrics.y;
+    //payload.w1              = attr.barycentrics.x;
+    //payload.w2              = attr.barycentrics.y;
+    //payload.geometryIndex   = GeometryIndex();
+    //payload.instanceIndex   = InstanceIndex();
+    //payload.primitiveIndex  = PrimitiveIndex();
+
     if (payload.depth >= 2)
     {
         payload.color = float3(0.0);
@@ -127,18 +144,16 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     float w1 = attr.barycentrics.x;
     float w2 = attr.barycentrics.y;
 
-    // Get hit info
-    HitInfo hit;
-    hit.position    = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
-    hit.uv          = v0.texCoord.xy * w0 + v1.texCoord.xy * w1 + v2.texCoord.xy * w2;
-    float4 albedo   = baseColorTexture.SampleLevel(hit.uv, 0.0);
-    
     // Continue at fully transparent surfaces
-    if (albedo.a == 0.0)
+    float3 position     = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
+    float2 uv           = v0.texCoord.xy * w0 + v1.texCoord.xy * w1 + v2.texCoord.xy * w2;
+    float4 baseColor    = baseColorTexture.SampleLevel(uv, 0.0);
+
+    if (baseColor.a == 0.0)
     {
         payload.distance += RayTCurrent();
         RayDesc ray;
-        ray.Origin = hit.position;
+        ray.Origin = position;
         ray.Direction = WorldRayDirection();
         ray.TMin = kMinT;
         ray.TMax = kMaxT;
@@ -146,84 +161,120 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
         return; 
     }
 
+    MaterialProperties matProps;
+    matProps.baseColor          = baseColor.rgb;
+    matProps.metalness          = metalRoughTexture.SampleLevel(uv, 0.0).b;
+    matProps.roughness          = metalRoughTexture.SampleLevel(uv, 0.0).g;
+    matProps.emissive           = emissiveTexture.SampleLevel(uv, 0.0).rgb;
+    matProps.opacity            = 1.0;
+    matProps.reflectance        = 0.5; // Default to 0.4 for minimal reflectence of 4%
+    matProps.transmissivness    = 0.0;
+
     // Continue getting hit info
-    hit.normal      = normalize(v0.normal.xyz * w0 + v1.normal.xyz * w1 + v2.normal.xyz * w2);
-    hit.tangent     = v0.tangent.xyz * w0 + v1.tangent.xyz * w1 + v2.tangent.xyz * w2;
-    hit.albedo      = albedo.rgb;
-    hit.emission    = emissiveTexture.SampleLevel(hit.uv, 0.0).rgb;
-    hit.metallic    = metalRoughTexture.SampleLevel(hit.uv, 0.0).b;
-    hit.roughness   = metalRoughTexture.SampleLevel(hit.uv, 0.0).g;
+    float3 geometryNormal   = normalize(v0.normal.xyz * w0 + v1.normal.xyz * w1 + v2.normal.xyz * w2);
+    float3 tangent          = normalize(v0.tangent.xyz * w0 + v1.tangent.xyz * w1 + v2.tangent.xyz * w2);
 
     float3x3 normalTransform = float3x3(instance.normalTransform);
-    hit.normal = normalize(mul(normalTransform, hit.normal));
-    hit.tangent = normalize(mul((float3x3)instance.transform, hit.tangent.xyz));
-    hit.tangent = normalize(hit.tangent - hit.normal * dot(hit.normal, hit.tangent));
-    hit.bitangent = cross(hit.normal, hit.tangent) * v0.tangent.w;
-    float3x3 tbn = float3x3(hit.tangent, hit.bitangent, hit.normal);
-    float3 mapNormal = normalize(normalMapTexture.SampleLevel(hit.uv.xy, 0.0).xyz * 2.0 - 1.0);
-    hit.normal = normalize(mul(mapNormal, tbn));
+    geometryNormal          = normalize(mul(normalTransform, geometryNormal));
+    tangent                 = normalize(mul((float3x3)instance.transform, tangent.xyz));
+    tangent                 = normalize(tangent - geometryNormal * dot(geometryNormal, tangent));
+    float3 bitangent        = cross(geometryNormal, tangent) * v0.tangent.w;
+    float3x3 tbn            = float3x3(tangent, bitangent, geometryNormal);
+    float3 mapNormal        = normalize(normalMapTexture.SampleLevel(uv.xy, 0.0).xyz * 2.0 - 1.0);
+    float3 shadingNormal    = normalize(mul(mapNormal, tbn));
 
     switch (pushConsts.renderMode)
     {
     case RenderMode.FinalColor:
-        payload.color *= hit.albedo;
+    {
+        //payload.color = evalCombinedBRDF(shadingNormal, normalize(float3(0.63921, 0.794, 0.15)), -WorldRayDirection(), matProps) * 2.0f + matProps.emissive;
+
+        int brdfType;
+        if (matProps.metalness == 1.0f && matProps.roughness == 0.0f) {
+            // Fast path for mirrors
+            brdfType = SPECULAR_TYPE;
+        } else {
+
+            // Decide whether to sample diffuse or specular BRDF (based on Fresnel term)
+            float brdfProbability = getBrdfProbability(matProps, -WorldRayDirection(), shadingNormal);
+
+            if (RandomFloat(payload.rngState) < brdfProbability) {
+                brdfType = SPECULAR_TYPE;
+                payload.color /= brdfProbability;
+            } else {
+                brdfType = DIFFUSE_TYPE;
+                payload.color /= (1.0f - brdfProbability);
+            }
+        }
+
+        // Run importance sampling of selected BRDF to generate reflecting ray direction
+        float3 brdfWeight;
+        float2 u = RandomFloat2(payload.rngState);
+        float3 rayDirection;
+        if (!evalIndirectCombinedBRDF(u, shadingNormal, geometryNormal, -WorldRayDirection(), matProps, brdfType, rayDirection, brdfWeight)) {
+            break; // Ray was eaten by the surface :(
+        }
+
+        // Account for surface properties using the BRDF "weight"
+        payload.color *= brdfWeight;
+
         payload.depth++;
         payload.distance = RayTCurrent();
 
         RayDesc ray;
-        ray.Origin = hit.position;
-        ray.Direction = RandomCosineOnHemisphere(hit.normal, payload.rngState);
+        ray.Origin = position;
+        ray.Direction = rayDirection;
         ray.TMin = kMinT;
         ray.TMax = kMaxT;
-
         TraceRay(topLevelAS, RAY_FLAG_NONE, 0xff, 0, 0, 0, ray, payload);
         return;
+    }
     case RenderMode.TexCoord0:
-        payload.color = float3(hit.uv, 0.0);
+        payload.color = float3(uv, 0.0);
         break;
     case RenderMode.GeometryNormal:
-        payload.color = (float3(hit.normal) + 1.0) * 0.5;
+        payload.color = (float3(geometryNormal) + 1.0) * 0.5;
         break;
     case RenderMode.TransformedTangent:
-        payload.color = (float3(hit.tangent) + 1.0) * 0.5;
+        payload.color = (float3(tangent) + 1.0) * 0.5;
         break;
     case RenderMode.TransformedBitangent:
-        payload.color = (float3(hit.bitangent) + 1.0) * 0.5;
+        payload.color = (float3(bitangent) + 1.0) * 0.5;
         break;
     case RenderMode.ShadingNormal:
-        payload.color = (float3(hit.normal) + 1.0) * 0.5;
+        payload.color = (float3(shadingNormal) + 1.0) * 0.5;
         break;
     case RenderMode.BaseColor:
-        payload.color = float3(LinearToSrgb(hit.albedo));
+        payload.color = float3(LinearToSrgb(matProps.baseColor));
         break;
     case RenderMode.NormalMap:
         payload.color = float3(mapNormal);
         break;
     case RenderMode.Metallic:
-        payload.color = float3(hit.metallic);
+        payload.color = float3(matProps.metalness);
         break;
     case RenderMode.Roughness:
-        payload.color = float3(hit.roughness);
+        payload.color = float3(matProps.roughness);
         break;
     case RenderMode.AmbientOcclusion:
     {
-        payload.depth++;
-        payload.distance = RayTCurrent();
-
-        RayDesc ray;
-        ray.Origin = hit.position;
-        ray.Direction = RandomCosineOnHemisphere(hit.normal, payload.rngState);
-        ray.TMin = kMinT;
-        ray.TMax = kMaxT;
-
-        TraceRay(topLevelAS, RAY_FLAG_NONE, 0xff, 0, 0, 0, ray, payload);
+        //payload.depth++;
+        //payload.distance = RayTCurrent();
+        //
+        //RayDesc ray;
+        //ray.Origin = hit.position;
+        //ray.Direction = RandomCosineOnHemisphere(hit.normal, payload.rngState);
+        //ray.TMin = kMinT;
+        //ray.TMax = kMaxT;
+        //
+        //TraceRay(topLevelAS, RAY_FLAG_NONE, 0xff, 0, 0, 0, ray, payload);
         return;
     }
     case RenderMode.Emission:
-        payload.color = float3(LinearToSrgb(hit.emission));
+        payload.color = float3(LinearToSrgb(matProps.emissive));
         break;
     case RenderMode.WorldPos:
-        payload.color = float3(hit.position);
+        payload.color = float3(position);
         break;
     case RenderMode.Depth:
         payload.color = float3(RayTCurrent() / kMaxT);
@@ -232,7 +283,7 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     {
         uint32_t hash = WangHash(GeometryIndex());
         payload.color = float3(RandomFloat(hash), RandomFloat(hash), RandomFloat(hash));
-        break;
+        break;  
     }
     case RenderMode.PrimitiveIndex:
     {

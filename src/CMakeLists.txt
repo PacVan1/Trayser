@@ -80,6 +80,7 @@ file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/shaders)
 
 file(GLOB_RECURSE SLANG_SOURCE_FILES
     "${PROJECT_SOURCE_DIR}/shaders/*.slang"
+    "${PROJECT_SOURCE_DIR}/shaders/*.h"
     )
 
 # Add them to the project but not to compilation

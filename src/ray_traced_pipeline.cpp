@@ -7,7 +7,7 @@ trayser::RayTracedPipeline::RayTracedPipeline() :
     m_descriptorSetLayout(VK_NULL_HANDLE),
     m_descriptorSet(VK_NULL_HANDLE)
 {
-    m_name = "ray_traced";
+    m_name = "path_traced";
     m_canHotReload = true;
 }
 
