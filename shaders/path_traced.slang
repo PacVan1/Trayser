@@ -1,5 +1,7 @@
 #include "gpu_io.h"
 
+#define ANTI_ALIASING
+
 [[vk::push_constant]] ConstantBuffer<RTPushConstants> pushConsts;
 
 [[vk::binding(0, 0)]] Sampler2D textures[128];
@@ -7,10 +9,10 @@
 [[vk::binding(1, 1)]] RWTexture2D<float4> outImage;
 [[vk::binding(2, 1)]] RWTexture2D<float4> outAccumulator;
 
-static const float kMinT        = 0.001f;
+static const float kMinT        = 0.01f;
 static const float kMaxT        = 50.0f;
 
-static const uint32_t kMaxBounces = 2;
+static const uint32_t kMaxBounces = 3;
 
 struct HitPayload
 {
@@ -91,20 +93,22 @@ float3 OffsetRay(const float3 p, const float3 n)
 void rgMain()
 {
     uint2 pixelCoord    = DispatchRaysIndex().xy; // Current pixel (x,y)
-    float2 fpixelCoord  = pixelCoord;       
-    float2 fdimension   = (float2)DispatchRaysDimensions().xy; // Image size (width,height)
 
     Scene scene     = pushConsts.sceneRef[0];
     Camera camera   = scene.camera;
-
-    // Initialize primary ray
-    RayDesc rayDesc;
-    GetPrimaryRayDesc(camera.invView, camera.invProj, fpixelCoord, fdimension, rayDesc);
 
     HitPayload payload; 
     payload.radiance    = 0.0;
     payload.throughput  = 1.0;
     payload.rngState    = InitRNGState(pixelCoord.x, pixelCoord.y, pushConsts.frame);
+
+    // Initialize primary ray
+    RayDesc rayDesc;
+    float2 fpixelCoord  = pixelCoord;
+    fpixelCoord         = fpixelCoord + RandomFloat2(payload.rngState);
+    float2 fdimension   = (float2)DispatchRaysDimensions().xy; // Image size (width,height)
+    GetPrimaryRayDesc(camera.invView, camera.invProj, fpixelCoord, fdimension, rayDesc);
+
     for (payload.bouncesLeft = kMaxBounces; payload.bouncesLeft > 0; payload.bouncesLeft--)
     {
         TraceRay(tlas, RAY_FLAG_NONE, 0xff, 0, 0, 0, rayDesc, payload);
@@ -178,7 +182,7 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     matProps.roughness = metalRoughTexture.SampleLevel(uv, 0.0).g;
     matProps.emissive = emissiveTexture.SampleLevel(uv, 0.0).rgb;
     matProps.opacity = 1.0;
-    matProps.reflectance = 0.5; // Default to 0.4 for minimal reflectence of 4%
+    matProps.reflectance = 0.5; // Default to 0.5 for minimal reflectence of 4%
     matProps.transmissivness = 0.0;
 
     // Continue getting hit info
@@ -194,7 +198,7 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     float3 mapNormal = normalize(normalMapTexture.SampleLevel(uv.xy, 0.0).xyz * 2.0 - 1.0);
     float3 shadingNormal = normalize(mul(mapNormal, tbn));
 
-    payload.radiance += matProps.emissive;
+    payload.radiance += payload.throughput * matProps.emissive * 40.0;
 
     switch (pushConsts.renderMode)
     {
@@ -225,7 +229,8 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
         float2 u = RandomFloat2(payload.rngState);
         float3 rayDirection;
         if (!evalIndirectCombinedBRDF(u, shadingNormal, geometryNormal, -WorldRayDirection(), matProps, brdfType, rayDirection, brdfWeight)) {
-            break; // Ray was eaten by the surface :(
+            payload.bouncesLeft = 0;
+            return; // Ray was eaten by the surface :(
         }
 
         // Account for surface properties using the BRDF "weight"
