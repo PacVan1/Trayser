@@ -5,7 +5,7 @@
 namespace vkutil 
 {
 
-void TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout);
+void TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout, uint32_t baseLevel = 0, uint32_t levelCount = VK_REMAINING_MIP_LEVELS);
 void CopyImageToImage(VkCommandBuffer cmd, VkImage source, VkImage destination, VkExtent2D srcSize, VkExtent2D dstSize);
 
 } // namespace vkutil

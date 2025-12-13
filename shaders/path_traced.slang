@@ -105,7 +105,9 @@ void rgMain()
     // Initialize primary ray
     RayDesc rayDesc;
     float2 fpixelCoord  = pixelCoord;
+    #ifdef ANTI_ALIASING
     fpixelCoord         = fpixelCoord + RandomFloat2(payload.rngState);
+    #endif
     float2 fdimension   = (float2)DispatchRaysDimensions().xy; // Image size (width,height)
     GetPrimaryRayDesc(camera.invView, camera.invProj, fpixelCoord, fdimension, rayDesc);
 
@@ -139,6 +141,8 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     REF(Primitive) primitiveBufferRef = mesh.primitiveBufferRef;
     Primitive primitive = primitiveBufferRef[GeometryIndex()];
     Material material = materialBufferRef[primitive.materialHandle];
+    REF(PointLight) pointLights = scene.lights.pointLightBufferRef;
+    //REF(DirectionalLight) dirLights = scene.lights.dirLightBufferRef;
 
     Sampler2D baseColorTexture = textures[material.baseColorHandle];
     Sampler2D normalMapTexture = textures[material.normalMapHandle];
@@ -163,7 +167,7 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     // Continue at fully transparent surfaces
     float3 position = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
     float2 uv = v0.texCoord.xy * w0 + v1.texCoord.xy * w1 + v2.texCoord.xy * w2;
-    float4 baseColor = baseColorTexture.SampleLevel(uv, 0.0);
+    float4 baseColor = baseColorTexture.SampleLevel(uv, 5.0);
 
     //if (baseColor.a == 0.0)
     //{
@@ -178,9 +182,9 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
 
     MaterialProperties matProps;
     matProps.baseColor = baseColor.rgb;
-    matProps.metalness = metalRoughTexture.SampleLevel(uv, 0.0).b;
-    matProps.roughness = metalRoughTexture.SampleLevel(uv, 0.0).g;
-    matProps.emissive = emissiveTexture.SampleLevel(uv, 0.0).rgb;
+    matProps.metalness = metalRoughTexture.SampleLevel(uv, 1.0).b;
+    matProps.roughness = metalRoughTexture.SampleLevel(uv, 1.0).g;
+    matProps.emissive = emissiveTexture.SampleLevel(uv, 1.0).rgb;
     matProps.opacity = 1.0;
     matProps.reflectance = 0.5; // Default to 0.5 for minimal reflectence of 4%
     matProps.transmissivness = 0.0;
@@ -195,15 +199,25 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     tangent = normalize(tangent - geometryNormal * dot(geometryNormal, tangent));
     float3 bitangent = cross(geometryNormal, tangent) * v0.tangent.w;
     float3x3 tbn = float3x3(tangent, bitangent, geometryNormal);
-    float3 mapNormal = normalize(normalMapTexture.SampleLevel(uv.xy, 0.0).xyz * 2.0 - 1.0);
+    float3 mapNormal = normalize(normalMapTexture.SampleLevel(uv.xy, 1.0).xyz * 2.0 - 1.0);
     float3 shadingNormal = normalize(mul(mapNormal, tbn));
 
-    payload.radiance += payload.throughput * matProps.emissive * 40.0;
+    //payload.radiance += payload.throughput * matProps.emissive;
 
     switch (pushConsts.renderMode)
     {
     case RenderMode.FinalColor:
     {
+        for (int i = 0; i < kPointLightCount; i++)
+        {
+            PointLight pointLight = pointLights[i];
+            float3 L = pointLight.position - position;
+            float dist = length(L);
+            L = normalize(L);
+            float3 light = evalCombinedBRDF(shadingNormal, L, -WorldRayDirection(), matProps) / dist * dist * pointLight.color * pointLight.intensity;
+            payload.radiance += payload.throughput * light;
+        }
+
         // payload.color = evalCombinedBRDF(shadingNormal, normalize(float3(0.63921, 0.794, 0.15)), -WorldRayDirection(), matProps) * 2.0f + matProps.emissive;
 
         int brdfType;
@@ -237,7 +251,8 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
         payload.throughput *= brdfWeight;
         payload.hitPosition = OffsetRay(position, geometryNormal);
         payload.nextDirection = rayDirection;
-        break;
+        //payload.bouncesLeft = 0;
+        return;
     }
     case RenderMode.TexCoord0:
         payload.radiance = float3(uv, 0.0);

@@ -2,7 +2,7 @@
 #include <images.h>
 
 
-void vkutil::TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout)
+void vkutil::TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout, uint32_t baseLevel, uint32_t levelCount)
 {
     VkImageMemoryBarrier2 imageBarrier{ .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
     imageBarrier.pNext = nullptr;
@@ -17,8 +17,8 @@ void vkutil::TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout c
 
     VkImageAspectFlags aspectMask = (newLayout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
 	imageBarrier.subresourceRange.aspectMask = aspectMask;
-	imageBarrier.subresourceRange.baseMipLevel = 0;
-	imageBarrier.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+	imageBarrier.subresourceRange.baseMipLevel = baseLevel;
+	imageBarrier.subresourceRange.levelCount = levelCount;
 	imageBarrier.subresourceRange.baseArrayLayer = 0;
 	imageBarrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
     imageBarrier.image = image;

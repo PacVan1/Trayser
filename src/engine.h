@@ -98,6 +98,10 @@ public:
 	VkDeviceAddress m_instanceBufferAddr;
 	AllocatedBuffer m_materialBuffer;
 	VkDeviceAddress m_materialBufferAddr;
+	AllocatedBuffer m_pointLightBuffer;
+	VkDeviceAddress m_pointLightBufferAddr;
+	AllocatedBuffer m_dirLightBuffer;
+	VkDeviceAddress m_dirLightBufferAddr;
 
 	std::vector<Pipeline*> m_pipelines;
 

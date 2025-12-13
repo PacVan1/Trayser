@@ -1,3 +1,4 @@
+#include "resources.h"
 template <typename T, typename... Args>
 inline std::shared_ptr<T> trayser::Resources::Create(const std::string& hashable, Args&&... args)
 {
@@ -32,6 +33,19 @@ inline void trayser::ResourcePool<T, Capacity>::Init()
 	m_freeSpots.resize(Capacity);
 	std::iota(m_freeSpots.begin(), m_freeSpots.end(), 0);
 	m_handleToHash.resize(Capacity, 0);
+}
+
+template<typename T, size_t Capacity>
+inline void trayser::ResourcePool<T, Capacity>::Destroy()
+{
+	for (int i = 0; i < m_resources.size(); i++)
+	{
+		if (m_takenSpots[i])
+		{
+			ResourceHandle handle = i;
+			Free(handle);
+		}
+	}
 }
 
 template<typename T, size_t Capacity>

@@ -24,6 +24,7 @@ private:
 
 public:
 	void Init();
+	void Destroy();
 
 	template <typename... Args>
 	[[nodiscard]] ResourceHandle Create(const std::string& hashable, Args&&... args);

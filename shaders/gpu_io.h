@@ -43,13 +43,15 @@ using int2      = glm::ivec2;
 #define END_ENUM_DEF(type) kCount, };
 #endif
 
-static constexpr uint32_t kTextureCount = 128;
-static constexpr float kGamma           = 2.2;
-static constexpr float kInvGamma        = 1.0 / 2.2;
-static constexpr float kPi              = 3.14159265359;
-static constexpr float k2Pi             = 2.0 * kPi;
-static constexpr float kInvPi           = 1.0 / kPi;
-static constexpr float2 kInvTan         = float2(0.1591, 0.3183);
+static constexpr uint32_t kTextureCount     = 128;
+static constexpr uint32_t kPointLightCount  = 10;
+static constexpr uint32_t kDirLightCount    = 10;
+static constexpr float kGamma               = 2.2;
+static constexpr float kInvGamma            = 1.0 / 2.2;
+static constexpr float kPi                  = 3.14159265359;
+static constexpr float k2Pi                 = 2.0 * kPi;
+static constexpr float kInvPi               = 1.0 / kPi;
+static constexpr float2 kInvTan             = float2(0.1591, 0.3183);
 
 BEGIN_ENUM_DEF(RenderMode)
 DEF_ENUM_ENTRY(RenderMode, FinalColor)
@@ -119,6 +121,28 @@ struct Camera
     FLOAT4X4 invView;           // Inverse view matrix
 };
 
+struct PointLight
+{
+    float3 position;
+    float  intensity;
+    float3 color;
+    float  _pad;
+};
+
+struct DirectionalLight
+{
+    float3 directional;
+    float  intensity;
+    float3 color;
+    float  _pad;
+};
+
+struct Lights
+{
+    REF(PointLight)         pointLightBufferRef;
+    REF(DirectionalLight)   dirLightBufferRef;
+};
+
 struct Material
 {
     float4   baseColorFactor;
@@ -135,6 +159,7 @@ struct Material
 struct Scene
 {
     Camera          camera;
+    Lights          lights;
     REF(Mesh)       meshBufferRef;
     REF(Instance)   instanceBufferRef;
     REF(Material)   materialBufferRef;

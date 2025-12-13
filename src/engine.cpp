@@ -280,6 +280,14 @@ void trayser::Engine::InitGpuScene()
 
     VmaAllocationInfo info4;
     vmaGetAllocationInfo(m_device.m_allocator, m_materialBuffer.allocation, &info4);
+
+    m_pointLightBuffer = CreateBuffer(
+        sizeof(gpu::PointLight) * kPointLightCount,
+        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        VMA_MEMORY_USAGE_CPU_TO_GPU);
+
+    VkBufferDeviceAddressInfo deviceAdressInfo5{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,.buffer = m_pointLightBuffer.buffer };
+    m_pointLightBufferAddr = vkGetBufferDeviceAddress(m_device.m_device, &deviceAdressInfo5);
 }
 
 void trayser::Engine::InitTextureDescriptor()
@@ -317,6 +325,16 @@ void trayser::Engine::UpdateGpuScene()
     sceneRef->camera.invProj = glm::inverse(sceneRef->camera.proj);
     sceneRef->camera.invView = glm::inverse(sceneRef->camera.view);
     sceneRef->skydomeHandle = m_skydomeHandle;
+    sceneRef->lights.pointLightBufferRef = m_pointLightBufferAddr;
+
+    gpu::PointLight* pointLightBufferRef = (gpu::PointLight*)m_pointLightBuffer.info.pMappedData;
+
+    for (int i = 0; i < kPointLightCount; i++)
+    {
+        pointLightBufferRef[i].position  = float3(float(i) - (kPointLightCount / 2), 0.0f, 2.0f);
+        pointLightBufferRef[i].intensity = 1.0f;
+        pointLightBufferRef[i].color     = float3(1.0f, 1.0f, 1.0f);
+    }
 
     // Update meshes
     gpu::Mesh* meshBufferRef = (gpu::Mesh*)m_meshBuffer.info.pMappedData;

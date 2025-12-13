@@ -635,12 +635,32 @@ trayser::Image::Image(const std::string& path, const tinygltf::Model& model, con
 
     VkExtent3D extent = { width, height, 1 };
 
-    AllocatedImage new_image = engine.CreateImage(extent, format, usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, mipmapped);
+    AllocatedImage newImage;
+    newImage.imageFormat = format;
+    newImage.imageExtent = extent;
+
+    VkImageCreateInfo imageCreateInfo = ImageCreateInfo();
+    imageCreateInfo.format      = format;
+    imageCreateInfo.usage       = usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    imageCreateInfo.extent      = extent;
+    imageCreateInfo.imageType   = VK_IMAGE_TYPE_2D;
+    imageCreateInfo.mipLevels   = GetMaxMipLevels(extent.width, extent.height);
+    imageCreateInfo.arrayLayers = 1;
+    imageCreateInfo.samples     = VK_SAMPLE_COUNT_1_BIT;
+    imageCreateInfo.tiling      = VK_IMAGE_TILING_OPTIMAL;
+
+    // always allocate images on dedicated GPU memory
+    VmaAllocationCreateInfo allocinfo = {};
+    allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+    allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    // allocate and create the image
+    VK_CHECK(vmaCreateImage(g_engine.m_device.m_allocator, &imageCreateInfo, &allocinfo, &newImage.image, &newImage.allocation, nullptr));
 
     VkCommandBuffer cmd;
     engine.m_device.BeginOneTimeSubmit(cmd);
 
-    vkutil::TransitionImage(cmd, new_image.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    vkutil::TransitionImage(cmd, newImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0, 1);
 
     VkBufferImageCopy copyRegion = {};
     copyRegion.bufferOffset = 0;
@@ -654,22 +674,73 @@ trayser::Image::Image(const std::string& path, const tinygltf::Model& model, con
     copyRegion.imageExtent = extent;
 
     // copy the buffer into the image
-    vkCmdCopyBufferToImage(cmd, uploadbuffer.buffer, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+    vkCmdCopyBufferToImage(cmd, uploadbuffer.buffer, newImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
         &copyRegion);
 
-    vkutil::TransitionImage(cmd, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    vkutil::TransitionImage(cmd, newImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 0, 1);
 
-	engine.m_device.EndOneTimeSubmit();
+    engine.m_device.EndOneTimeSubmit();
 
     engine.DestroyBuffer(uploadbuffer);
     stbi_image_free(data);
 
-    image = new_image.image;
-    imageView = new_image.imageView;
-    allocation = new_image.allocation;
-    imageExtent = new_image.imageExtent;
-    imageFormat = new_image.imageFormat;
+    cmd;
+    g_engine.m_device.BeginOneTimeSubmit(cmd);
+
+    // Transition image to layout in which we can perform mip map generation
+    vkutil::TransitionImage(cmd, newImage.image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0, 1);
+
+    for (uint32_t mip = 1; mip < imageCreateInfo.mipLevels; ++mip)
+    {
+        vkutil::TransitionImage(cmd, newImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, mip - 1, 1);
+        vkutil::TransitionImage(cmd, newImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mip, 1);
+
+        VkImageBlit blit = {};
+        blit.srcSubresource.aspectMask      = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit.srcSubresource.mipLevel        = mip - 1;
+        blit.srcSubresource.baseArrayLayer  = 0;
+        blit.srcSubresource.layerCount      = 1;
+        blit.srcOffsets[1] = { static_cast<int32_t>(extent.width >> (mip - 1)), static_cast<int32_t>(extent.height >> (mip - 1)), 1 }; // src extent
+
+        blit.dstSubresource.aspectMask      = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit.dstSubresource.mipLevel        = mip;
+        blit.dstSubresource.baseArrayLayer  = 0;
+        blit.dstSubresource.layerCount      = 1;
+        blit.dstOffsets[1] = { static_cast<int32_t>(extent.width >> mip), static_cast<int32_t>(extent.height >> mip), 1 }; // dst extent
+
+        vkCmdBlitImage(
+            cmd,
+            newImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            newImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            1, &blit, VK_FILTER_LINEAR
+        );
+    }
+
+    vkutil::TransitionImage(cmd, newImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 0, imageCreateInfo.mipLevels - 1);
+
+    // Transition back to usable format
+    vkutil::TransitionImage(cmd, newImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, imageCreateInfo.mipLevels - 1, 1);
+
+    g_engine.m_device.EndOneTimeSubmit();
+
+    // build a image-view for the image
+    VkImageViewCreateInfo viewCreateInfo = ImageViewCreateInfo();
+    viewCreateInfo.viewType                         = VK_IMAGE_VIEW_TYPE_2D;
+    viewCreateInfo.format                           = format;
+    viewCreateInfo.image                            = newImage.image;
+    viewCreateInfo.subresourceRange.baseMipLevel    = 0;
+    viewCreateInfo.subresourceRange.levelCount      = VK_REMAINING_MIP_LEVELS;
+    viewCreateInfo.subresourceRange.baseArrayLayer  = 0;
+    viewCreateInfo.subresourceRange.layerCount      = VK_REMAINING_ARRAY_LAYERS;
+    viewCreateInfo.subresourceRange.aspectMask      = VK_IMAGE_ASPECT_COLOR_BIT;
+    VK_CHECK(vkCreateImageView(g_engine.m_device.m_device, &viewCreateInfo, nullptr, &newImage.imageView));
+
+    image = newImage.image;
+    imageView = newImage.imageView;
+    allocation = newImage.allocation;
+    imageExtent = newImage.imageExtent;
+    imageFormat = newImage.imageFormat;
 }
 
 trayser::Image::Image(const std::string& path, VkFormat format, VkImageUsageFlags usage)
@@ -1044,6 +1115,10 @@ trayser::Material2::Material2(const tinygltf::Model& model, const tinygltf::Mate
                 image,
                 VK_FORMAT_R8G8B8A8_SRGB,
                 VK_IMAGE_USAGE_SAMPLED_BIT);
+            if (emissiveHandle == ResourceHandle_Invalid)
+            {
+                emissiveHandle = 0;
+            }
             emissiveFactor = glm::vec4(glm::make_vec3(material.emissiveFactor.data()), 0.0);
         }
     }
