@@ -89,10 +89,18 @@ struct RuntimeFuncs
 class Device
 {
 public:
+	struct Buffer
+	{
+		VkBuffer		buffer;
+		VmaAllocation	allocation;
+	};
+
+public:
 	void Init();
 	void Destroy();
 	void ShowCursor(bool show);
 	void BeginOneTimeSubmit(VkCommandBuffer& outCmd) const;
+	VkCommandBuffer BeginOneTimeSubmit() const;
 	void EndOneTimeSubmit() const;
 	void NewFrame();
 	void EndFrame();
@@ -104,14 +112,14 @@ public:
 	SwapchainSupport GetSwapchainSupport() const;
 	QueueFamilyIndices GetQueueFamilies();
 
-	VkResult CreateBuffer(Buffer& outBuffer,
+	VkResult CreateBuffer(trayser::Buffer& outBuffer,
 		VkDeviceSize              size,
 		VkBufferUsageFlags2KHR    usage,
 		VmaMemoryUsage            memoryUsage	= VMA_MEMORY_USAGE_AUTO,
 		VmaAllocationCreateFlags  flags			= {},
 		std::span<const uint32_t> queueFamilies = {});
 
-	VkResult CreateBuffer(Buffer& outBuffer,
+	VkResult CreateBuffer(trayser::Buffer& outBuffer,
 		VkDeviceSize              size,
 		VkBufferUsageFlags2KHR    usage,
 		VkDeviceSize              minAlignment,
@@ -119,14 +127,44 @@ public:
 		VmaAllocationCreateFlags  flags			= {},
 		std::span<const uint32_t> queueFamilies = {});
 
-	VkResult CreateBuffer(Buffer& outBuffer,
+	VkResult CreateBuffer(trayser::Buffer& outBuffer,
 		const VkBufferCreateInfo&	   bufferInfo,
 		const VmaAllocationCreateInfo& allocInfo,
 		VkDeviceSize                   minAlignment) const;
 
-	VkResult CreateBuffer(Buffer& outBuffer,
+	VkResult CreateBuffer(trayser::Buffer& outBuffer,
 		const VkBufferCreateInfo& bufferInfo,
 		const VmaAllocationCreateInfo& allocInfo) const;
+
+	VkResult CreateBuffer(
+		VkDeviceSize size,
+		VkBufferUsageFlags bufferUsage,
+		VmaMemoryUsage memoryUsage,
+		VmaAllocationCreateFlags allocFlags,
+		Device::Buffer& outBuffer,
+		VmaAllocationInfo* outAllocInfo = nullptr) const;
+
+	VkResult CreateBuffer(
+		const VkBufferCreateInfo& bufferCreateInfo,
+		const VmaAllocationCreateInfo& allocCreateInfo,
+		Device::Buffer& outBuffer,
+		VmaAllocationInfo* outAllocInfo = nullptr) const;
+
+	VkResult CreateBufferWithAlignment(
+		const VkBufferCreateInfo& bufferCreateInfo,
+		const VmaAllocationCreateInfo& allocCreateInfo,
+		VkDeviceSize minAlignment,
+		Device::Buffer& outBuffer,
+		VmaAllocationInfo* outAllocInfo = nullptr) const;
+
+	VkResult CreateBufferWithAlignment(
+		VkDeviceSize size,
+		VkBufferUsageFlags bufferUsage,
+		VmaMemoryUsage memoryUsage,
+		VmaAllocationCreateFlags allocFlags,
+		VkDeviceSize minAlignment,
+		Device::Buffer& outBuffer,
+		VmaAllocationInfo* outAllocInfo = nullptr) const;
 
 	VkResult CreateAccelerationStructure(AccelerationStructure& outAccelStruct,
 		const VkAccelerationStructureCreateInfoKHR& createInfo) const;

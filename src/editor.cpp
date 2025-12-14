@@ -101,9 +101,9 @@ void trayser::Editor::Update()
 void trayser::Editor::AddWindow(int windowIdx, IWindow* window, const char* title, ImGuiWindowFlags addons, bool opened)
 {
 	m_windows[windowIdx] = window;
-	m_titles[windowIdx]  = title;
-	m_opened[windowIdx]  = opened;
-	m_flags[windowIdx]   = ImGuiWindowFlags_NoCollapse | addons;
+	m_titles[windowIdx] = title;
+	m_opened[windowIdx] = opened;
+	m_flags[windowIdx] = ImGuiWindowFlags_NoCollapse | addons;
 }
 
 void trayser::CameraWindow::Update()
@@ -189,4 +189,8 @@ void trayser::RenderSettingsWindow::Update()
 	ImGui::Combo("Render Mode", &g_engine.m_renderMode, kRenderModeStr.c_str());
 	ImGui::Combo("Tonemap Mode", &g_engine.m_tonemapMode, kTonemapModeStr.c_str());
 	ImGui::Checkbox("Ray traced", &g_engine.m_rayTraced);
+	if (ImGui::Button("Take screenshot"))
+	{
+		g_engine.m_renderer.RequestScreenshot();
+	}
 }

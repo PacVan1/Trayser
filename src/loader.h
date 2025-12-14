@@ -19,7 +19,7 @@ class Engine;
 
 struct Image
 {
-    // Tags for constructor
+    // Tagging
     struct HDRI {};
 
     VkImage         image;

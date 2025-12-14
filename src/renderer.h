@@ -47,6 +47,7 @@ public:
 	void Render(uint32_t frameIndex);
 	void NewFrame(Device& device);
 	void EndFrame(Device& device);
+	void RequestScreenshot();
 
 	[[nodiscard]] VkCommandBuffer	GetCmdBuffer() const			{ return m_frames[m_frameIndex].cmdBuffer; }
 	[[nodiscard]] VkDescriptorSet	GetTextureDescSet() const		{ return m_frames[m_frameIndex].textureDescSet; }
@@ -84,6 +85,8 @@ private:
 	void ImGuiNewFrame();
 	void RenderImGui();
 	void AdvanceFrame();
+	void TakeScreenshot(Device& device) const;
+	void TryTakeScreenshot(Device& device);
 
 public:
 	static constexpr uint32_t kMaxFramesInFlight = 2;
@@ -96,6 +99,7 @@ public:
 	DefaultImage			m_defaultImage; // 1x1 black image to initialize
 	uint32_t				m_frameCounter;
 	uint32_t				m_frameIndex;
+	bool					m_screenshotRequested;
 };
 
 } // namespace trayser

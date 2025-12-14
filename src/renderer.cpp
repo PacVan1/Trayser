@@ -10,6 +10,8 @@
 #include <imgui_impl_vulkan.h>
 #include <imgui_impl_sdl2.h>
 
+#include <stb_image_write.h>
+
 void trayser::Renderer::Init(Device& device)
 {
     InitCmdPool(device);
@@ -406,6 +408,7 @@ void trayser::Renderer::NewFrame(Device& device)
 {
     VK_CHECK(vkWaitForFences(device.m_device, 1, &m_frames[m_frameIndex].renderedFence, true, UINT64_MAX));
     VK_CHECK(vkResetFences(device.m_device, 1, &m_frames[m_frameIndex].renderedFence));
+    TryTakeScreenshot(device);
     VK_CHECK(vkAcquireNextImageKHR(device.m_device, m_swapchain.swapchain, UINT64_MAX, GetAcquisitionSemaphore(), nullptr, &m_swapchain.imageIndex));
     VK_CHECK(vkResetCommandBuffer(GetCmdBuffer(), 0));
 
@@ -462,6 +465,11 @@ void trayser::Renderer::EndFrame(Device& device)
     AdvanceFrame();
 }
 
+void trayser::Renderer::RequestScreenshot()
+{
+    m_screenshotRequested = true;
+}
+
 void trayser::Renderer::RenderImGui()
 {
     ImGui::Render();
@@ -488,4 +496,112 @@ void trayser::Renderer::AdvanceFrame()
 {
     m_frameCounter++;
     m_frameIndex = (m_frameIndex + 1) % kMaxFramesInFlight;
+}
+
+static std::string GetCurrentTimeString()
+{
+    auto now = std::chrono::system_clock::now();
+    std::time_t now_time_t = std::chrono::system_clock::to_time_t(now);
+    std::stringstream ss;
+    ss << std::put_time(std::localtime(&now_time_t), "%Y-%m-%d %H%M%S");
+    return ss.str();
+}
+
+void trayser::Renderer::TakeScreenshot(Device& device) const
+{
+    Device::Buffer stagingBuffer{};
+
+    VkImageMemoryRequirementsInfo2 reqInfo{};
+    reqInfo.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2;
+    reqInfo.image = g_engine.m_gBuffer.colorImage.image;
+    VkMemoryRequirements2 memReq;
+    memReq.pNext = nullptr;
+    memReq.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2;
+    vkGetImageMemoryRequirements2(device.m_device, &reqInfo, &memReq);
+    VkDeviceSize imageSizeBytes = memReq.memoryRequirements.size;
+
+    VmaAllocationCreateInfo allocCreateInfo{};
+    allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+    allocCreateInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+    VkBufferCreateInfo bufferCreateInfo{};
+    bufferCreateInfo.sType  = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferCreateInfo.size   = imageSizeBytes;
+    bufferCreateInfo.usage  = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+
+    VmaAllocationInfo allocInfo{};
+    VK_CHECK(device.CreateBuffer(bufferCreateInfo, allocCreateInfo, stagingBuffer, &allocInfo));
+
+    VkCommandBuffer cmd = device.BeginOneTimeSubmit();
+
+    VkImageMemoryBarrier barrier = {};
+    barrier.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.srcAccessMask       = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    barrier.dstAccessMask       = VK_ACCESS_TRANSFER_READ_BIT;
+    barrier.oldLayout           = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    barrier.newLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image               = g_engine.m_gBuffer.colorImage.image;
+    barrier.subresourceRange = {
+        VK_IMAGE_ASPECT_COLOR_BIT,
+        0, // Mip level
+        1, // Mip count
+        0, // Layer
+        1  // Layer count
+    };
+
+    // Transition the image layout
+    vkCmdPipelineBarrier(cmd,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        0, 
+        0, 
+        nullptr,
+        0, 
+        nullptr, 
+        1, 
+        &barrier
+    );
+
+    device.EndOneTimeSubmit();
+
+    cmd = device.BeginOneTimeSubmit();
+
+    VkBufferImageCopy copyRegion = {};
+    copyRegion.imageSubresource.aspectMask      = VK_IMAGE_ASPECT_COLOR_BIT;
+    copyRegion.imageSubresource.mipLevel        = 0;
+    copyRegion.imageSubresource.baseArrayLayer  = 0;
+    copyRegion.imageSubresource.layerCount      = 1;
+    copyRegion.imageExtent.width                = g_engine.m_gBuffer.colorImage.imageExtent.width;
+    copyRegion.imageExtent.height               = g_engine.m_gBuffer.colorImage.imageExtent.height;
+    copyRegion.imageExtent.depth                = 1;
+
+    vkCmdCopyImageToBuffer(
+        cmd,
+        g_engine.m_gBuffer.colorImage.image,
+        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        stagingBuffer.buffer, 1, &copyRegion
+    );
+
+    device.EndOneTimeSubmit();
+    
+    std::string path = "../../screenshots/";
+    std::string date    = GetCurrentTimeString();
+    std::string name    = path + date + std::string(".png");
+    int width           = g_engine.m_gBuffer.colorImage.imageExtent.width;
+    int height          = g_engine.m_gBuffer.colorImage.imageExtent.height;
+    int channels        = 4;
+    int strideBytes     = width * channels;
+    void* data          = allocInfo.pMappedData;
+    stbi_write_png(name.c_str(), width, height, channels, data, strideBytes);
+}
+
+void trayser::Renderer::TryTakeScreenshot(Device& device)
+{
+    if (m_screenshotRequested)
+    {
+        TakeScreenshot(device);
+        m_screenshotRequested = false;
+    }
 }

@@ -64,7 +64,7 @@ void trayser::Device::ShowCursor(bool show)
     SDL_SetRelativeMouseMode((SDL_bool)!show);
 }
 
-VkResult trayser::Device::CreateBuffer(Buffer& outBuffer, 
+VkResult trayser::Device::CreateBuffer(trayser::Buffer& outBuffer,
     VkDeviceSize                size, 
     VkBufferUsageFlags2KHR      usage, 
     VmaMemoryUsage              memoryUsage, 
@@ -86,7 +86,7 @@ VkResult trayser::Device::CreateBuffer(Buffer& outBuffer,
     return CreateBuffer(outBuffer, bufferInfo, allocInfo);
 }
 
-VkResult trayser::Device::CreateBuffer(Buffer& outBuffer,
+VkResult trayser::Device::CreateBuffer(trayser::Buffer& outBuffer,
     VkDeviceSize              size,
     VkBufferUsageFlags2KHR    usage,
     VkDeviceSize              minAlignment,
@@ -118,7 +118,7 @@ VkResult trayser::Device::CreateBuffer(Buffer& outBuffer,
     return CreateBuffer(outBuffer, bufferInfo, allocInfo, minAlignment);
 }
 
-VkResult trayser::Device::CreateBuffer(Buffer& outBuffer, 
+VkResult trayser::Device::CreateBuffer(trayser::Buffer& outBuffer,
     const VkBufferCreateInfo&      bufferInfo, 
     const VmaAllocationCreateInfo& allocInfo, 
     VkDeviceSize                   minAlignment) const
@@ -144,7 +144,7 @@ VkResult trayser::Device::CreateBuffer(Buffer& outBuffer,
     return result;
 }
 
-VkResult trayser::Device::CreateBuffer(Buffer& outBuffer, 
+VkResult trayser::Device::CreateBuffer(trayser::Buffer& outBuffer, 
     const VkBufferCreateInfo& bufferInfo, 
     const VmaAllocationCreateInfo& allocInfo) const
 {
@@ -170,6 +170,91 @@ VkResult trayser::Device::CreateBuffer(Buffer& outBuffer,
     outBuffer.address = vkGetBufferDeviceAddress(m_device, &info);
 
     return result;
+}
+
+VkResult trayser::Device::CreateBuffer(
+    VkDeviceSize size, 
+    VkBufferUsageFlags bufferUsage, 
+    VmaMemoryUsage memoryUsage, 
+    VmaAllocationCreateFlags allocFlags, 
+    Device::Buffer& outBuffer,
+    VmaAllocationInfo* outAllocInfo) const
+{
+    VkBufferCreateInfo bufferCreateInfo{};
+    bufferCreateInfo.sType  = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferCreateInfo.pNext  = nullptr;
+    bufferCreateInfo.size   = size;
+    bufferCreateInfo.usage  = bufferUsage;
+
+    // Not using these
+    bufferCreateInfo.sharingMode            = VK_SHARING_MODE_EXCLUSIVE;
+    bufferCreateInfo.queueFamilyIndexCount  = 0;
+    bufferCreateInfo.pQueueFamilyIndices    = nullptr;
+
+    VmaAllocationCreateInfo allocInfo{};
+    allocInfo.flags = allocFlags;
+    allocInfo.usage = memoryUsage;
+
+    return CreateBuffer(bufferCreateInfo, allocInfo, outBuffer, outAllocInfo);
+}
+
+VkResult trayser::Device::CreateBuffer(
+    const VkBufferCreateInfo& bufferCreateInfo, 
+    const VmaAllocationCreateInfo& allocCreateInfo, 
+    Device::Buffer& outBuffer,
+    VmaAllocationInfo* outAllocInfo) const
+{
+    return vmaCreateBuffer(
+        m_allocator, 
+        &bufferCreateInfo, 
+        &allocCreateInfo,
+        &outBuffer.buffer, 
+        &outBuffer.allocation, 
+        outAllocInfo);
+}
+
+VkResult trayser::Device::CreateBufferWithAlignment(
+    VkDeviceSize size, 
+    VkBufferUsageFlags bufferUsage, 
+    VmaMemoryUsage memoryUsage, 
+    VmaAllocationCreateFlags allocFlags, 
+    VkDeviceSize minAlignment, 
+    Device::Buffer& outBuffer,
+    VmaAllocationInfo* outAllocInfo) const
+{
+    VkBufferCreateInfo bufferCreateInfo{};
+    bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferCreateInfo.pNext = nullptr;
+    bufferCreateInfo.size = size;
+    bufferCreateInfo.usage = bufferUsage;
+
+    // Not using these
+    bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    bufferCreateInfo.queueFamilyIndexCount = 0;
+    bufferCreateInfo.pQueueFamilyIndices = nullptr;
+
+    VmaAllocationCreateInfo allocInfo{};
+    allocInfo.flags = allocFlags;
+    allocInfo.usage = memoryUsage;
+
+    return CreateBufferWithAlignment(bufferCreateInfo, allocInfo, minAlignment, outBuffer, outAllocInfo);
+}
+
+VkResult trayser::Device::CreateBufferWithAlignment(
+    const VkBufferCreateInfo& bufferCreateInfo, 
+    const VmaAllocationCreateInfo& allocCreateInfo, 
+    VkDeviceSize minAlignment, 
+    Device::Buffer& outBuffer,
+    VmaAllocationInfo* outAllocInfo) const
+{
+    return vmaCreateBufferWithAlignment(
+        m_allocator,
+        &bufferCreateInfo, 
+        &allocCreateInfo, 
+        minAlignment,
+        &outBuffer.buffer, 
+        &outBuffer.allocation, 
+        outAllocInfo);
 }
 
 VkResult trayser::Device::CreateAccelerationStructure(AccelerationStructure& outAccelStruct,
@@ -256,7 +341,7 @@ void trayser::Device::CreateAccelerationStructure(VkAccelerationStructureTypeKHR
     VkDeviceSize scratchSize = alignUp(asBuildSize.buildScratchSize, m_asProperties.minAccelerationStructureScratchOffsetAlignment);
 
     // Create the scratch buffer to store the temporary data for the build
-    Buffer scratchBuffer;
+    trayser::Buffer scratchBuffer;
     VK_CHECK(CreateBuffer(scratchBuffer, scratchSize,
         VK_BUFFER_USAGE_2_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT
         | VK_BUFFER_USAGE_2_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR, m_asProperties.minAccelerationStructureScratchOffsetAlignment));
@@ -317,7 +402,7 @@ void trayser::Device::CreateAccelerationStructure2(VkAccelerationStructureTypeKH
     VkDeviceSize scratchSize = alignUp(buildSize.buildScratchSize, m_asProperties.minAccelerationStructureScratchOffsetAlignment);
 
     // Create the scratch buffer to store the temporary data for the build
-    Buffer scratchBuffer;
+    trayser::Buffer scratchBuffer;
     VK_CHECK(CreateBuffer(scratchBuffer, scratchSize,
         VK_BUFFER_USAGE_2_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT
         | VK_BUFFER_USAGE_2_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR, m_asProperties.minAccelerationStructureScratchOffsetAlignment));
@@ -357,6 +442,13 @@ void trayser::Device::BeginOneTimeSubmit(VkCommandBuffer& outCmd) const
     VK_CHECK(vkBeginCommandBuffer(m_oneTimeCommandBuffer, &cmdBeginInfo));
 
     outCmd = m_oneTimeCommandBuffer;
+}
+
+VkCommandBuffer trayser::Device::BeginOneTimeSubmit() const
+{
+    VkCommandBuffer cmd;
+    BeginOneTimeSubmit(cmd);
+    return cmd;
 }
 
 void trayser::Device::EndOneTimeSubmit() const
