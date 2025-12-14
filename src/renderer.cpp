@@ -591,7 +591,7 @@ void trayser::Renderer::TakeScreenshot(Device& device) const
     std::string name    = path + date + std::string(".png");
     int width           = g_engine.m_gBuffer.colorImage.imageExtent.width;
     int height          = g_engine.m_gBuffer.colorImage.imageExtent.height;
-    int channels        = 4;
+    int channels        = 4; // RGBA
     int strideBytes     = width * channels;
     void* data          = allocInfo.pMappedData;
     stbi_write_png(name.c_str(), width, height, channels, data, strideBytes);
