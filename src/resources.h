@@ -11,7 +11,7 @@ using ResourceHandle = size_t;
 
 enum
 {
-	ResourceHandle_Invalid = -1,
+	ResourceHandle_Invalid = std::numeric_limits<size_t>::max(),
 };
 
 template <typename T, size_t Capacity>

@@ -1015,6 +1015,67 @@ trayser::Image::Image(f16* data, u32 width, u32 height, VkImageUsageFlags usage,
     imageFormat = new_image.imageFormat;
 }
 
+trayser::Material2::Material2(Default)
+{
+    {
+    uint32_t packedColor = glm::packUnorm4x8(float4(1.0));
+    baseColorHandle = g_engine.m_texturePool.Create(
+        "default_base_color",
+        &packedColor,
+        1, // width
+        1, // height
+        VK_FORMAT_R8G8B8A8_SRGB,
+        VK_IMAGE_USAGE_SAMPLED_BIT);
+    baseColorFactor = float4(1.0);
+    }
+
+    {
+    uint32_t packedColor = glm::packUnorm4x8(float4(0.5, 0.5, 1.0, 1.0));
+    normalMapHandle = g_engine.m_texturePool.Create(
+        "default_normal_map",
+        &packedColor,
+        1, // width
+        1, // height
+        VK_FORMAT_R8G8B8A8_UNORM,
+        VK_IMAGE_USAGE_SAMPLED_BIT);
+    }
+
+    {
+    uint32_t packedColor = glm::packUnorm4x8(float4(0.0, 1.0, 1.0, 1.0));
+    metalRoughHandle = g_engine.m_texturePool.Create(
+        "default_metal_rough",
+        &packedColor,
+        1, // width
+        1, // height
+        VK_FORMAT_R8G8B8A8_UNORM,
+        VK_IMAGE_USAGE_SAMPLED_BIT);
+    metallicRoughnessAoFactor = float4(0.5, 0.5, 0.5, 1.0);
+    }
+
+    {
+    uint32_t packedColor = glm::packUnorm4x8(float4(1.0));
+    aoHandle = g_engine.m_texturePool.Create(
+        "default_ambient_occlusion",
+        &packedColor,
+        1, // width
+        1, // height
+        VK_FORMAT_R8G8B8A8_UNORM,
+        VK_IMAGE_USAGE_SAMPLED_BIT);
+    }
+
+    {
+    uint32_t packedColor = glm::packUnorm4x8(float4(1.0));
+    emissiveHandle = g_engine.m_texturePool.Create(
+        "default_emissive",
+        &packedColor,
+        1, // width
+        1, // height
+        VK_FORMAT_R8G8B8A8_SRGB,
+        VK_IMAGE_USAGE_SAMPLED_BIT);
+    emissiveFactor = float4(1.0);
+    }
+}
+
 trayser::Material2::Material2(const tinygltf::Model& model, const tinygltf::Material& material, const std::string& folder)
 {
     auto GetImagePath = [&](const tinygltf::Image& image, const tinygltf::Texture& texture)
@@ -1038,10 +1099,9 @@ trayser::Material2::Material2(const tinygltf::Model& model, const tinygltf::Mate
                 image,
                 VK_FORMAT_R8G8B8A8_SRGB,
                 VK_IMAGE_USAGE_SAMPLED_BIT);
-
-            baseColorFactor = glm::make_vec4(material.pbrMetallicRoughness.baseColorFactor.data());
         }
     }
+    baseColorFactor = glm::make_vec4(material.pbrMetallicRoughness.baseColorFactor.data());
     // Normal map -------------------------------------------------------------------
     texIdx = material.normalTexture.index;
     if (texIdx >= 0)
@@ -1076,10 +1136,10 @@ trayser::Material2::Material2(const tinygltf::Model& model, const tinygltf::Mate
                 image,
                 VK_FORMAT_R8G8B8A8_UNORM,
                 VK_IMAGE_USAGE_SAMPLED_BIT);
-            metallicRoughnessAoFactor.r = material.pbrMetallicRoughness.metallicFactor;
-            metallicRoughnessAoFactor.g = material.pbrMetallicRoughness.roughnessFactor;
         }
     }
+    metallicRoughnessAoFactor.r = material.pbrMetallicRoughness.metallicFactor;
+    metallicRoughnessAoFactor.g = material.pbrMetallicRoughness.roughnessFactor;
     // Ambient occlusion -------------------------------------------------------------------
     texIdx = material.occlusionTexture.index;
     if (texIdx >= 0)
@@ -1096,9 +1156,9 @@ trayser::Material2::Material2(const tinygltf::Model& model, const tinygltf::Mate
                 image,
                 VK_FORMAT_R8G8B8A8_UNORM,
                 VK_IMAGE_USAGE_SAMPLED_BIT);
-            metallicRoughnessAoFactor.b = material.occlusionTexture.strength;
         }
     }
+    metallicRoughnessAoFactor.b = material.occlusionTexture.strength;
     // Emissive ---------------------------------------------------------------------------
     texIdx = material.emissiveTexture.index;
     if (texIdx >= 0)
@@ -1119,7 +1179,7 @@ trayser::Material2::Material2(const tinygltf::Model& model, const tinygltf::Mate
             {
                 emissiveHandle = 0;
             }
-            emissiveFactor = glm::vec4(glm::make_vec3(material.emissiveFactor.data()), 0.0);
         }
     }
+    emissiveFactor = glm::vec4(glm::make_vec3(material.emissiveFactor.data()), 0.0);
 }

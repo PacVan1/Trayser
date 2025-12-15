@@ -17,17 +17,17 @@ void trayser::Engine::Init()
     InitDescriptors();
     InitDefaultData();
     //InitTextureDescriptor();
+    m_modelPool.Init();
+    m_meshPool.Init();
+    m_materialPool.Init();
+    m_texturePool.Init();
 
     m_renderer.Init(m_device);
     InitImGuiStyle();
 
     Model::MikkTSpaceInit();
 
-    m_modelPool.Init();
-    m_meshPool.Init();
-    m_materialPool.Init();
-    m_texturePool.Init();
-    ModelHandle handle = m_modelPool.Create(kModelPaths[ModelResource_DamagedHelmet], kModelPaths[ModelResource_DamagedHelmet], this);
+    ModelHandle handle = m_modelPool.Create(kModelPaths[ModelResource_Veach], kModelPaths[ModelResource_Veach], this);
     const Model& model1 = m_modelPool.Get(handle);
     m_scene.Init();
     m_scene.CreateModel(model1);
@@ -368,11 +368,14 @@ void trayser::Engine::UpdateGpuScene()
         {
             MaterialHandle materialHandle = prim.materialId;
             const Material2 material = m_materialPool.m_resources[materialHandle];
-            materialBufferRef[materialHandle].baseColorHandle    = material.baseColorHandle;
-            materialBufferRef[materialHandle].normalMapHandle    = material.normalMapHandle;
-            materialBufferRef[materialHandle].metalRoughHandle   = material.metalRoughHandle;
-            materialBufferRef[materialHandle].aoHandle           = material.aoHandle;
-            materialBufferRef[materialHandle].emissiveHandle     = material.emissiveHandle;
+            materialBufferRef[materialHandle].baseColorHandle    = material.baseColorHandle != ResourceHandle_Invalid   ? material.baseColorHandle  : m_renderer.m_defaultMaterial.baseColorHandle;
+            materialBufferRef[materialHandle].normalMapHandle    = material.normalMapHandle != ResourceHandle_Invalid   ? material.normalMapHandle  : m_renderer.m_defaultMaterial.normalMapHandle;
+            materialBufferRef[materialHandle].metalRoughHandle   = material.metalRoughHandle != ResourceHandle_Invalid  ? material.metalRoughHandle : m_renderer.m_defaultMaterial.metalRoughHandle;
+            materialBufferRef[materialHandle].aoHandle           = material.aoHandle != ResourceHandle_Invalid          ? material.aoHandle         : m_renderer.m_defaultMaterial.aoHandle;
+            materialBufferRef[materialHandle].emissiveHandle     = material.emissiveHandle != ResourceHandle_Invalid    ? material.emissiveHandle   : m_renderer.m_defaultMaterial.emissiveHandle;
+            materialBufferRef[materialHandle].emissiveFactor            = material.emissiveFactor;
+            materialBufferRef[materialHandle].baseColorFactor           = material.baseColorFactor;
+            materialBufferRef[materialHandle].metallicRoughnessAoFactor = material.metallicRoughnessAoFactor;
         }
         i++;
     }

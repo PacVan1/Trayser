@@ -51,17 +51,21 @@ struct Material
 
 struct Material2
 {
-    uint32_t baseColorHandle;   // Base color index to textures
-    uint32_t normalMapHandle;   // Normal map index to textures
-    uint32_t metalRoughHandle;  // Metallic roughness index to textures
-    uint32_t aoHandle;          // Ambient occlusion index to textures
-    uint32_t emissiveHandle;    // Emissive index to textures
+    // Tagging
+    struct Default {};
 
-    glm::vec4 baseColorFactor;
-    glm::vec4 metallicRoughnessAoFactor;
-    glm::vec4 emissiveFactor;
+    ResourceHandle baseColorHandle    = ResourceHandle_Invalid;   // Base color index to textures
+    ResourceHandle normalMapHandle    = ResourceHandle_Invalid;   // Normal map index to textures
+    ResourceHandle metalRoughHandle   = ResourceHandle_Invalid;   // Metallic roughness index to textures
+    ResourceHandle aoHandle           = ResourceHandle_Invalid;   // Ambient occlusion index to textures
+    ResourceHandle emissiveHandle     = ResourceHandle_Invalid;   // Emissive index to textures
+
+    float4 baseColorFactor              = float4(1.0);
+    float4 metallicRoughnessAoFactor    = float4(0.5, 0.5, 1.0, 1.0);
+    float4 emissiveFactor               = float4(0.0);
 
     Material2() = default;
+    Material2(Default);
     Material2(const tinygltf::Model&, const tinygltf::Material&, const std::string& folder);
 };
 

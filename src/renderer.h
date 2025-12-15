@@ -67,6 +67,7 @@ private:
 	void InitSyncStructures(Device& device);
 	void InitTextureDescLayout(Device& device);
 	void InitDefaultImage(Device& device);
+	void InitDefaultMaterial();
 	void InitTextureDescSets(Device& device);
 	void InitImGui(Device& device);
 
@@ -75,6 +76,7 @@ private:
 	void DestroyFrames(Device& device) const;
 	void DestroySyncStructures(Device& device) const;
 	void DestroyDefaultImage(Device& device) const;
+	void DestroyDefaultMaterial();
 	void DestroyTextureDescSets(Device& device) const;
 	void DestroyImGui() const;
 
@@ -97,6 +99,7 @@ public:
 	VkDescriptorSetLayout	m_textureDescLayout;
 	PerFrame				m_frames[kMaxFramesInFlight];
 	DefaultImage			m_defaultImage; // 1x1 black image to initialize
+	Material2				m_defaultMaterial;
 	uint32_t				m_frameCounter;
 	uint32_t				m_frameIndex;
 	bool					m_screenshotRequested;

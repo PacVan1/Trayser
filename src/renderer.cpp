@@ -18,6 +18,7 @@ void trayser::Renderer::Init(Device& device)
 	InitTextureDescLayout(device);
     InitSwapchain(device);
     InitDefaultImage(device);
+    InitDefaultMaterial();
 	InitFrames(device);
     InitImGui(device);
 }
@@ -26,6 +27,7 @@ void trayser::Renderer::Destroy(Device& device)
 {
     DestroyImGui();
     DestroyFrames(device);
+    DestroyDefaultMaterial();
     DestroyDefaultImage(device);
     DestroySwapchain(device);
     DestroyCmdPool(device);
@@ -171,6 +173,11 @@ void trayser::Renderer::InitDefaultImage(Device& device)
     samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
     samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
     vkCreateSampler(device.m_device, &samplerCreateInfo, nullptr, &m_defaultImage.sampler);
+}
+
+void trayser::Renderer::InitDefaultMaterial()
+{
+    m_defaultMaterial = Material2(Material2::Default{});
 }
 
 void trayser::Renderer::InitFrames(Device& device)
@@ -333,6 +340,15 @@ void trayser::Renderer::DestroyDefaultImage(Device& device) const
     vmaDestroyImage(device.m_allocator, m_defaultImage.image, m_defaultImage.allocation);
     vkDestroyImageView(device.m_device, m_defaultImage.view, nullptr);
     vkDestroySampler(device.m_device, m_defaultImage.sampler, nullptr);
+}
+
+void trayser::Renderer::DestroyDefaultMaterial()
+{
+    g_engine.m_texturePool.Free(m_defaultMaterial.baseColorHandle);
+    g_engine.m_texturePool.Free(m_defaultMaterial.normalMapHandle);
+    g_engine.m_texturePool.Free(m_defaultMaterial.metalRoughHandle);
+    g_engine.m_texturePool.Free(m_defaultMaterial.aoHandle);
+    g_engine.m_texturePool.Free(m_defaultMaterial.emissiveHandle);
 }
 
 void trayser::Renderer::DestroyTextureDescSets(Device& device) const

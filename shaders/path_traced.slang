@@ -181,44 +181,43 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     //}
 
     MaterialProperties matProps;
-    matProps.baseColor = baseColor.rgb;
-    matProps.metalness = metalRoughTexture.SampleLevel(uv, 1.0).b;
-    matProps.roughness = metalRoughTexture.SampleLevel(uv, 1.0).g;
-    matProps.emissive = emissiveTexture.SampleLevel(uv, 1.0).rgb;
+    matProps.baseColor = baseColor.rgb * material.baseColorFactor.rgb;
+    matProps.metalness = metalRoughTexture.SampleLevel(uv, 1.0).b * material.metallicRoughnessAoFactor.r;
+    matProps.roughness = metalRoughTexture.SampleLevel(uv, 1.0).g * material.metallicRoughnessAoFactor.g;
+    matProps.emissive = emissiveTexture.SampleLevel(uv, 1.0).rgb * material.emissiveFactor.rgb;
     matProps.opacity = 1.0;
     matProps.reflectance = 0.5; // Default to 0.5 for minimal reflectence of 4%
     matProps.transmissivness = 0.0;
 
     // Continue getting hit info
     float3 geometryNormal = normalize(v0.normal.xyz * w0 + v1.normal.xyz * w1 + v2.normal.xyz * w2);
-    float3 tangent = normalize(v0.tangent.xyz * w0 + v1.tangent.xyz * w1 + v2.tangent.xyz * w2);
+    float3 geometryTangent = normalize(v0.tangent.xyz * w0 + v1.tangent.xyz * w1 + v2.tangent.xyz * w2);
 
     float3x3 normalTransform = float3x3(instance.normalTransform);
     geometryNormal = normalize(mul(normalTransform, geometryNormal));
-    tangent = normalize(mul((float3x3)instance.transform, tangent.xyz));
+    float3 tangent = normalize(mul((float3x3)instance.transform, geometryTangent.xyz));
     tangent = normalize(tangent - geometryNormal * dot(geometryNormal, tangent));
     float3 bitangent = cross(geometryNormal, tangent) * v0.tangent.w;
     float3x3 tbn = float3x3(tangent, bitangent, geometryNormal);
     float3 mapNormal = normalize(normalMapTexture.SampleLevel(uv.xy, 1.0).xyz * 2.0 - 1.0);
     float3 shadingNormal = normalize(mul(mapNormal, tbn));
+    //float3 shadingNormal = geometryNormal;
 
-    //payload.radiance += payload.throughput * matProps.emissive;
+    payload.radiance += payload.throughput * matProps.emissive;
 
     switch (pushConsts.renderMode)
     {
     case RenderMode.FinalColor:
     {
-        for (int i = 0; i < kPointLightCount; i++)
-        {
-            PointLight pointLight = pointLights[i];
-            float3 L = pointLight.position - position;
-            float dist = length(L);
-            L = normalize(L);
-            float3 light = evalCombinedBRDF(shadingNormal, L, -WorldRayDirection(), matProps) / dist * dist * pointLight.color * pointLight.intensity;
-            payload.radiance += payload.throughput * light;
-        }
-
-        // payload.color = evalCombinedBRDF(shadingNormal, normalize(float3(0.63921, 0.794, 0.15)), -WorldRayDirection(), matProps) * 2.0f + matProps.emissive;
+        //for (int i = 0; i < kPointLightCount; i++)
+        //{
+        //    PointLight pointLight = pointLights[i];
+        //    float3 L = pointLight.position - position;
+        //    float dist = length(L);
+        //    L = normalize(L);
+        //    float3 light = evalCombinedBRDF(shadingNormal, L, -WorldRayDirection(), matProps) / dist * dist * pointLight.color * pointLight.intensity;
+        //    payload.radiance += payload.throughput * light;
+        //}
 
         int brdfType;
         if (matProps.metalness == 1.0f && matProps.roughness == 0.0f) {
@@ -262,6 +261,14 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
         payload.radiance = (float3(geometryNormal) + 1.0) * 0.5;
         payload.bouncesLeft = 0;
         break;
+    case RenderMode.GeometryTangent:
+        payload.radiance = (float3(geometryTangent) + 1.0) * 0.5;
+        payload.bouncesLeft = 0;
+        break;
+    case RenderMode.Handedness:
+        payload.radiance = float3(v0.tangent.w);
+        payload.bouncesLeft = 0;
+        break;
     case RenderMode.TransformedTangent:
         payload.radiance = (float3(tangent) + 1.0) * 0.5;
         payload.bouncesLeft = 0;
@@ -279,7 +286,7 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
         payload.bouncesLeft = 0;
         break;
     case RenderMode.NormalMap:
-        payload.radiance = float3(mapNormal);
+        payload.radiance = (float3(mapNormal) + 1.0) * 0.5;
         payload.bouncesLeft = 0;
         break;
     case RenderMode.Metallic:
