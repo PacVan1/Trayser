@@ -141,30 +141,41 @@ void trayser::RayTracedPipeline::Load(VkShaderModule module)
     uint32_t callableOffset = alignUp(hitOffset + hitSize, baseAlignment);
 
     size_t bufferSize = callableOffset + callableSize;
+    VmaAllocationInfo allocInfo{};
 
     // Create SBT buffer
-    VK_CHECK(g_engine.m_device.CreateBuffer(m_sbtBuffer, bufferSize, VK_BUFFER_USAGE_2_SHADER_BINDING_TABLE_BIT_KHR, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-        VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT));
+    //VK_CHECK(g_engine.m_device.CreateBuffer(m_sbtBuffer, bufferSize, VK_BUFFER_USAGE_2_SHADER_BINDING_TABLE_BIT_KHR, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+    //    VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT));
+    VK_CHECK(g_engine.m_device.CreateBuffer(
+        bufferSize, 
+        VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR, 
+        VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+        VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
+        m_sbtBuffer,
+        &allocInfo));
     //NVVK_DBG_NAME(m_sbtBuffer.buffer);
 
+    const VkBufferDeviceAddressInfo info = { .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, .buffer = m_sbtBuffer.buffer };
+    VkDeviceAddress sbtBufferAddr = vkGetBufferDeviceAddress(g_engine.m_device.m_device, &info);
+
     // Populate SBT buffer
-    uint8_t* pData = static_cast<uint8_t*>(m_sbtBuffer.info.pMappedData);
+    uint8_t* pData = static_cast<uint8_t*>(allocInfo.pMappedData);
 
     // Ray generation shader (group 0)
     memcpy(pData + raygenOffset, m_shaderHandles.data() + 0 * handleSize, handleSize);
-    m_raygenRegion.deviceAddress = m_sbtBuffer.address + raygenOffset;
+    m_raygenRegion.deviceAddress = sbtBufferAddr + raygenOffset;
     m_raygenRegion.stride = raygenSize;
     m_raygenRegion.size = raygenSize;
 
     // Miss shader (group 1)
     memcpy(pData + missOffset, m_shaderHandles.data() + 1 * handleSize, handleSize);
-    m_missRegion.deviceAddress = m_sbtBuffer.address + missOffset;
+    m_missRegion.deviceAddress = sbtBufferAddr + missOffset;
     m_missRegion.stride = missSize;
     m_missRegion.size = missSize;
 
     // Hit shader (group 2)
     memcpy(pData + hitOffset, m_shaderHandles.data() + 2 * handleSize, handleSize);
-    m_hitRegion.deviceAddress = m_sbtBuffer.address + hitOffset;
+    m_hitRegion.deviceAddress = sbtBufferAddr + hitOffset;
     m_hitRegion.stride = hitSize;
     m_hitRegion.size = hitSize;
 

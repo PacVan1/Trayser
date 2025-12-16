@@ -47,13 +47,6 @@ struct Buffer
 	VmaAllocationInfo   info;
 };
 
-struct AccelerationStructure
-{
-	VkAccelerationStructureKHR  accel{};
-	VkDeviceAddress             address{};
-	Buffer						buffer;  // Underlying buffer
-};
-
 struct FrameData
 {
 	VkCommandPool	commandPool;
@@ -95,6 +88,13 @@ public:
 		VmaAllocation	allocation;
 	};
 
+	struct AccelerationStructure
+	{
+		VkAccelerationStructureKHR  accel{};
+		VkDeviceAddress             address{};
+		Device::Buffer				buffer;
+	};
+
 public:
 	void Init();
 	void Destroy();
@@ -111,30 +111,6 @@ public:
 
 	SwapchainSupport GetSwapchainSupport() const;
 	QueueFamilyIndices GetQueueFamilies();
-
-	VkResult CreateBuffer(trayser::Buffer& outBuffer,
-		VkDeviceSize              size,
-		VkBufferUsageFlags2KHR    usage,
-		VmaMemoryUsage            memoryUsage	= VMA_MEMORY_USAGE_AUTO,
-		VmaAllocationCreateFlags  flags			= {},
-		std::span<const uint32_t> queueFamilies = {});
-
-	VkResult CreateBuffer(trayser::Buffer& outBuffer,
-		VkDeviceSize              size,
-		VkBufferUsageFlags2KHR    usage,
-		VkDeviceSize              minAlignment,
-		VmaMemoryUsage            memoryUsage	= VMA_MEMORY_USAGE_AUTO,
-		VmaAllocationCreateFlags  flags			= {},
-		std::span<const uint32_t> queueFamilies = {});
-
-	VkResult CreateBuffer(trayser::Buffer& outBuffer,
-		const VkBufferCreateInfo&	   bufferInfo,
-		const VmaAllocationCreateInfo& allocInfo,
-		VkDeviceSize                   minAlignment) const;
-
-	VkResult CreateBuffer(trayser::Buffer& outBuffer,
-		const VkBufferCreateInfo& bufferInfo,
-		const VmaAllocationCreateInfo& allocInfo) const;
 
 	VkResult CreateBuffer(
 		VkDeviceSize size,

@@ -32,7 +32,7 @@ private:
     VkDescriptorSetLayout   m_descriptorSetLayout;
     VkDescriptorSet         m_descriptorSet;
     std::vector<u8>         m_shaderHandles;
-    Buffer                  m_sbtBuffer;
+    Device::Buffer          m_sbtBuffer;
     int                     m_spp;
     
     VkStridedDeviceAddressRegionKHR m_raygenRegion;    // Ray generation shader region

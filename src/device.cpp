@@ -64,113 +64,113 @@ void trayser::Device::ShowCursor(bool show)
     SDL_SetRelativeMouseMode((SDL_bool)!show);
 }
 
-VkResult trayser::Device::CreateBuffer(trayser::Buffer& outBuffer,
-    VkDeviceSize                size, 
-    VkBufferUsageFlags2KHR      usage, 
-    VmaMemoryUsage              memoryUsage, 
-    VmaAllocationCreateFlags    flags, 
-    std::span<const uint32_t>   queueFamilies)
-{
-    VkBufferCreateInfo bufferInfo{};
-    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = size;
-    bufferInfo.usage = usage | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-    bufferInfo.sharingMode = queueFamilies.empty() ? VK_SHARING_MODE_EXCLUSIVE : VK_SHARING_MODE_CONCURRENT;
-    bufferInfo.queueFamilyIndexCount = static_cast<uint32_t>(queueFamilies.size());
-    bufferInfo.pQueueFamilyIndices = queueFamilies.data();
-
-    VmaAllocationCreateInfo allocInfo{};
-    allocInfo.flags = flags;
-    allocInfo.usage = memoryUsage;
-
-    return CreateBuffer(outBuffer, bufferInfo, allocInfo);
-}
-
-VkResult trayser::Device::CreateBuffer(trayser::Buffer& outBuffer,
-    VkDeviceSize              size,
-    VkBufferUsageFlags2KHR    usage,
-    VkDeviceSize              minAlignment,
-    VmaMemoryUsage            memoryUsage,
-    VmaAllocationCreateFlags  flags,
-    std::span<const uint32_t> queueFamilies)
-{
-    VkBufferCreateInfo bufferInfo{};
-    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.pNext = nullptr; // no Flags2 chain
-    bufferInfo.size = size;
-    bufferInfo.usage =
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
-        VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
-        VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-
-    bufferInfo.sharingMode = queueFamilies.empty()
-        ? VK_SHARING_MODE_EXCLUSIVE
-        : VK_SHARING_MODE_CONCURRENT;
-
-    bufferInfo.queueFamilyIndexCount = static_cast<uint32_t>(queueFamilies.size());
-    bufferInfo.pQueueFamilyIndices = queueFamilies.empty() ? nullptr : queueFamilies.data();
-
-    VmaAllocationCreateInfo allocInfo{};
-    allocInfo.flags = flags;
-    allocInfo.usage = memoryUsage;
-
-    return CreateBuffer(outBuffer, bufferInfo, allocInfo, minAlignment);
-}
-
-VkResult trayser::Device::CreateBuffer(trayser::Buffer& outBuffer,
-    const VkBufferCreateInfo&      bufferInfo, 
-    const VmaAllocationCreateInfo& allocInfo, 
-    VkDeviceSize                   minAlignment) const
-{
-    outBuffer = {};
-
-    assert(minAlignment != 0 && (minAlignment & (minAlignment - 1)) == 0);
-
-    VkResult result = vmaCreateBufferWithAlignment(m_allocator, &bufferInfo, &allocInfo, minAlignment,
-        &outBuffer.buffer, &outBuffer.allocation, &outBuffer.info);
-
-    if (result != VK_SUCCESS)
-    {
-        // Handle allocation failure
-        printf("Failed to create buffer");
-        return result;
-    }
-
-    // Get the GPU address of the buffer
-    const VkBufferDeviceAddressInfo info = { .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, .buffer = outBuffer.buffer };
-    outBuffer.address = vkGetBufferDeviceAddress(m_device, &info);
-
-    return result;
-}
-
-VkResult trayser::Device::CreateBuffer(trayser::Buffer& outBuffer, 
-    const VkBufferCreateInfo& bufferInfo, 
-    const VmaAllocationCreateInfo& allocInfo) const
-{
-    outBuffer = {};
-
-    // Create the buffer
-    VmaAllocationInfo allocInfoOut{};
-
-    VkResult result = vmaCreateBuffer(m_allocator, &bufferInfo, &allocInfo,
-        &outBuffer.buffer, &outBuffer.allocation, &allocInfoOut);
-
-    if (result != VK_SUCCESS)
-    {
-        // Handle allocation failure
-        printf("Failed to create buffer");
-        return result;
-    }
-
-    outBuffer.info = allocInfoOut;
-
-    // Get the GPU address of the buffer
-    const VkBufferDeviceAddressInfo info = { .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, .buffer = outBuffer.buffer };
-    outBuffer.address = vkGetBufferDeviceAddress(m_device, &info);
-
-    return result;
-}
+//VkResult trayser::Device::CreateBuffer(trayser::Buffer& outBuffer,
+//    VkDeviceSize                size, 
+//    VkBufferUsageFlags2KHR      usage, 
+//    VmaMemoryUsage              memoryUsage, 
+//    VmaAllocationCreateFlags    flags, 
+//    std::span<const uint32_t>   queueFamilies)
+//{
+//    VkBufferCreateInfo bufferInfo{};
+//    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+//    bufferInfo.size = size;
+//    bufferInfo.usage = usage | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+//    bufferInfo.sharingMode = queueFamilies.empty() ? VK_SHARING_MODE_EXCLUSIVE : VK_SHARING_MODE_CONCURRENT;
+//    bufferInfo.queueFamilyIndexCount = static_cast<uint32_t>(queueFamilies.size());
+//    bufferInfo.pQueueFamilyIndices = queueFamilies.data();
+//
+//    VmaAllocationCreateInfo allocInfo{};
+//    allocInfo.flags = flags;
+//    allocInfo.usage = memoryUsage;
+//
+//    return CreateBuffer(outBuffer, bufferInfo, allocInfo);
+//}
+//
+//VkResult trayser::Device::CreateBuffer(trayser::Buffer& outBuffer,
+//    VkDeviceSize              size,
+//    VkBufferUsageFlags2KHR    usage,
+//    VkDeviceSize              minAlignment,
+//    VmaMemoryUsage            memoryUsage,
+//    VmaAllocationCreateFlags  flags,
+//    std::span<const uint32_t> queueFamilies)
+//{
+//    VkBufferCreateInfo bufferInfo{};
+//    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+//    bufferInfo.pNext = nullptr; // no Flags2 chain
+//    bufferInfo.size = size;
+//    bufferInfo.usage =
+//        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+//        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+//        VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
+//        VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+//
+//    bufferInfo.sharingMode = queueFamilies.empty()
+//        ? VK_SHARING_MODE_EXCLUSIVE
+//        : VK_SHARING_MODE_CONCURRENT;
+//
+//    bufferInfo.queueFamilyIndexCount = static_cast<uint32_t>(queueFamilies.size());
+//    bufferInfo.pQueueFamilyIndices = queueFamilies.empty() ? nullptr : queueFamilies.data();
+//
+//    VmaAllocationCreateInfo allocInfo{};
+//    allocInfo.flags = flags;
+//    allocInfo.usage = memoryUsage;
+//
+//    return CreateBuffer(outBuffer, bufferInfo, allocInfo, minAlignment);
+//}
+//
+//VkResult trayser::Device::CreateBuffer(trayser::Buffer& outBuffer,
+//    const VkBufferCreateInfo&      bufferInfo, 
+//    const VmaAllocationCreateInfo& allocInfo, 
+//    VkDeviceSize                   minAlignment) const
+//{
+//    outBuffer = {};
+//
+//    assert(minAlignment != 0 && (minAlignment & (minAlignment - 1)) == 0);
+//
+//    VkResult result = vmaCreateBufferWithAlignment(m_allocator, &bufferInfo, &allocInfo, minAlignment,
+//        &outBuffer.buffer, &outBuffer.allocation, &outBuffer.info);
+//
+//    if (result != VK_SUCCESS)
+//    {
+//        // Handle allocation failure
+//        printf("Failed to create buffer");
+//        return result;
+//    }
+//
+//    // Get the GPU address of the buffer
+//    const VkBufferDeviceAddressInfo info = { .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, .buffer = outBuffer.buffer };
+//    outBuffer.address = vkGetBufferDeviceAddress(m_device, &info);
+//
+//    return result;
+//}
+//
+//VkResult trayser::Device::CreateBuffer(trayser::Buffer& outBuffer, 
+//    const VkBufferCreateInfo& bufferInfo, 
+//    const VmaAllocationCreateInfo& allocInfo) const
+//{
+//    outBuffer = {};
+//
+//    // Create the buffer
+//    VmaAllocationInfo allocInfoOut{};
+//
+//    VkResult result = vmaCreateBuffer(m_allocator, &bufferInfo, &allocInfo,
+//        &outBuffer.buffer, &outBuffer.allocation, &allocInfoOut);
+//
+//    if (result != VK_SUCCESS)
+//    {
+//        // Handle allocation failure
+//        printf("Failed to create buffer");
+//        return result;
+//    }
+//
+//    outBuffer.info = allocInfoOut;
+//
+//    // Get the GPU address of the buffer
+//    const VkBufferDeviceAddressInfo info = { .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, .buffer = outBuffer.buffer };
+//    outBuffer.address = vkGetBufferDeviceAddress(m_device, &info);
+//
+//    return result;
+//}
 
 VkResult trayser::Device::CreateBuffer(
     VkDeviceSize size, 
@@ -287,7 +287,8 @@ VkResult trayser::Device::CreateAccelerationStructure(AccelerationStructure& out
     bufferInfo.pQueueFamilyIndices = queueFamilies.empty() ? nullptr : queueFamilies.data();
 
     // Step 1: Create the buffer to hold the acceleration structure
-    VkResult result = CreateBuffer(outAccelStruct.buffer, bufferInfo, allocInfo);
+    //VkResult result = CreateBuffer(outAccelStruct.buffer, bufferInfo, allocInfo);
+    VkResult result = CreateBuffer(bufferInfo, allocInfo, outAccelStruct.buffer);
 
     if (result != VK_SUCCESS)
     {
@@ -341,10 +342,17 @@ void trayser::Device::CreateAccelerationStructure(VkAccelerationStructureTypeKHR
     VkDeviceSize scratchSize = alignUp(asBuildSize.buildScratchSize, m_asProperties.minAccelerationStructureScratchOffsetAlignment);
 
     // Create the scratch buffer to store the temporary data for the build
-    trayser::Buffer scratchBuffer;
-    VK_CHECK(CreateBuffer(scratchBuffer, scratchSize,
-        VK_BUFFER_USAGE_2_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT
-        | VK_BUFFER_USAGE_2_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR, m_asProperties.minAccelerationStructureScratchOffsetAlignment));
+    //trayser::Buffer scratchBuffer;
+    Device::Buffer scratchBuffer;
+    //VK_CHECK(CreateBuffer(scratchBuffer, scratchSize,
+    //    VK_BUFFER_USAGE_2_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT
+    //    | VK_BUFFER_USAGE_2_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR, m_asProperties.minAccelerationStructureScratchOffsetAlignment));
+
+    VK_CHECK(CreateBufferWithAlignment(scratchSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+        | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR, VMA_MEMORY_USAGE_AUTO, {0}, m_asProperties.minAccelerationStructureScratchOffsetAlignment, scratchBuffer));
+
+    const VkBufferDeviceAddressInfo info = { .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, .buffer = scratchBuffer.buffer };
+    VkDeviceAddress scratchBufferAddr = vkGetBufferDeviceAddress(m_device, &info);
 
     // Create the acceleration structure
     VkAccelerationStructureCreateInfoKHR createInfo{
@@ -361,7 +369,7 @@ void trayser::Device::CreateAccelerationStructure(VkAccelerationStructureTypeKHR
 
         // Fill with new information for the build,scratch buffer and destination AS
         asBuildInfo.dstAccelerationStructure = outAccelStruct.accel;
-        asBuildInfo.scratchData.deviceAddress = scratchBuffer.address;
+        asBuildInfo.scratchData.deviceAddress = scratchBufferAddr;
 
         VkAccelerationStructureBuildRangeInfoKHR* pBuildRangeInfo = &buildRangeInfo;
         m_rtFuncs.vkCmdBuildAccelerationStructuresKHR(cmd, 1, &asBuildInfo, &pBuildRangeInfo);
@@ -402,10 +410,17 @@ void trayser::Device::CreateAccelerationStructure2(VkAccelerationStructureTypeKH
     VkDeviceSize scratchSize = alignUp(buildSize.buildScratchSize, m_asProperties.minAccelerationStructureScratchOffsetAlignment);
 
     // Create the scratch buffer to store the temporary data for the build
-    trayser::Buffer scratchBuffer;
-    VK_CHECK(CreateBuffer(scratchBuffer, scratchSize,
-        VK_BUFFER_USAGE_2_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT
-        | VK_BUFFER_USAGE_2_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR, m_asProperties.minAccelerationStructureScratchOffsetAlignment));
+    //trayser::Buffer scratchBuffer;
+    Device::Buffer scratchBuffer;
+    //VK_CHECK(CreateBuffer(scratchBuffer, scratchSize,
+    //    VK_BUFFER_USAGE_2_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT
+    //    | VK_BUFFER_USAGE_2_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR, m_asProperties.minAccelerationStructureScratchOffsetAlignment));
+
+    VK_CHECK(CreateBufferWithAlignment(scratchSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+        | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR, VMA_MEMORY_USAGE_AUTO, { 0 }, m_asProperties.minAccelerationStructureScratchOffsetAlignment, scratchBuffer));
+
+    const VkBufferDeviceAddressInfo info = { .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, .buffer = scratchBuffer.buffer };
+    VkDeviceAddress scratchBufferAddr = vkGetBufferDeviceAddress(m_device, &info);
 
     // Create the acceleration structure
     VkAccelerationStructureCreateInfoKHR createInfo{};
@@ -419,7 +434,7 @@ void trayser::Device::CreateAccelerationStructure2(VkAccelerationStructureTypeKH
 
     // Fill with new information for the build,scratch buffer and destination AS
     buildInfo.dstAccelerationStructure = outAccelStruct.accel;
-    buildInfo.scratchData.deviceAddress = scratchBuffer.address;
+    buildInfo.scratchData.deviceAddress = scratchBufferAddr;
 
     VkAccelerationStructureBuildRangeInfoKHR* pBuildRangeInfo = rangeInfos.data();
     m_rtFuncs.vkCmdBuildAccelerationStructuresKHR(cmd, 1, &buildInfo, &pBuildRangeInfo);
