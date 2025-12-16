@@ -103,7 +103,8 @@ public:
 	AllocatedBuffer m_dirLightBuffer;
 	VkDeviceAddress m_dirLightBufferAddr;
 
-	std::vector<Pipeline*> m_pipelines;
+	std::vector<Pipeline*>	m_pipelines;
+	RayTracedPipeline		m_rtPipeline;
 
 	DescriptorAllocatorGrowable	m_globalDescriptorAllocator;
 	VkDescriptorSet				m_renderImageDescriptors;

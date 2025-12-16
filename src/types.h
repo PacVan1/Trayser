@@ -72,6 +72,7 @@ enum ModelResource_
     ModelResource_SciFiHelmet,
     ModelResource_Sponza,
     ModelResource_Veach,
+    ModelResource_Sphere,
     ModelResource_TextureEncodingTest,
     ModelResource_TextureLinearInterpolationTest,
     kModelResourceCount
@@ -96,6 +97,7 @@ const std::string kModelPaths[kModelResourceCount] =
     "../../assets/Khronos/SciFiHelmet/glTF/SciFiHelmet.gltf",
     "../../assets/Khronos/Sponza/glTF/Sponza.gltf",
     "../../assets/TestModels/VeachRemake/veach_remake.glb",
+    "../../assets/TestModels/Sphere/Sphere.glb",
     "../../assets/Khronos/TextureLinearInterpolationTest/glTF-Binary/TextureLinearInterpolationTest.glb",
     "../../assets/Khronos/TextureEncodingTest/glTF-Binary/TextureEncodingTest.glb"
 };
@@ -157,14 +159,14 @@ enum PipelineType
     PipelineType_Background,
     PipelineType_Rasterized,
     PipelineType_Tonemap,
-    PipelineType_RayTraced,
+    //PipelineType_RayTraced,
     kPipelineTypeCount,
 };
 
 enum PipelineMode_
 {
     PipelineMode_Rasterized = PipelineType_Rasterized,
-    PipelineMode_RayTraced = PipelineType_RayTraced,
+    //PipelineMode_RayTraced = PipelineType_RayTraced,
     kPipelineModeCount,
 };
 using PipelineMode = int;

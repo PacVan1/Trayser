@@ -27,10 +27,13 @@ void trayser::Engine::Init()
 
     Model::MikkTSpaceInit();
 
-    ModelHandle handle = m_modelPool.Create(kModelPaths[ModelResource_Veach], kModelPaths[ModelResource_Veach], this);
+    ModelHandle handle = m_modelPool.Create(kModelPaths[ModelResource_DamagedHelmet], kModelPaths[ModelResource_DamagedHelmet], this);
+    //ModelHandle handle2 = m_modelPool.Create(kModelPaths[ModelResource_Sphere], kModelPaths[ModelResource_Sphere], this);
     const Model& model1 = m_modelPool.Get(handle);
+    //const Model& model2 = m_modelPool.Get(handle2);
     m_scene.Init();
     m_scene.CreateModel(model1);
+    //m_scene.CreateModel(model2);
 
     m_scene.Update(1.0f);
 
@@ -67,7 +70,8 @@ void trayser::Engine::Render()
 
     if (m_rayTraced)
     {
-        m_pipelines[PipelineType_RayTraced]->Update();
+        //m_pipelines[PipelineType_RayTraced]->Update();
+        m_rtPipeline.Update();
     }
     else
     {
@@ -154,12 +158,14 @@ void trayser::Engine::InitPipelines()
 	m_pipelines.push_back(new BackgroundPipeline());
 	m_pipelines.push_back(new RasterizedPipeline());
 	m_pipelines.push_back(new TonemapPipeline());
-	m_pipelines.push_back(new RayTracedPipeline());
+	//m_pipelines.push_back(new RayTracedPipeline());
 
 	for (auto& pipeline : m_pipelines)
 	{
 		pipeline->Init();
 	}
+
+    m_rtPipeline.Init();
 }
 
 void trayser::Engine::InitImGuiStyle()
@@ -367,7 +373,7 @@ void trayser::Engine::UpdateGpuScene()
         for (auto& prim : mesh.primitives)
         {
             MaterialHandle materialHandle = prim.materialId;
-            const Material2 material = m_materialPool.m_resources[materialHandle];
+            const Material2 material = materialHandle != ResourceHandle_Invalid ? m_materialPool.m_resources[materialHandle] : m_renderer.m_defaultMaterial;
             materialBufferRef[materialHandle].baseColorHandle    = material.baseColorHandle != ResourceHandle_Invalid   ? material.baseColorHandle  : m_renderer.m_defaultMaterial.baseColorHandle;
             materialBufferRef[materialHandle].normalMapHandle    = material.normalMapHandle != ResourceHandle_Invalid   ? material.normalMapHandle  : m_renderer.m_defaultMaterial.normalMapHandle;
             materialBufferRef[materialHandle].metalRoughHandle   = material.metalRoughHandle != ResourceHandle_Invalid  ? material.metalRoughHandle : m_renderer.m_defaultMaterial.metalRoughHandle;

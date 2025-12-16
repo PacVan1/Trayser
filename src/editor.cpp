@@ -51,13 +51,36 @@ static void EditLocalTransform(LocalTransform& transform)
 	ImGui::Text("Scale");
 }
 
+void PathTracingSettings::Update()
+{
+	ImGui::SliderInt("Samples/pixel threshold", &g_engine.m_rtPipeline.m_sppThreshold, 0, 1024);
+	ImGui::Checkbox("Take screenshot at threshold", &m_takeScreenshotAtSppThreshold);
+	ImGui::ProgressBar(
+		(float)g_engine.m_frame / (float)g_engine.m_rtPipeline.m_sppThreshold,
+		ImVec2(-(1754944e-38), 0.0), "Samples/pixel");
+
+	if (g_engine.m_frame >= g_engine.m_rtPipeline.m_sppThreshold)
+	{
+		if (!m_reachedSppThreshold)
+		{
+			g_engine.m_renderer.RequestScreenshot();
+			m_reachedSppThreshold = true;
+		}
+	}
+	else
+	{
+		m_reachedSppThreshold = false;
+	}
+}
+
 } // namespace trayser
 
 trayser::Editor::Editor()
 {
 	AddWindow(0, new CameraWindow(), "Camera", ImGuiWindowFlags_AlwaysAutoResize);
 	AddWindow(1, new InspectorWindow(), "Inspector");
-	AddWindow(2, new RenderSettingsWindow(), "Render Settings", ImGuiWindowFlags_AlwaysAutoResize);
+	AddWindow(2, new RenderSettingsWindow(), "Global Render Settings", ImGuiWindowFlags_AlwaysAutoResize);
+	AddWindow(3, new PathTracingSettings(), "Path Tracing Settings", ImGuiWindowFlags_AlwaysAutoResize);
 }
 
 trayser::Editor::~Editor()

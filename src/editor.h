@@ -38,10 +38,20 @@ public:
 	void Update() override;
 };
 
+class PathTracingSettings final : public IWindow
+{
+public:
+	bool m_takeScreenshotAtSppThreshold = false;
+	bool m_reachedSppThreshold = false;
+
+public:
+	void Update() override;
+};
+
 class Editor
 {
 public:
-	static constexpr size_t kWindowCount = 3;
+	static constexpr size_t kWindowCount = 4;
 
 public:
 	IWindow*			m_windows[kWindowCount];

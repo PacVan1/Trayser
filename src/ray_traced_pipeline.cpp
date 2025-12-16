@@ -178,6 +178,9 @@ void trayser::RayTracedPipeline::Load(VkShaderModule module)
 
 void trayser::RayTracedPipeline::Update()
 {
+    //if (g_engine.m_frame >= m_sppThreshold)
+    //    return;
+
     ClearIfAccumulatorReset();
 
     // Ray trace pipeline

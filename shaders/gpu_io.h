@@ -30,6 +30,8 @@ using int2      = glm::ivec2;
 #define END_ENUM_DEF(type) k##type##Count };
 #else
 #include "brdf.h"
+//#include "random.h"
+#include "mis.h"
 #define REF(type) type*
 #define PUSH_CONST(type) type
 #define FLOAT4X4 column_major float4x4
@@ -119,6 +121,15 @@ struct Camera
     FLOAT4X4 view;              // View matrix
     FLOAT4X4 invProj;           // Inverse projection matrix
     FLOAT4X4 invView;           // Inverse view matrix
+};
+
+struct Sphere
+{
+    float3  position;
+    float   radius;
+    float   radiusSq;
+    float   area;
+    float   _pad[2];
 };
 
 struct PointLight
@@ -257,6 +268,26 @@ float3 RandomCosineOnHemisphere(in float3 normal, inout uint32_t seed)
     float3 bitangent = cross(normal, tangent);
 
     return dir.x * tangent + dir.y * bitangent + dir.z * normal;
+}
+float3 SphericalToCartesian(in float rho, in float phi, in float theta) 
+{
+    // https://www.shadertoy.com/view/4sSXWt
+
+    float sinTheta = sin(theta);
+    return float3(sinTheta * cos(phi), sinTheta * sin(phi), cos(theta)) * rho;
+}
+float3 RandomDirection(inout uint32_t seed)
+{
+    // https://www.shadertoy.com/view/4sSXWt
+
+    float theta = acos(1.0 - 2.0 * RandomFloat(seed));
+    float phi = TWO_PI * RandomFloat(seed);
+    return SphericalToCartesian(1.0, phi, theta);
+}
+float3 RandomPointWithinSphere(inout uint32_t seed, in Sphere sphere)
+{
+    float3 dir = RandomDirection(seed);
+    return sphere.position + dir * sphere.radius;
 }
 uint32_t InitRNGState(uint32_t x, uint32_t y, uint32_t frame)
 {

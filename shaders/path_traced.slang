@@ -1,6 +1,10 @@
 #include "gpu_io.h"
 
 #define ANTI_ALIASING
+#define BRDF_SAMPLING
+#define LIGHT_SAMPLING
+#define MULTIPLE_IMPORTANCE_SAMPLING
+#define SAMPLING_TECHNIQUE MULTIPLE_IMPORTANCE_SAMPLING
 
 [[vk::push_constant]] ConstantBuffer<RTPushConstants> pushConsts;
 
@@ -47,25 +51,6 @@ void GetPrimaryRayDesc(in float4x4 invView, in float4x4 invProj, in float2 pixel
     ray.Direction   = mul(invView, float4(normalize(viewCoords.xyz), 0.0)).xyz;
     ray.TMin        = kMinT;
     ray.TMax        = kMaxT;
-}
-
-float GetBrdfProbability(MaterialProperties material, float3 V, float3 shadingNormal) {
-
-    // Evaluate Fresnel term using the shading normal
-    // Note: we use the shading normal instead of the microfacet normal (half-vector) for Fresnel term here. That's suboptimal for rough surfaces at grazing angles, but half-vector is yet unknown at this point
-    float specularF0 = luminance(baseColorToSpecularF0(material.baseColor, material.metalness));
-    float diffuseReflectance = luminance(baseColorToDiffuseReflectance(material.baseColor, material.metalness));
-    float Fresnel = saturate(luminance(evalFresnel(specularF0, shadowedF90(specularF0), max(0.0f, dot(V, shadingNormal)))));
-
-    // Approximate relative contribution of BRDFs using the Fresnel term
-    float specular = Fresnel;
-    float diffuse = diffuseReflectance * (1.0f - Fresnel); //< If diffuse term is weighted by Fresnel, apply it here as well
-
-    // Return probability of selecting specular BRDF over diffuse BRDF
-    float p = (specular / max(0.0001f, (specular + diffuse)));
-
-    // Clamp probability to avoid undersampling of less prominent BRDF
-    return clamp(p, 0.1f, 0.9f);
 }
 
 // Clever offset_ray function from Ray Tracing Gems chapter 6
@@ -123,6 +108,19 @@ void rgMain()
 
     outAccumulator[pixelCoord] += float4(payload.radiance, 1.0);
     outImage[pixelCoord] = outAccumulator[pixelCoord] * scale;
+}
+
+// PDF of light sampling from a spherical light source
+// NdotL is the cosine of the angle between the shading normal and the direction to the light
+// r is the radius of the light sphere
+// d is the distance from the shading point to the light source
+
+float computeLightPdf(float3 lightDir, float3 shadingNormal, float lightRadius, float distanceToLight) {
+    // Compute cosine of the angle between shading normal and light direction
+    float NdotL = max(0.0f, dot(shadingNormal, lightDir));
+
+    // PDF based on area of the light and the cosine term
+    return NdotL / (4.0f * kPi * lightRadius * lightRadius * distanceToLight * distanceToLight);
 }
 
 // Closest hit shader - called when ray hits geometry
@@ -209,25 +207,27 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     {
     case RenderMode.FinalColor:
     {
-        //for (int i = 0; i < kPointLightCount; i++)
-        //{
-        //    PointLight pointLight = pointLights[i];
-        //    float3 L = pointLight.position - position;
-        //    float dist = length(L);
-        //    L = normalize(L);
-        //    float3 light = evalCombinedBRDF(shadingNormal, L, -WorldRayDirection(), matProps) / dist * dist * pointLight.color * pointLight.intensity;
-        //    payload.radiance += payload.throughput * light;
-        //}
+        // Point lights
+        // for (int i = 0; i < kPointLightCount; i++)
+        // {
+        //     PointLight pointLight = pointLights[i];
+        //     float3 L = pointLight.position - position;
+        //     float dist = length(L);
+        //     L = normalize(L);
+        //     float3 light = evalCombinedBRDF(shadingNormal, L, -WorldRayDirection(), matProps) / dist * dist * pointLight.color * pointLight.intensity;
+        //     payload.radiance += payload.throughput * light;
+        // }
 
+        // TEMP for MIS test
         int brdfType;
         if (matProps.metalness == 1.0f && matProps.roughness == 0.0f) {
             // Fast path for mirrors
             brdfType = SPECULAR_TYPE;
         } else {
-
+        
             // Decide whether to sample diffuse or specular BRDF (based on Fresnel term)
             float brdfProbability = GetBrdfProbability(matProps, -WorldRayDirection(), shadingNormal);
-
+        
             if (RandomFloat(payload.rngState) < brdfProbability) {
                 brdfType = SPECULAR_TYPE;
                 payload.throughput /= brdfProbability;
@@ -236,7 +236,7 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
                 payload.throughput /= (1.0f - brdfProbability);
             }
         }
-
+        
         // Run importance sampling of selected BRDF to generate reflecting ray direction
         float3 brdfWeight;
         float2 u = RandomFloat2(payload.rngState);
@@ -245,12 +245,69 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
             payload.bouncesLeft = 0;
             return; // Ray was eaten by the surface :(
         }
-
         // Account for surface properties using the BRDF "weight"
         payload.throughput *= brdfWeight;
+
+        // Sphere sphere;
+        // sphere.position = float3(3.75, 3.0, 0.0);
+        // sphere.radius = 0.85;
+        // float3 random = RandomPointWithinSphere(payload.rngState, sphere);
+        // float3 L = random - position;
+        // float dist = length(L);
+        // L = normalize(L);
+        // float3 lRadiance = 1.0 / dist * dist;
+        // float lightPdf = computeLightPdf(-L, shadingNormal, sphere.radius, dist);
+        // 
+        // int brdfType;
+        // if (matProps.metalness == 1.0f && matProps.roughness == 0.0f) {
+        //     // Fast path for mirrors
+        //     brdfType = SPECULAR_TYPE;
+        // } else {
+        // 
+        //     // Decide whether to sample diffuse or specular BRDF (based on Fresnel term)
+        //     float brdfProbability = GetBrdfProbability(matProps, -WorldRayDirection(), shadingNormal);
+        // 
+        //     if (RandomFloat(payload.rngState) < brdfProbability) {
+        //         brdfType = SPECULAR_TYPE;
+        //         payload.throughput /= brdfProbability;
+        //     } else {
+        //         brdfType = DIFFUSE_TYPE;
+        //         payload.throughput /= (1.0f - brdfProbability);
+        //     }
+        // }
+        // 
+        // // Sample from BRDF
+        // float3 brdfRayDir;
+        // float3 brdfSampleWeight;
+        // bool brdfSampled = evalIndirectCombinedBRDF(RandomFloat2(payload.rngState), shadingNormal, geometryNormal, -WorldRayDirection(), matProps, brdfType, brdfRayDir, brdfSampleWeight);
+        // 
+        // // Calculate the BRDF PDF
+        // float brdfPdf = 0.0f;
+        // if (brdfType == DIFFUSE_TYPE) {
+        //     // For diffuse BRDF, use cosine-weighted PDF
+        //     brdfPdf = diffusePdf(dot(shadingNormal, brdfRayDir));
+        // } else if (brdfType == SPECULAR_TYPE) {
+        //     // For specular BRDF, use GGX PDF
+        //     brdfPdf = sampleGGXVNDFReflectionPdf(matProps.roughness, matProps.roughness * matProps.roughness, dot(shadingNormal, brdfRayDir), dot(shadingNormal, -WorldRayDirection()), dot(brdfRayDir, -WorldRayDirection()));
+        // }
+        // 
+        // float3 finalRayDir = brdfRayDir;                     // Final direction (can be light or BRDF sample)
+        // float3 finalSampleWeight = float3(0.0f, 0.0f, 0.0f); // Final weight
+        // 
+        // // MIS Weight Combination
+        // if (brdfSampled) {
+        //     // Combine using MIS balance heuristic
+        //     finalSampleWeight = (lightPdf / (lightPdf + brdfPdf)) * L + (brdfPdf / (lightPdf + brdfPdf)) * brdfSampleWeight;
+        // } else {
+        //     finalSampleWeight = lRadiance; // If no BRDF sample, use only light sample
+        // }
+
+        //float3 light = evalCombinedBRDF(shadingNormal, L, -WorldRayDirection(), matProps) / dist * dist * 2.0;
+        //payload.radiance *= finalSampleWeight;
+
         payload.hitPosition = OffsetRay(position, geometryNormal);
         payload.nextDirection = rayDirection;
-        //payload.bouncesLeft = 0;
+        //payload.bouncesLeft = 0;  
         return;
     }
     case RenderMode.TexCoord0:
