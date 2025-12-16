@@ -39,13 +39,13 @@ struct QueueFamilies
 	uint32_t present;
 };
 
-struct Buffer
-{
-	VkBuffer            buffer;
-	VkDeviceAddress	    address;
-	VmaAllocation       allocation;
-	VmaAllocationInfo   info;
-};
+//struct Buffer
+//{
+//	VkBuffer            buffer;
+//	VkDeviceAddress	    address;
+//	VmaAllocation       allocation;
+//	VmaAllocationInfo   info;
+//};
 
 struct FrameData
 {

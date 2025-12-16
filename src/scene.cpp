@@ -285,15 +285,14 @@ void trayser::Scene::BuildTLas()
 
         g_engine.m_device.EndOneTimeSubmit(); // ensure it waits for completion
 
-        VkBufferDeviceAddressInfo addrInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
-        addrInfo.buffer = tlasInstancesBuffer.buffer;
-        tlasInstancesBuffer.address = vkGetBufferDeviceAddress(g_engine.m_device.m_device, &addrInfo);
-
         // 5) Destroy staging buffer
         vmaDestroyBuffer(g_engine.m_device.m_allocator, staging.buffer, staging.allocation);
 
         //EndOneTimeSubmit();
     }
+    VkBufferDeviceAddressInfo addrInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
+    addrInfo.buffer = tlasInstancesBuffer.buffer;
+    VkDeviceAddress tlasInstanceAddr = vkGetBufferDeviceAddress(g_engine.m_device.m_device, &addrInfo);
 
     // Then create the TLAS geometry
     {
@@ -306,7 +305,7 @@ void trayser::Scene::BuildTLas()
             .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR,
             .pNext = nullptr,
             .arrayOfPointers = VK_FALSE,
-            .data = {.deviceAddress = tlasInstancesBuffer.address}
+            .data = {.deviceAddress = tlasInstanceAddr}
         };
         asGeometry = { .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
                             .geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR,
