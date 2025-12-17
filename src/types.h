@@ -171,28 +171,6 @@ enum PipelineMode_
 };
 using PipelineMode = int;
 
-//struct AllocatedImage 
-//{
-//    VkImage         image;
-//    VkImageView     imageView;
-//    VmaAllocation   allocation;
-//    VkExtent3D      imageExtent;
-//    VkFormat        imageFormat;
-//};
-
-//struct AllocatedBuffer 
-//{
-//    VkBuffer            buffer;
-//    VmaAllocation       allocation;
-//    VmaAllocationInfo   info;
-//};
-
-//struct Buffer
-//{
-//    VkBuffer        buffer;
-//    VmaAllocation   allocation;
-//};
-
 struct Vertex
 {
     glm::vec4 position;
@@ -247,21 +225,5 @@ struct alignas(16) PushConstants
     glm::vec4   camPos;
     glm::ivec4  renderMode;
 };
-
-struct SceneData {
-    glm::mat4 view;
-    glm::mat4 proj;
-    glm::mat4 viewproj;
-    glm::vec4 ambientColor;
-    glm::vec4 sunlightDirection; // w for sun power
-    glm::vec4 sunlightColor;
-};
-
-//struct AccelerationStructure
-//{
-//    VkAccelerationStructureKHR accel{};
-//    VkDeviceAddress            address{};
-//    Buffer                     buffer;  // Underlying buffer
-//};
 
 }

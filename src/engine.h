@@ -126,7 +126,6 @@ public:
 	//VkDescriptorSet m_allTexturesSet;
 
 private:
-	gpu::SceneData m_sceneData;
 	VkDescriptorSetLayout m_gpuSceneDataDescriptorLayout;
 };
 
