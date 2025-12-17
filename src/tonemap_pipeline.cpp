@@ -24,8 +24,8 @@ void trayser::TonemapPipeline::Load(VkShaderModule module)
     m_descriptorSet = g_engine.m_globalDescriptorAllocator.Allocate(g_engine.m_device.m_device, m_descriptorSetLayout);
 
     DescriptorWriter writer;
-    writer.WriteImage(0, g_engine.m_gBuffer.colorImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-    writer.WriteImage(1, g_engine.m_gBuffer.colorImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    writer.WriteImage(0, g_engine.m_gBuffer.colorView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    writer.WriteImage(1, g_engine.m_gBuffer.colorView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
     writer.UpdateSet(g_engine.m_device.m_device, m_descriptorSet);
 
     // ---------------------
@@ -77,7 +77,7 @@ void trayser::TonemapPipeline::Update()
 
     vkCmdPushConstants(cmd, m_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(PushConstantComp), &pc);
 
-    VkExtent2D extent = { g_engine.m_gBuffer.colorImage.imageExtent.width, g_engine.m_gBuffer.colorImage.imageExtent.height };
+    VkExtent2D extent = { g_engine.m_gBuffer.colorImage.extent.width, g_engine.m_gBuffer.colorImage.extent.height };
 
     // execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
     vkCmdDispatch(cmd, std::ceil(extent.width / 16.0), std::ceil(extent.height / 16.0), 1);

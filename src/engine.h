@@ -38,12 +38,12 @@ public:
 	void Destroy();
 	void Render();
 	void Run();
-	gpu::MeshBuffers UploadMesh(std::span<uint32_t> indices, std::span<Vertex> vertices);
-	AllocatedBuffer CreateBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
-	AllocatedImage CreateImage(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
-	AllocatedImage CreateImage(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
-	void DestroyImage(const AllocatedImage& img);
-	void DestroyBuffer(const AllocatedBuffer& buffer);
+	//gpu::MeshBuffers UploadMesh(std::span<uint32_t> indices, std::span<Vertex> vertices);
+	//AllocatedBuffer CreateBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
+	//AllocatedImage CreateImage(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
+	//AllocatedImage CreateImage(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
+	//void DestroyImage(const AllocatedImage& img);
+	//void DestroyBuffer(const AllocatedBuffer& buffer);
 	void HotReloadPipelines();
 	void LoadSkydome(const std::string& path);
 	void SetAccumulatorDirty();
@@ -60,7 +60,6 @@ private:
 	void UpdateGpuScene();
 	void DestroySwapchain();
 	void BeginRecording(VkCommandBuffer cmd);
-	void ResizeSwapchain();
 
 public:
 	Resources		m_resources;
@@ -82,26 +81,32 @@ public:
 
 	ResourcePool<Model, 10> m_modelPool;
 	ResourcePool<Mesh, kMeshCount> m_meshPool;
-	ResourcePool<Image, kTextureCount> m_texturePool;
-	ResourcePool<Material2, kMaterialCount> m_materialPool;
+	ResourcePool<Texture, kTextureCount> m_texturePool;
+	ResourcePool<Material, kMaterialCount> m_materialPool;
 
 	bool			m_rayTraced = true;
 	uint32_t		m_frame = 0;
 
 	TextureHandle m_skydomeHandle;
 
-	AllocatedBuffer m_gpuScene;
-	VkDeviceAddress m_gpuSceneAddr;
-	AllocatedBuffer m_meshBuffer;
-	VkDeviceAddress m_meshBufferAddr;
-	AllocatedBuffer m_instanceBuffer;
-	VkDeviceAddress m_instanceBufferAddr;
-	AllocatedBuffer m_materialBuffer;
-	VkDeviceAddress m_materialBufferAddr;
-	AllocatedBuffer m_pointLightBuffer;
-	VkDeviceAddress m_pointLightBufferAddr;
-	AllocatedBuffer m_dirLightBuffer;
-	VkDeviceAddress m_dirLightBufferAddr;
+	Device::Buffer			m_gpuScene;
+	Device::Buffer			m_meshBuffer;
+	Device::Buffer			m_instanceBuffer;
+	Device::Buffer			m_materialBuffer;
+	Device::Buffer			m_pointLightBuffer;
+	Device::Buffer			m_dirLightBuffer;
+	VkDeviceAddress			m_gpuSceneAddr;
+	VkDeviceAddress			m_meshBufferAddr;
+	VkDeviceAddress			m_instanceBufferAddr;
+	VkDeviceAddress			m_materialBufferAddr;
+	VkDeviceAddress			m_pointLightBufferAddr;
+	VkDeviceAddress			m_dirLightBufferAddr;
+	gpu::Scene*				m_sceneMapped;
+	gpu::Mesh*				m_meshMapped;
+	gpu::Instance*			m_instanceMapped;
+	gpu::Material*			m_materialMapped;
+	gpu::PointLight*		m_pointLightMapped;
+	gpu::DirectionalLight*	m_dirLightMapped;
 
 	std::vector<Pipeline*>	m_pipelines;
 	RayTracedPipeline		m_rtPipeline;

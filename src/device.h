@@ -39,14 +39,6 @@ struct QueueFamilies
 	uint32_t present;
 };
 
-//struct Buffer
-//{
-//	VkBuffer            buffer;
-//	VkDeviceAddress	    address;
-//	VmaAllocation       allocation;
-//	VmaAllocationInfo   info;
-//};
-
 struct FrameData
 {
 	VkCommandPool	commandPool;
@@ -88,11 +80,28 @@ public:
 		VmaAllocation	allocation;
 	};
 
+	struct StageBuffer
+	{
+		VkBuffer		buffer;
+		VmaAllocation	allocation;
+		void*			mapped;
+	};
+
+	struct Image
+	{
+		VkExtent3D		extent;
+		VkImage			image;
+		VmaAllocation	allocation;
+		VkFormat		format;
+		uint32_t		mipLevels;
+		uint32_t		arrayLayers;
+	};
+
 	struct AccelerationStructure
 	{
 		VkAccelerationStructureKHR  accel{};
 		VkDeviceAddress             address{};
-		Device::Buffer				buffer;
+		Buffer						buffer;
 	};
 
 public:
@@ -112,6 +121,34 @@ public:
 	SwapchainSupport GetSwapchainSupport() const;
 	QueueFamilyIndices GetQueueFamilies();
 
+	VkResult CreateImage(
+		const VkImageCreateInfo& createInfo, 
+		const VmaAllocationCreateInfo& allocCreateInfo, 
+		Device::Image& outImage, 
+		VmaAllocationInfo* outAllocInfo = nullptr) const;
+
+	void DestroyImage(const Device::Image& image) const;
+
+	VkResult CreateStageBuffer(
+		VkDeviceSize size,
+		VkBufferUsageFlags bufferUsage,
+		VmaAllocationCreateFlags allocFlags,
+		Device::StageBuffer& outBuffer,
+		VmaAllocationInfo& outAllocInfo) const;
+
+	VkResult CreateStageBuffer(
+		VkDeviceSize size,
+		Device::StageBuffer& outBuffer,
+		VmaAllocationInfo& outAllocInfo) const;
+
+	VkResult CreateStageBuffer(
+		const VkBufferCreateInfo& bufferCreateInfo,
+		const VmaAllocationCreateInfo& allocCreateInfo,
+		Device::StageBuffer& outBuffer,
+		VmaAllocationInfo& outAllocInfo) const;
+
+	void DestroyStageBuffer(const Device::StageBuffer& buffer) const;
+
 	VkResult CreateBuffer(
 		VkDeviceSize size,
 		VkBufferUsageFlags bufferUsage,
@@ -141,6 +178,8 @@ public:
 		VkDeviceSize minAlignment,
 		Device::Buffer& outBuffer,
 		VmaAllocationInfo* outAllocInfo = nullptr) const;
+
+	void DestroyBuffer(const Device::Buffer& buffer) const;
 
 	VkResult CreateAccelerationStructure(AccelerationStructure& outAccelStruct,
 		const VkAccelerationStructureCreateInfoKHR& createInfo) const;

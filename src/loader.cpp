@@ -142,16 +142,45 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
     const size_t primitiveBufferSize = primitiveCount * sizeof(gpu::Primitive);
 
     //create vertex buffer
-    vertexBuffer = engine->CreateBuffer(vertexBufferSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-        VMA_MEMORY_USAGE_GPU_ONLY);
+    engine->m_device.CreateBuffer(
+        vertexBufferSize, 
+        VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | 
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | 
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT | 
+        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | 
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+        VMA_MEMORY_USAGE_GPU_ONLY,
+        { 0 },
+        vertexBuffer);
 
     //create index buffer
-    indexBuffer = engine->CreateBuffer(indexBufferSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-        VMA_MEMORY_USAGE_GPU_ONLY);
+    engine->m_device.CreateBuffer(
+        indexBufferSize,
+        VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | 
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | 
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT | 
+        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+        VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        VMA_MEMORY_USAGE_GPU_ONLY,
+        { 0 },
+        indexBuffer);
+
+    //indexBuffer = engine->CreateBuffer(indexBufferSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+    //    VMA_MEMORY_USAGE_GPU_ONLY);
 
     //create primitive buffer
-    primitiveBuffer = engine->CreateBuffer(primitiveBufferSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-        VMA_MEMORY_USAGE_GPU_ONLY);
+    engine->m_device.CreateBuffer(
+        indexBufferSize,
+        VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | 
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | 
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT | 
+        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+        VMA_MEMORY_USAGE_GPU_ONLY,
+        { 0 },
+        primitiveBuffer);
+
+    //primitiveBuffer = engine->CreateBuffer(primitiveBufferSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+    //    VMA_MEMORY_USAGE_GPU_ONLY);
 
     //find the adress of the vertex and index buffer
     VkBufferDeviceAddressInfo deviceAdressInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,.buffer = vertexBuffer.buffer };
@@ -161,19 +190,15 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
     deviceAdressInfo = VkBufferDeviceAddressInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,.buffer = primitiveBuffer.buffer };
     primitiveBufferAddr = vkGetBufferDeviceAddress(engine->m_device.m_device, &deviceAdressInfo);
 
-    AllocatedBuffer vertexStaging = engine->CreateBuffer(vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
-    AllocatedBuffer indexStaging = engine->CreateBuffer(indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
-    AllocatedBuffer primitiveStaging = engine->CreateBuffer(primitiveBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+    Device::StageBuffer vertexStage, indexStage, primStage;
+    VmaAllocationInfo allocInfo;
+    engine->m_device.CreateStageBuffer(vertexBufferSize, vertexStage, allocInfo);
+    engine->m_device.CreateStageBuffer(indexBufferSize, indexStage, allocInfo);
+    engine->m_device.CreateStageBuffer(primitiveBufferSize, primStage, allocInfo);
 
-    VmaAllocationInfo info;
-    vmaGetAllocationInfo(engine->m_device.m_allocator, vertexStaging.allocation, &info);
-    Vertex* vertices = (Vertex*)info.pMappedData;
-
-    vmaGetAllocationInfo(engine->m_device.m_allocator, indexStaging.allocation, &info);
-    u32* indices = (u32*)info.pMappedData;
-
-    vmaGetAllocationInfo(engine->m_device.m_allocator, primitiveStaging.allocation, &info);
-    gpu::Primitive* primitivesAddr = (gpu::Primitive*)info.pMappedData;
+    Vertex* vertices                = (Vertex*)vertexStage.mapped;
+    u32* indices                    = (u32*)indexStage.mapped;
+    gpu::Primitive* primitivesAddr  = (gpu::Primitive*)primStage.mapped;
     ////////////////////////////////////////////////////////////////
 
     bool missesTangents = false;
@@ -357,25 +382,25 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
     vertexCopy.dstOffset = 0;
     vertexCopy.srcOffset = 0;
     vertexCopy.size = vertexBufferSize;
-    vkCmdCopyBuffer(cmd, vertexStaging.buffer, vertexBuffer.buffer, 1, &vertexCopy);
+    vkCmdCopyBuffer(cmd, vertexStage.buffer, vertexBuffer.buffer, 1, &vertexCopy);
 
     VkBufferCopy indexCopy{ 0 };
     indexCopy.dstOffset = 0;
     indexCopy.srcOffset = 0;
     indexCopy.size = indexBufferSize;
-    vkCmdCopyBuffer(cmd, indexStaging.buffer, indexBuffer.buffer, 1, &indexCopy);
+    vkCmdCopyBuffer(cmd, indexStage.buffer, indexBuffer.buffer, 1, &indexCopy);
 
     VkBufferCopy primitiveCopy{ 0 };
     primitiveCopy.dstOffset = 0;
     primitiveCopy.srcOffset = 0;
     primitiveCopy.size = primitiveBufferSize;
-    vkCmdCopyBuffer(cmd, primitiveStaging.buffer, primitiveBuffer.buffer, 1, &primitiveCopy);
+    vkCmdCopyBuffer(cmd, primStage.buffer, primitiveBuffer.buffer, 1, &primitiveCopy);
 
 	engine->m_device.EndOneTimeSubmit();
 
-    engine->DestroyBuffer(vertexStaging);
-    engine->DestroyBuffer(indexStaging);
-    engine->DestroyBuffer(primitiveStaging);
+    engine->m_device.DestroyStageBuffer(vertexStage);
+    engine->m_device.DestroyStageBuffer(indexStage);
+    engine->m_device.DestroyStageBuffer(primStage);
     //////////////////////////////////////////////////////////////
 
     InitBLas();
@@ -598,12 +623,12 @@ trayser::Model::Model(std::string_view path, Engine* engine)
     }
 }
 
-trayser::Image::~Image()
+trayser::Texture::~Texture()
 {
-    vmaDestroyImage(g_engine.m_device.m_allocator, image, allocation);
+    g_engine.m_device.DestroyImage(image);
 }
 
-trayser::Image::Image(const std::string& path, const tinygltf::Model& model, const tinygltf::Image& inImage, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
+trayser::Texture::Texture(const std::string& path, const tinygltf::Model& model, const tinygltf::Image& inImage, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
 {
     auto& engine = g_engine;
 
@@ -629,16 +654,17 @@ trayser::Image::Image(const std::string& path, const tinygltf::Model& model, con
     }
 
     size_t data_size = width * height * 4;
-    AllocatedBuffer uploadbuffer = engine.CreateBuffer(data_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+    //AllocatedBuffer uploadbuffer = engine.CreateBuffer(data_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 
-    memcpy(uploadbuffer.info.pMappedData, data, data_size);
+    Device::Buffer uploadBuffer;
+    VmaAllocationInfo uploadBufferInfo;
+    VK_CHECK(engine.m_device.CreateBuffer(data_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT, uploadBuffer, &uploadBufferInfo));
+
+    memcpy(uploadBufferInfo.pMappedData, data, data_size);
 
     VkExtent3D extent = { width, height, 1 };
 
-    AllocatedImage newImage;
-    newImage.imageFormat = format;
-    newImage.imageExtent = extent;
-
+    Device::Image newImage{};
     VkImageCreateInfo imageCreateInfo = ImageCreateInfo();
     imageCreateInfo.format      = format;
     imageCreateInfo.usage       = usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
@@ -674,7 +700,7 @@ trayser::Image::Image(const std::string& path, const tinygltf::Model& model, con
     copyRegion.imageExtent = extent;
 
     // copy the buffer into the image
-    vkCmdCopyBufferToImage(cmd, uploadbuffer.buffer, newImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+    vkCmdCopyBufferToImage(cmd, uploadBuffer.buffer, newImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
         &copyRegion);
 
     vkutil::TransitionImage(cmd, newImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -682,10 +708,9 @@ trayser::Image::Image(const std::string& path, const tinygltf::Model& model, con
 
     engine.m_device.EndOneTimeSubmit();
 
-    engine.DestroyBuffer(uploadbuffer);
+    engine.m_device.DestroyBuffer(uploadBuffer);
     stbi_image_free(data);
 
-    cmd;
     g_engine.m_device.BeginOneTimeSubmit(cmd);
 
     // Transition image to layout in which we can perform mip map generation
@@ -734,145 +759,173 @@ trayser::Image::Image(const std::string& path, const tinygltf::Model& model, con
     viewCreateInfo.subresourceRange.baseArrayLayer  = 0;
     viewCreateInfo.subresourceRange.layerCount      = VK_REMAINING_ARRAY_LAYERS;
     viewCreateInfo.subresourceRange.aspectMask      = VK_IMAGE_ASPECT_COLOR_BIT;
-    VK_CHECK(vkCreateImageView(g_engine.m_device.m_device, &viewCreateInfo, nullptr, &newImage.imageView));
+    VK_CHECK(vkCreateImageView(g_engine.m_device.m_device, &viewCreateInfo, nullptr, &imageView));
 
-    image = newImage.image;
-    imageView = newImage.imageView;
-    allocation = newImage.allocation;
-    imageExtent = newImage.imageExtent;
-    imageFormat = newImage.imageFormat;
+    image.image         = newImage.image;
+    image.allocation    = newImage.allocation;
 }
 
-trayser::Image::Image(const std::string& path, VkFormat format, VkImageUsageFlags usage)
-{
-    std::filesystem::path fsPath = path;
-    if (fsPath.extension() == ".hdr")
-    {
-        int width, height, channels;
-        float* stbiData = stbi_loadf(path.c_str(), &width, &height, &channels, 4);
-        if (!stbiData)
-            return;
+//trayser::Texture::Texture(const std::string& path, VkFormat format, VkImageUsageFlags usage)
+//{
+//    std::filesystem::path fsPath = path;
+//    if (fsPath.extension() == ".hdr")
+//    {
+//        int width, height, channels;
+//        float* stbiData = stbi_loadf(path.c_str(), &width, &height, &channels, 4);
+//        if (!stbiData)
+//            return;
+//
+//        size_t sizeBytes = width * height * 4;
+//        AllocatedBuffer staging = g_engine.CreateBuffer(sizeBytes, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+//        memcpy(staging.info.pMappedData, stbiData, sizeBytes);
+//
+//        VkExtent3D extent = { width, height, 1 };
+//
+//        AllocatedImage equiImage{};
+//        {
+//        equiImage.imageFormat = format;
+//        equiImage.imageExtent = extent;
+//
+//        VkImageCreateInfo imageCreateInfo = ImageCreateInfo();
+//        imageCreateInfo.imageType   = VK_IMAGE_TYPE_2D;
+//        imageCreateInfo.format      = VK_FORMAT_R16G16B16A16_SFLOAT;
+//        imageCreateInfo.extent      = extent;
+//        imageCreateInfo.usage       = usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+//        imageCreateInfo.mipLevels   = 1;
+//        imageCreateInfo.arrayLayers = 1;
+//        imageCreateInfo.samples     = VK_SAMPLE_COUNT_1_BIT;
+//        imageCreateInfo.tiling      = VK_IMAGE_TILING_OPTIMAL;
+//
+//        // Always allocate images on dedicated GPU memory
+//        VmaAllocationCreateInfo allocInfo = {};
+//        allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+//        allocInfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+//        VK_CHECK(vmaCreateImage(g_engine.m_device.m_allocator, &imageCreateInfo, &allocInfo, &equiImage.image, &equiImage.allocation, nullptr));
+//
+//        // Build a image-view for the image
+//        VkImageViewCreateInfo viewCreateInfo = ImageViewCreateInfo();
+//        viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+//        viewCreateInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
+//        viewCreateInfo.image = equiImage.image;
+//        viewCreateInfo.subresourceRange.baseMipLevel = 0;
+//        viewCreateInfo.subresourceRange.levelCount = 1;
+//        viewCreateInfo.subresourceRange.baseArrayLayer = 0;
+//        viewCreateInfo.subresourceRange.layerCount = 1;
+//        viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+//        VK_CHECK(vkCreateImageView(g_engine.m_device.m_device, &viewCreateInfo, nullptr, &equiImage.imageView));
+//        }
+//
+//        AllocatedImage cubeImage{};
+//        {
+//        cubeImage.imageFormat = format;
+//        cubeImage.imageExtent = extent;
+//
+//        VkImageCreateInfo imageCreateInfo = ImageCreateInfo();
+//        imageCreateInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+//        imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+//        imageCreateInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
+//        imageCreateInfo.extent = extent;
+//        imageCreateInfo.usage = usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+//        imageCreateInfo.mipLevels = 1;
+//        imageCreateInfo.arrayLayers = 6; // 6 sides on a cube
+//        imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+//        imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+//
+//        // Always allocate images on dedicated GPU memory
+//        VmaAllocationCreateInfo allocInfo = {};
+//        allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+//        allocInfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+//        VK_CHECK(vmaCreateImage(g_engine.m_device.m_allocator, &imageCreateInfo, &allocInfo, &cubeImage.image, &cubeImage.allocation, nullptr));
+//
+//        // Build a image-view for the image
+//        VkImageViewCreateInfo viewCreateInfo = ImageViewCreateInfo();
+//        viewCreateInfo.viewType                         = VK_IMAGE_VIEW_TYPE_CUBE;
+//        viewCreateInfo.format                           = VK_FORMAT_R16G16B16A16_SFLOAT;
+//        viewCreateInfo.image                            = cubeImage.image;
+//        viewCreateInfo.subresourceRange.baseMipLevel    = 0;
+//        viewCreateInfo.subresourceRange.levelCount      = 1;
+//        viewCreateInfo.subresourceRange.baseArrayLayer  = 0;
+//        viewCreateInfo.subresourceRange.layerCount      = 6;
+//        viewCreateInfo.subresourceRange.aspectMask      = VK_IMAGE_ASPECT_COLOR_BIT;
+//        VK_CHECK(vkCreateImageView(g_engine.m_device.m_device, &viewCreateInfo, nullptr, &cubeImage.imageView));
+//        }
+//
+//        // Copy stbi contents to equi image
+//        VkCommandBuffer cmd;
+//        g_engine.m_device.BeginOneTimeSubmit(cmd);
+//
+//        vkutil::TransitionImage(cmd, equiImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+//
+//        VkBufferImageCopy copyRegion = {};
+//        copyRegion.bufferOffset = 0;
+//        copyRegion.bufferRowLength = 0;
+//        copyRegion.bufferImageHeight = 0;
+//        copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+//        copyRegion.imageSubresource.mipLevel = 0;
+//        copyRegion.imageSubresource.baseArrayLayer = 0;
+//        copyRegion.imageSubresource.layerCount = 1;
+//        copyRegion.imageExtent = extent;
+//        vkCmdCopyBufferToImage(cmd, staging.buffer, equiImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+//
+//        vkutil::TransitionImage(cmd, equiImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+//            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+//
+//        g_engine.m_device.EndOneTimeSubmit();
+//        g_engine.DestroyBuffer(staging);
+//
+//        stbi_image_free(stbiData);
+//
+//        image.image       = cubeImage.image;
+//        imageView   = cubeImage.imageView;
+//        image.allocation  = cubeImage.allocation;
+//        imageExtent = cubeImage.imageExtent;
+//        imageFormat = cubeImage.imageFormat;
+//    }
+//}
 
-        size_t sizeBytes = width * height * 4;
-        AllocatedBuffer staging = g_engine.CreateBuffer(sizeBytes, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
-        memcpy(staging.info.pMappedData, stbiData, sizeBytes);
-
-        VkExtent3D extent = { width, height, 1 };
-
-        AllocatedImage equiImage{};
-        {
-        equiImage.imageFormat = format;
-        equiImage.imageExtent = extent;
-
-        VkImageCreateInfo imageCreateInfo = ImageCreateInfo();
-        imageCreateInfo.imageType   = VK_IMAGE_TYPE_2D;
-        imageCreateInfo.format      = VK_FORMAT_R16G16B16A16_SFLOAT;
-        imageCreateInfo.extent      = extent;
-        imageCreateInfo.usage       = usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-        imageCreateInfo.mipLevels   = 1;
-        imageCreateInfo.arrayLayers = 1;
-        imageCreateInfo.samples     = VK_SAMPLE_COUNT_1_BIT;
-        imageCreateInfo.tiling      = VK_IMAGE_TILING_OPTIMAL;
-
-        // Always allocate images on dedicated GPU memory
-        VmaAllocationCreateInfo allocInfo = {};
-        allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-        allocInfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-        VK_CHECK(vmaCreateImage(g_engine.m_device.m_allocator, &imageCreateInfo, &allocInfo, &equiImage.image, &equiImage.allocation, nullptr));
-
-        // Build a image-view for the image
-        VkImageViewCreateInfo viewCreateInfo = ImageViewCreateInfo();
-        viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        viewCreateInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
-        viewCreateInfo.image = equiImage.image;
-        viewCreateInfo.subresourceRange.baseMipLevel = 0;
-        viewCreateInfo.subresourceRange.levelCount = 1;
-        viewCreateInfo.subresourceRange.baseArrayLayer = 0;
-        viewCreateInfo.subresourceRange.layerCount = 1;
-        viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        VK_CHECK(vkCreateImageView(g_engine.m_device.m_device, &viewCreateInfo, nullptr, &equiImage.imageView));
-        }
-
-        AllocatedImage cubeImage{};
-        {
-        cubeImage.imageFormat = format;
-        cubeImage.imageExtent = extent;
-
-        VkImageCreateInfo imageCreateInfo = ImageCreateInfo();
-        imageCreateInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
-        imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-        imageCreateInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
-        imageCreateInfo.extent = extent;
-        imageCreateInfo.usage = usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-        imageCreateInfo.mipLevels = 1;
-        imageCreateInfo.arrayLayers = 6; // 6 sides on a cube
-        imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-        imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-
-        // Always allocate images on dedicated GPU memory
-        VmaAllocationCreateInfo allocInfo = {};
-        allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-        allocInfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-        VK_CHECK(vmaCreateImage(g_engine.m_device.m_allocator, &imageCreateInfo, &allocInfo, &cubeImage.image, &cubeImage.allocation, nullptr));
-
-        // Build a image-view for the image
-        VkImageViewCreateInfo viewCreateInfo = ImageViewCreateInfo();
-        viewCreateInfo.viewType                         = VK_IMAGE_VIEW_TYPE_CUBE;
-        viewCreateInfo.format                           = VK_FORMAT_R16G16B16A16_SFLOAT;
-        viewCreateInfo.image                            = cubeImage.image;
-        viewCreateInfo.subresourceRange.baseMipLevel    = 0;
-        viewCreateInfo.subresourceRange.levelCount      = 1;
-        viewCreateInfo.subresourceRange.baseArrayLayer  = 0;
-        viewCreateInfo.subresourceRange.layerCount      = 6;
-        viewCreateInfo.subresourceRange.aspectMask      = VK_IMAGE_ASPECT_COLOR_BIT;
-        VK_CHECK(vkCreateImageView(g_engine.m_device.m_device, &viewCreateInfo, nullptr, &cubeImage.imageView));
-        }
-
-        // Copy stbi contents to equi image
-        VkCommandBuffer cmd;
-        g_engine.m_device.BeginOneTimeSubmit(cmd);
-
-        vkutil::TransitionImage(cmd, equiImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-        VkBufferImageCopy copyRegion = {};
-        copyRegion.bufferOffset = 0;
-        copyRegion.bufferRowLength = 0;
-        copyRegion.bufferImageHeight = 0;
-        copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        copyRegion.imageSubresource.mipLevel = 0;
-        copyRegion.imageSubresource.baseArrayLayer = 0;
-        copyRegion.imageSubresource.layerCount = 1;
-        copyRegion.imageExtent = extent;
-        vkCmdCopyBufferToImage(cmd, staging.buffer, equiImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
-
-        vkutil::TransitionImage(cmd, equiImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-        g_engine.m_device.EndOneTimeSubmit();
-        g_engine.DestroyBuffer(staging);
-
-        stbi_image_free(stbiData);
-
-        image       = cubeImage.image;
-        imageView   = cubeImage.imageView;
-        allocation  = cubeImage.allocation;
-        imageExtent = cubeImage.imageExtent;
-        imageFormat = cubeImage.imageFormat;
-    }
-}
-
-trayser::Image::Image(u32* data, u32 width, u32 height, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
+trayser::Texture::Texture(u32* data, u32 width, u32 height, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
 {
     auto& engine = g_engine;
 
     size_t data_size = width * height * 4;
-    AllocatedBuffer uploadbuffer = engine.CreateBuffer(data_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+    Device::Buffer uploadbuffer;
+    VmaAllocationInfo allocInfo{};
+    engine.m_device.CreateBuffer(data_size, 
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT, 
+        uploadbuffer, &allocInfo);
 
-    memcpy(uploadbuffer.info.pMappedData, data, data_size);
+    memcpy(allocInfo.pMappedData, data, data_size);
 
     VkExtent3D extent = { width, height, 1 };
 
-    AllocatedImage new_image = engine.CreateImage(extent, format, usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, mipmapped);
+    //Device::Image new_image = engine.CreateImage(extent, format, usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, mipmapped);
+
+    VkImageCreateInfo createInfo = ImageCreateInfo();
+    createInfo.format       = format;
+    createInfo.usage        = usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    createInfo.extent       = extent;
+    createInfo.imageType    = VK_IMAGE_TYPE_2D;
+    createInfo.mipLevels    = 1;
+    createInfo.arrayLayers  = 1;
+    createInfo.samples      = VK_SAMPLE_COUNT_1_BIT;
+    createInfo.tiling       = VK_IMAGE_TILING_OPTIMAL;
+    VmaAllocationCreateInfo allocCreateInfo{};
+    allocCreateInfo.flags   = 0;
+    allocCreateInfo.usage   = VMA_MEMORY_USAGE_GPU_ONLY;
+    Device::Image new_image;
+    engine.m_device.CreateImage(createInfo, allocCreateInfo, new_image);
+
+    VkImageViewCreateInfo viewCreateInfo = ImageViewCreateInfo();
+    viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewCreateInfo.format   = format;
+    viewCreateInfo.image    = new_image.image;
+    viewCreateInfo.subresourceRange.baseMipLevel = 0;
+    viewCreateInfo.subresourceRange.levelCount = 1;
+    viewCreateInfo.subresourceRange.baseArrayLayer = 0;
+    viewCreateInfo.subresourceRange.layerCount = 1;
+    viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    viewCreateInfo.subresourceRange.levelCount = createInfo.mipLevels;
+    VK_CHECK(vkCreateImageView(g_engine.m_device.m_device, &viewCreateInfo, nullptr, &imageView));
 
     VkCommandBuffer cmd;
     engine.m_device.BeginOneTimeSubmit(cmd);
@@ -899,27 +952,54 @@ trayser::Image::Image(u32* data, u32 width, u32 height, VkFormat format, VkImage
   
 		engine.m_device.EndOneTimeSubmit();
 
-    engine.DestroyBuffer(uploadbuffer);
+    engine.m_device.DestroyBuffer(uploadbuffer);
 
-    image = new_image.image;
-    imageView = new_image.imageView;
-    allocation = new_image.allocation;
-    imageExtent = new_image.imageExtent;
-    imageFormat = new_image.imageFormat;
+    image.image = new_image.image;
+    image.allocation = new_image.allocation;
 }
 
-trayser::Image::Image(u16* data, u32 width, u32 height, VkFormat format, VkImageUsageFlags usage, HDRI)
+trayser::Texture::Texture(u16* data, u32 width, u32 height, VkFormat format, VkImageUsageFlags usage, HDRI)
 {
     auto& engine = g_engine;
 
     size_t data_size = width * height * 4 * 2;
-    AllocatedBuffer uploadbuffer = engine.CreateBuffer(data_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+    Device::Buffer uploadbuffer;
+    VmaAllocationInfo allocInfo;
+    engine.m_device.CreateBuffer(data_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT, uploadbuffer, &allocInfo);
+    //engine.CreateBuffer(data_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 
-    memcpy(uploadbuffer.info.pMappedData, data, data_size);
+    memcpy(allocInfo.pMappedData, data, data_size);
 
     VkExtent3D extent = { width, height, 1 };
 
-    AllocatedImage new_image = engine.CreateImage(extent, format, usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, false);
+    //AllocatedImage new_image = engine.CreateImage(extent, format, usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, false);
+
+    VkImageCreateInfo createInfo = ImageCreateInfo();
+    createInfo.format = format;
+    createInfo.usage = usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    createInfo.extent = extent;
+    createInfo.imageType = VK_IMAGE_TYPE_2D;
+    createInfo.mipLevels = 1;
+    createInfo.arrayLayers = 1;
+    createInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    createInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    VmaAllocationCreateInfo allocCreateInfo{};
+    allocCreateInfo.flags = 0;
+    allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+    Device::Image new_image;
+    engine.m_device.CreateImage(createInfo, allocCreateInfo, new_image);
+
+    VkImageViewCreateInfo viewCreateInfo = ImageViewCreateInfo();
+    viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewCreateInfo.format = format;
+    viewCreateInfo.image = new_image.image;
+    viewCreateInfo.subresourceRange.baseMipLevel = 0;
+    viewCreateInfo.subresourceRange.levelCount = 1;
+    viewCreateInfo.subresourceRange.baseArrayLayer = 0;
+    viewCreateInfo.subresourceRange.layerCount = 1;
+    viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    viewCreateInfo.subresourceRange.levelCount = createInfo.mipLevels;
+    VK_CHECK(vkCreateImageView(g_engine.m_device.m_device, &viewCreateInfo, nullptr, &imageView));
 
     VkCommandBuffer cmd;
     engine.m_device.BeginOneTimeSubmit(cmd);
@@ -946,16 +1026,13 @@ trayser::Image::Image(u16* data, u32 width, u32 height, VkFormat format, VkImage
 
     engine.m_device.EndOneTimeSubmit();
 
-    engine.DestroyBuffer(uploadbuffer);
+    engine.m_device.DestroyBuffer(uploadbuffer);
 
-    image = new_image.image;
-    imageView = new_image.imageView;
-    allocation = new_image.allocation;
-    imageExtent = new_image.imageExtent;
-    imageFormat = new_image.imageFormat;
+    image.image = new_image.image;
+    image.allocation = new_image.allocation;
 }
 
-trayser::Image::Image(f16* data, u32 width, u32 height, VkImageUsageFlags usage, HDRI)
+trayser::Texture::Texture(f16* data, u32 width, u32 height, VkImageUsageFlags usage, HDRI)
 {
     VkDeviceSize sizeBytes = VkDeviceSize{ width * height * 4 * 2 }; // w * h * channels * bytes/pixel
 
@@ -979,7 +1056,34 @@ trayser::Image::Image(f16* data, u32 width, u32 height, VkImageUsageFlags usage,
 
     VkExtent3D extent = { width, height, 1 };
 
-    AllocatedImage new_image = g_engine.CreateImage(extent, VK_FORMAT_R16G16B16A16_SFLOAT, usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, false);
+    //AllocatedImage new_image = g_engine.CreateImage(extent, VK_FORMAT_R16G16B16A16_SFLOAT, usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, false);
+
+    VkImageCreateInfo createInfo = ImageCreateInfo();
+    createInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
+    createInfo.usage = usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    createInfo.extent = extent;
+    createInfo.imageType = VK_IMAGE_TYPE_2D;
+    createInfo.mipLevels = 1;
+    createInfo.arrayLayers = 1;
+    createInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    createInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    VmaAllocationCreateInfo allocCreateInfo{};
+    allocCreateInfo.flags = 0;
+    allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+    Device::Image new_image;
+    g_engine.m_device.CreateImage(createInfo, allocCreateInfo, new_image);
+
+    VkImageViewCreateInfo viewCreateInfo = ImageViewCreateInfo();
+    viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewCreateInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
+    viewCreateInfo.image = new_image.image;
+    viewCreateInfo.subresourceRange.baseMipLevel = 0;
+    viewCreateInfo.subresourceRange.levelCount = 1;
+    viewCreateInfo.subresourceRange.baseArrayLayer = 0;
+    viewCreateInfo.subresourceRange.layerCount = 1;
+    viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    viewCreateInfo.subresourceRange.levelCount = createInfo.mipLevels;
+    VK_CHECK(vkCreateImageView(g_engine.m_device.m_device, &viewCreateInfo, nullptr, &imageView));
 
     VkCommandBuffer cmd;
     g_engine.m_device.BeginOneTimeSubmit(cmd);
@@ -1006,16 +1110,13 @@ trayser::Image::Image(f16* data, u32 width, u32 height, VkImageUsageFlags usage,
 
     g_engine.m_device.EndOneTimeSubmit();
 
-    vmaDestroyBuffer(g_engine.m_device.m_allocator, stagBuffer, allocation);
+    vmaDestroyBuffer(g_engine.m_device.m_allocator, stagBuffer, image.allocation);
 
-    image = new_image.image;
-    imageView = new_image.imageView;
-    allocation = new_image.allocation;
-    imageExtent = new_image.imageExtent;
-    imageFormat = new_image.imageFormat;
+    image.image = new_image.image;
+    image.allocation = new_image.allocation;
 }
 
-trayser::Material2::Material2(Default)
+trayser::Material::Material(Default)
 {
     {
     uint32_t packedColor = glm::packUnorm4x8(float4(1.0));
@@ -1076,7 +1177,7 @@ trayser::Material2::Material2(Default)
     }
 }
 
-trayser::Material2::Material2(const tinygltf::Model& model, const tinygltf::Material& material, const std::string& folder)
+trayser::Material::Material(const tinygltf::Model& model, const tinygltf::Material& material, const std::string& folder)
 {
     auto GetImagePath = [&](const tinygltf::Image& image, const tinygltf::Texture& texture)
         { return folder + (image.uri.empty() ? "_texture" + std::to_string(texture.source) : image.uri); };

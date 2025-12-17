@@ -17,39 +17,23 @@ using MaterialHandle = ResourceHandle;
 
 class Engine;
 
-struct Image
+struct Texture
 {
     // Tagging
     struct HDRI {};
 
-    VkImage         image;
+    Device::Image   image;
     VkImageView     imageView;
-    VmaAllocation   allocation;
-    VkExtent3D      imageExtent;
-    VkFormat        imageFormat;
 
-    Image() = default;
-    ~Image();
-    Image(const std::string& path, const tinygltf::Model& model, const tinygltf::Image& image, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
-    Image(const std::string& path, VkFormat format, VkImageUsageFlags usage);
-    Image(u32* data, u32 width, u32 height, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
-    Image(u16* data, u32 width, u32 height, VkFormat format, VkImageUsageFlags usage, HDRI);
-    Image(f16* data, u32 width, u32 height, VkImageUsageFlags usage, HDRI);
+    Texture() = default;
+    ~Texture();
+    Texture(const std::string& path, const tinygltf::Model& model, const tinygltf::Image& image, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
+    Texture(u32* data, u32 width, u32 height, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
+    Texture(u16* data, u32 width, u32 height, VkFormat format, VkImageUsageFlags usage, HDRI);
+    Texture(f16* data, u32 width, u32 height, VkImageUsageFlags usage, HDRI);
 };
 
 struct Material
-{
-    std::shared_ptr<Image> baseColor;
-    std::shared_ptr<Image> normalMap;
-    std::shared_ptr<Image> metallicRoughness;
-    std::shared_ptr<Image> occlusion;
-    std::shared_ptr<Image> emissive;
-    glm::vec4 baseColorFactor = glm::vec4(1.0);
-    glm::vec3 metallicRoughnessAoFactor = glm::vec3(1.0);
-    glm::vec3 emissiveFactor = glm::vec3(1.0);
-};
-
-struct Material2
 {
     // Tagging
     struct Default {};
@@ -64,9 +48,9 @@ struct Material2
     float4 metallicRoughnessAoFactor    = float4(0.5, 0.5, 1.0, 1.0);
     float4 emissiveFactor               = float4(0.0);
 
-    Material2() = default;
-    Material2(Default);
-    Material2(const tinygltf::Model&, const tinygltf::Material&, const std::string& folder);
+    Material() = default;
+    Material(Default);
+    Material(const tinygltf::Model&, const tinygltf::Material&, const std::string& folder);
 };
 
 struct Primitive
@@ -96,9 +80,9 @@ struct Mesh
 {
     Device::AccelerationStructure   BLas;
     std::vector<Primitive>  primitives;
-    AllocatedBuffer         indexBuffer;
-    AllocatedBuffer         vertexBuffer;
-    AllocatedBuffer         primitiveBuffer;
+    Device::Buffer          indexBuffer;
+    Device::Buffer          vertexBuffer;
+    Device::Buffer          primitiveBuffer;
     VkDeviceAddress         vertexBufferAddr;
     VkDeviceAddress         indexBufferAddr;
     VkDeviceAddress         primitiveBufferAddr;

@@ -73,8 +73,8 @@ void trayser::RasterizedPipeline::Load(VkShaderModule module)
     VkPipelineRenderingCreateInfo rendering{};
     rendering.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     rendering.colorAttachmentCount = 1;
-    rendering.pColorAttachmentFormats = &g_engine.m_gBuffer.colorImage.imageFormat;
-    rendering.depthAttachmentFormat = g_engine.m_gBuffer.depthImage.imageFormat;
+    rendering.pColorAttachmentFormats = &g_engine.m_gBuffer.colorImage.format;
+    rendering.depthAttachmentFormat = g_engine.m_gBuffer.depthImage.format;
 
     VkPipelineShaderStageCreateInfo vsStage{};
     vsStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -139,16 +139,16 @@ void trayser::RasterizedPipeline::Update()
 {
     auto cmd = g_engine.m_renderer.GetCmdBuffer();
 
-    VkExtent2D extent = { g_engine.m_gBuffer.colorImage.imageExtent.width, g_engine.m_gBuffer.colorImage.imageExtent.height };
+    VkExtent2D extent = { g_engine.m_gBuffer.colorImage.extent.width, g_engine.m_gBuffer.colorImage.extent.height };
 
     VkRenderingAttachmentInfo colorAttachment = RenderingAttachmentInfo();
-    colorAttachment.imageView = g_engine.m_gBuffer.colorImage.imageView;
+    colorAttachment.imageView = g_engine.m_gBuffer.colorView;
     colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 
     VkRenderingAttachmentInfo depthAttachment = RenderingAttachmentInfo();
-    depthAttachment.imageView = g_engine.m_gBuffer.depthImage.imageView;
+    depthAttachment.imageView = g_engine.m_gBuffer.depthView;
     depthAttachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
     depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;

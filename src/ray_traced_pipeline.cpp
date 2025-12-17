@@ -24,8 +24,8 @@ void trayser::RayTracedPipeline::Load(VkShaderModule module)
     m_descriptorSet = g_engine.m_globalDescriptorAllocator.Allocate(g_engine.m_device.m_device, m_descriptorSetLayout);
 
     DescriptorWriter writer;
-    writer.WriteImage(BindingPoints_OutImage, g_engine.m_gBuffer.colorImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-    writer.WriteImage(BindingPoints_OutAccumulator, g_engine.m_gBuffer.accumulatorImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    writer.WriteImage(BindingPoints_OutImage, g_engine.m_gBuffer.colorView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    writer.WriteImage(BindingPoints_OutAccumulator, g_engine.m_gBuffer.accumulatorView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
     writer.UpdateSet(g_engine.m_device.m_device, m_descriptorSet);
 
     // ---------------------

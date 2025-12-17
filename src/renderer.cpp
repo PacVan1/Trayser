@@ -177,7 +177,7 @@ void trayser::Renderer::InitDefaultImage(Device& device)
 
 void trayser::Renderer::InitDefaultMaterial()
 {
-    m_defaultMaterial = Material2(Material2::Default{});
+    m_defaultMaterial = Material(Material::Default{});
 }
 
 void trayser::Renderer::InitFrames(Device& device)
@@ -589,8 +589,8 @@ void trayser::Renderer::TakeScreenshot(Device& device) const
     copyRegion.imageSubresource.mipLevel        = 0;
     copyRegion.imageSubresource.baseArrayLayer  = 0;
     copyRegion.imageSubresource.layerCount      = 1;
-    copyRegion.imageExtent.width                = g_engine.m_gBuffer.colorImage.imageExtent.width;
-    copyRegion.imageExtent.height               = g_engine.m_gBuffer.colorImage.imageExtent.height;
+    copyRegion.imageExtent.width                = g_engine.m_gBuffer.extent.width;
+    copyRegion.imageExtent.height               = g_engine.m_gBuffer.extent.height;
     copyRegion.imageExtent.depth                = 1;
 
     vkCmdCopyImageToBuffer(
@@ -605,8 +605,8 @@ void trayser::Renderer::TakeScreenshot(Device& device) const
     std::string path = "../../screenshots/";
     std::string date    = GetCurrentTimeString();
     std::string name    = path + date + std::string(".png");
-    int width           = g_engine.m_gBuffer.colorImage.imageExtent.width;
-    int height          = g_engine.m_gBuffer.colorImage.imageExtent.height;
+    int width           = g_engine.m_gBuffer.colorImage.extent.width;
+    int height          = g_engine.m_gBuffer.colorImage.extent.height;
     int channels        = 4; // RGBA
     int strideBytes     = width * channels;
     void* data          = allocInfo.pMappedData;

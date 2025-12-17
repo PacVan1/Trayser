@@ -171,27 +171,27 @@ enum PipelineMode_
 };
 using PipelineMode = int;
 
-struct AllocatedImage 
-{
-    VkImage         image;
-    VkImageView     imageView;
-    VmaAllocation   allocation;
-    VkExtent3D      imageExtent;
-    VkFormat        imageFormat;
-};
+//struct AllocatedImage 
+//{
+//    VkImage         image;
+//    VkImageView     imageView;
+//    VmaAllocation   allocation;
+//    VkExtent3D      imageExtent;
+//    VkFormat        imageFormat;
+//};
 
-struct AllocatedBuffer 
-{
-    VkBuffer            buffer;
-    VmaAllocation       allocation;
-    VmaAllocationInfo   info;
-};
+//struct AllocatedBuffer 
+//{
+//    VkBuffer            buffer;
+//    VmaAllocation       allocation;
+//    VmaAllocationInfo   info;
+//};
 
-struct Buffer
-{
-    VkBuffer        buffer;
-    VmaAllocation   allocation;
-};
+//struct Buffer
+//{
+//    VkBuffer        buffer;
+//    VmaAllocation   allocation;
+//};
 
 struct Vertex
 {
@@ -239,23 +239,6 @@ struct Vertex
 
 namespace gpu
 {
-// holds the resources needed for a mesh
-struct MeshBuffers {
-
-    AllocatedBuffer indexBuffer;
-    AllocatedBuffer vertexBuffer;
-    VkDeviceAddress vertexBufferAddress;
-};
-
-// push constants for our mesh object draws
-//struct RenderPushConstants {
-//    glm::mat4 viewProj;
-//    glm::mat4 model;
-//};
-//struct RenderPushConstantsFrag {
-//    glm::vec4 camPos;
-//    glm::ivec4 renderMode;
-//};
 
 struct alignas(16) PushConstants
 {

@@ -172,6 +172,11 @@ void trayser::Device::ShowCursor(bool show)
 //    return result;
 //}
 
+void trayser::Device::DestroyStageBuffer(const Device::StageBuffer& buffer) const
+{
+    vmaDestroyBuffer(m_allocator, buffer.buffer, buffer.allocation);
+}
+
 VkResult trayser::Device::CreateBuffer(
     VkDeviceSize size, 
     VkBufferUsageFlags bufferUsage, 
@@ -238,6 +243,11 @@ VkResult trayser::Device::CreateBufferWithAlignment(
     allocInfo.usage = memoryUsage;
 
     return CreateBufferWithAlignment(bufferCreateInfo, allocInfo, minAlignment, outBuffer, outAllocInfo);
+}
+
+void trayser::Device::DestroyBuffer(const Device::Buffer& buffer) const
+{
+    vmaDestroyBuffer(m_allocator, buffer.buffer, buffer.allocation);
 }
 
 VkResult trayser::Device::CreateBufferWithAlignment(
@@ -1396,4 +1406,92 @@ trayser::SwapchainSupport trayser::Device::GetSwapchainSupport() const
 trayser::QueueFamilyIndices trayser::Device::GetQueueFamilies()
 {
     return FindQueueFamilies(m_physDevice);
+}
+
+VkResult trayser::Device::CreateImage(
+    const VkImageCreateInfo& createInfo, 
+    const VmaAllocationCreateInfo& allocCreateInfo, 
+    Device::Image& outImage, 
+    VmaAllocationInfo* outAllocInfo) const
+{
+    outImage.arrayLayers    = createInfo.arrayLayers;
+    outImage.extent         = createInfo.extent;
+    outImage.format         = createInfo.format;
+    outImage.mipLevels      = createInfo.mipLevels;
+
+    return vmaCreateImage(
+        m_allocator, 
+        &createInfo, 
+        &allocCreateInfo, 
+        &outImage.image, 
+        &outImage.allocation, 
+        outAllocInfo);
+}
+
+void trayser::Device::DestroyImage(const Device::Image& image) const
+{
+    vmaDestroyImage(m_allocator, image.image, image.allocation);
+}
+
+VkResult trayser::Device::CreateStageBuffer(
+    VkDeviceSize size, 
+    VkBufferUsageFlags bufferUsage, 
+    VmaAllocationCreateFlags allocFlags, 
+    Device::StageBuffer& outBuffer, 
+    VmaAllocationInfo& outAllocInfo) const
+{
+    auto bufferCreateInfo = BufferCreateInfo();
+    bufferCreateInfo.size   = size;
+    bufferCreateInfo.usage  = bufferUsage | VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+    // Not using these
+    bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    bufferCreateInfo.queueFamilyIndexCount = 0;
+    bufferCreateInfo.pQueueFamilyIndices = nullptr;
+
+    VmaAllocationCreateInfo allocInfo{};
+    allocInfo.flags = allocFlags | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+    allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+    return CreateStageBuffer(bufferCreateInfo, allocInfo, outBuffer, outAllocInfo);
+}
+
+VkResult trayser::Device::CreateStageBuffer(
+    VkDeviceSize size, 
+    Device::StageBuffer& outBuffer, 
+    VmaAllocationInfo& outAllocInfo) const
+{
+    auto bufferCreateInfo = BufferCreateInfo();
+    bufferCreateInfo.size = size;
+    bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+    // Not using these
+    bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    bufferCreateInfo.queueFamilyIndexCount = 0;
+    bufferCreateInfo.pQueueFamilyIndices = nullptr;
+
+    VmaAllocationCreateInfo allocInfo{};
+    allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+    allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+    return CreateStageBuffer(bufferCreateInfo, allocInfo, outBuffer, outAllocInfo);
+}
+
+VkResult trayser::Device::CreateStageBuffer(
+    const VkBufferCreateInfo& bufferCreateInfo, 
+    const VmaAllocationCreateInfo& allocCreateInfo, 
+    Device::StageBuffer& outBuffer, 
+    VmaAllocationInfo& outAllocInfo) const
+{
+    VkResult result = vmaCreateBuffer(
+        m_allocator,
+        &bufferCreateInfo,
+        &allocCreateInfo,
+        &outBuffer.buffer,
+        &outBuffer.allocation,
+        &outAllocInfo);
+
+    outBuffer.mapped = outAllocInfo.pMappedData;
+
+    return result;
 }

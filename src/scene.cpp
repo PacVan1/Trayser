@@ -232,7 +232,7 @@ void trayser::Scene::BuildTLas()
         i++;
     }
 
-    Buffer tlasInstancesBuffer;
+    Device::Buffer tlasInstancesBuffer;
     {
         // 1) Create destination TLAS instance buffer (device-local, not mapped)
         VkBufferCreateInfo dstInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
@@ -258,7 +258,7 @@ void trayser::Scene::BuildTLas()
         stagingAlloc.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
         stagingAlloc.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT; // optional
 
-        Buffer staging;
+        Device::Buffer staging;
         VmaAllocationInfo stagingInfoOut;
         vmaCreateBuffer(g_engine.m_device.m_allocator, &stagingInfo, &stagingAlloc,
             &staging.buffer, &staging.allocation, &stagingInfoOut);

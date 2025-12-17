@@ -99,7 +99,7 @@ public:
 	VkDescriptorSetLayout	m_textureDescLayout;
 	PerFrame				m_frames[kMaxFramesInFlight];
 	DefaultImage			m_defaultImage; // 1x1 black image to initialize
-	Material2				m_defaultMaterial;
+	Material				m_defaultMaterial;
 	uint32_t				m_frameCounter;
 	uint32_t				m_frameIndex;
 	bool					m_screenshotRequested;
