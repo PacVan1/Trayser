@@ -9,6 +9,7 @@ namespace trayser
 class Camera 
 {
 public:
+	void Init();
 	void Input();
 
 public:

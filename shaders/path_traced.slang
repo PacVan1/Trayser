@@ -142,11 +142,6 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     REF(PointLight) pointLights = scene.lights.pointLightBufferRef;
     //REF(DirectionalLight) dirLights = scene.lights.dirLightBufferRef;
 
-    Sampler2D baseColorTexture = textures[material.baseColorHandle];
-    Sampler2D normalMapTexture = textures[material.normalMapHandle];
-    Sampler2D metalRoughTexture = textures[material.metalRoughHandle];
-    Sampler2D emissiveTexture = textures[material.emissiveHandle];
-
     // Find triangle, vertices and barycentrics
     uint triangleIdx = primitive.baseIndex + PrimitiveIndex() * 3;
 
@@ -162,10 +157,17 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     float w1 = attr.barycentrics.x;
     float w2 = attr.barycentrics.y;
 
+
+    Sampler2D baseColorTexture = textures[material.baseColorHandle];
+    Sampler2D normalMapTexture = textures[material.normalMapHandle];
+    Sampler2D metalRoughTexture = textures[material.metalRoughHandle];
+    Sampler2D emissiveTexture = textures[material.emissiveHandle];
+
     // Continue at fully transparent surfaces
     float3 position = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
+    float3 geometryNormal = normalize(v0.normal.xyz * w0 + v1.normal.xyz * w1 + v2.normal.xyz * w2);
     float2 uv = v0.texCoord.xy * w0 + v1.texCoord.xy * w1 + v2.texCoord.xy * w2;
-    float4 baseColor = baseColorTexture.SampleLevel(uv, 5.0);
+    float4 baseColor = baseColorTexture.SampleLevel(uv, 0.0);
 
     //if (baseColor.a == 0.0)
     //{
@@ -180,15 +182,18 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
 
     MaterialProperties matProps;
     matProps.baseColor = baseColor.rgb * material.baseColorFactor.rgb;
-    matProps.metalness = metalRoughTexture.SampleLevel(uv, 1.0).b * material.metallicRoughnessAoFactor.r;
-    matProps.roughness = metalRoughTexture.SampleLevel(uv, 1.0).g * material.metallicRoughnessAoFactor.g;
-    matProps.emissive = emissiveTexture.SampleLevel(uv, 1.0).rgb * material.emissiveFactor.rgb;
+    matProps.metalness = metalRoughTexture.SampleLevel(uv, 0.0).b * material.metallicRoughnessAoFactor.r;
+    matProps.roughness = metalRoughTexture.SampleLevel(uv, 0.0).g * material.metallicRoughnessAoFactor.g;
+    matProps.emissive = emissiveTexture.SampleLevel(uv, 0.0).rgb * material.emissiveFactor.rgb;
+    //matProps.baseColor = float3(1.0, 0.0, 0.0);
+    //matProps.metalness = 0.1;
+    //matProps.roughness = 0.05;
+    //matProps.emissive = float3(0.0);
     matProps.opacity = 1.0;
     matProps.reflectance = 0.5; // Default to 0.5 for minimal reflectence of 4%
     matProps.transmissivness = 0.0;
 
     // Continue getting hit info
-    float3 geometryNormal = normalize(v0.normal.xyz * w0 + v1.normal.xyz * w1 + v2.normal.xyz * w2);
     float3 geometryTangent = normalize(v0.tangent.xyz * w0 + v1.tangent.xyz * w1 + v2.tangent.xyz * w2);
 
     float3x3 normalTransform = float3x3(instance.normalTransform);
@@ -197,7 +202,7 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     tangent = normalize(tangent - geometryNormal * dot(geometryNormal, tangent));
     float3 bitangent = cross(geometryNormal, tangent) * v0.tangent.w;
     float3x3 tbn = float3x3(tangent, bitangent, geometryNormal);
-    float3 mapNormal = normalize(normalMapTexture.SampleLevel(uv.xy, 1.0).xyz * 2.0 - 1.0);
+    float3 mapNormal = normalize(normalMapTexture.SampleLevel(uv.xy, 0.0).xyz * 2.0 - 1.0);
     float3 shadingNormal = normalize(mul(mapNormal, tbn));
     //float3 shadingNormal = geometryNormal;
 

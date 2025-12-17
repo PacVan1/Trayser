@@ -37,7 +37,7 @@ private:
 
 public:
 	entt::registry       m_registry;
-    Device::AccelerationStructure   m_TLas;
+    //Device::AccelerationStructure   m_TLas;
 
 private:
     // Scene graph

@@ -182,9 +182,63 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
     primitiveBufferAddr = engine->m_device.GetBufferDeviceAddress(primitiveBuffer.buffer);
 
     Device::StageBuffer vertexStage, indexStage, primStage;
-    engine->m_device.CreateStageBuffer(vertexBufferSize, vertexStage);
-    engine->m_device.CreateStageBuffer(indexBufferSize, indexStage);
-    engine->m_device.CreateStageBuffer(primitiveBufferSize, primStage);
+    //engine->m_device.CreateStageBuffer(vertexBufferSize, vertexStage);
+    //engine->m_device.CreateStageBuffer(indexBufferSize, indexStage);
+    //engine->m_device.CreateStageBuffer(primitiveBufferSize, primStage);
+
+    {
+    auto bufferCreateInfo = BufferCreateInfo();
+    bufferCreateInfo.size = vertexBufferSize;
+    bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+    // Not using these
+    bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    bufferCreateInfo.queueFamilyIndexCount = 0;
+    bufferCreateInfo.pQueueFamilyIndices = nullptr;
+
+    VmaAllocationCreateInfo allocInfo{};
+    allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+    allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+    VmaAllocationInfo info;
+    g_engine.m_device.CreateStageBuffer(bufferCreateInfo, allocInfo, vertexStage, &info);
+    }
+
+    {
+        auto bufferCreateInfo = BufferCreateInfo();
+        bufferCreateInfo.size = indexBufferSize;
+        bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+        // Not using these
+        bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        bufferCreateInfo.queueFamilyIndexCount = 0;
+        bufferCreateInfo.pQueueFamilyIndices = nullptr;
+
+        VmaAllocationCreateInfo allocInfo{};
+        allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+        allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+        VmaAllocationInfo info;
+        g_engine.m_device.CreateStageBuffer(bufferCreateInfo, allocInfo, indexStage, &info);
+    }
+
+    {
+        auto bufferCreateInfo = BufferCreateInfo();
+        bufferCreateInfo.size = primitiveBufferSize;
+        bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+        // Not using these
+        bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        bufferCreateInfo.queueFamilyIndexCount = 0;
+        bufferCreateInfo.pQueueFamilyIndices = nullptr;
+
+        VmaAllocationCreateInfo allocInfo{};
+        allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+        allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+        VmaAllocationInfo info;
+        g_engine.m_device.CreateStageBuffer(bufferCreateInfo, allocInfo, primStage, &info);
+    }
 
     Vertex* vertices                = (Vertex*)vertexStage.mapped;
     u32* indices                    = (u32*)indexStage.mapped;
@@ -344,7 +398,7 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
         // Materials -----------------------------------------------------------------
         int matIdx = prim.material;
         newPrim.materialId = LoadMaterial(loaded, matIdx, folder);
-        primitivesAddr[i].materialHandle = newPrim.materialId;
+        primitivesAddr[i].materialHandle = newPrim.materialId = newPrim.materialId != ResourceHandle_Invalid ? newPrim.materialId : g_engine.m_renderer.m_defaultMaterialHandle;
         primitivesAddr[i].baseVertex = newPrim.baseVertex;
         primitivesAddr[i].vertexCount = newPrim.vertexCount;
         primitivesAddr[i].baseIndex = newPrim.baseIndex;
@@ -624,7 +678,7 @@ trayser::Material::Material(Default)
         1, // height
         VK_FORMAT_R8G8B8A8_SRGB,
         VK_IMAGE_USAGE_SAMPLED_BIT);
-    baseColorFactor = float4(1.0);
+    baseColorFactor = float4(1.0, 1.0, 1.0, 1.0);
     }
 
     {
@@ -662,7 +716,7 @@ trayser::Material::Material(Default)
     }
 
     {
-    uint32_t packedColor = glm::packUnorm4x8(float4(1.0));
+    uint32_t packedColor = glm::packUnorm4x8(float4(0.0));
     emissiveHandle = g_engine.m_texturePool.Create(
         "default_emissive",
         &packedColor,

@@ -16,24 +16,22 @@ void trayser::Engine::Init()
 
     InitDescriptors();
     InitDefaultData();
-    //InitTextureDescriptor();
     m_modelPool.Init();
     m_meshPool.Init();
     m_materialPool.Init();
     m_texturePool.Init();
-
+    
     m_renderer.Init(m_device);
     InitImGuiStyle();
 
     Model::MikkTSpaceInit();
 
-    ModelHandle handle = m_modelPool.Create(kModelPaths[ModelResource_DamagedHelmet], kModelPaths[ModelResource_DamagedHelmet], this);
-    //ModelHandle handle2 = m_modelPool.Create(kModelPaths[ModelResource_Sphere], kModelPaths[ModelResource_Sphere], this);
+    ModelHandle handle = m_modelPool.Create(kModelPaths[ModelResource_Sphere], kModelPaths[ModelResource_Sphere], this);
     const Model& model1 = m_modelPool.Get(handle);
-    //const Model& model2 = m_modelPool.Get(handle2);
     m_scene.Init();
     m_scene.CreateModel(model1);
-    //m_scene.CreateModel(model2);
+    m_camera.m_transform.translation = float3(3.0, 0.0, 0.0);
+    m_camera.Init();
 
     m_scene.Update(1.0f);
 
@@ -97,10 +95,10 @@ void trayser::Engine::Run()
 		m_device.NewFrame();
         m_renderer.NewFrame(m_device);
 
-        m_scene.Update(1.0f);
         if (!m_editor.m_update)
             m_camera.Input();
         m_editor.Update();
+        m_scene.Update(1.0f);
 
         Render();
         m_renderer.EndFrame(m_device);
@@ -328,12 +326,12 @@ void trayser::Engine::UpdateGpuScene()
         for (auto& prim : mesh.primitives)
         {
             MaterialHandle materialHandle = prim.materialId;
-            const Material material = materialHandle != ResourceHandle_Invalid ? m_materialPool.m_resources[materialHandle] : m_renderer.m_defaultMaterial;
-            materialBufferRef[materialHandle].baseColorHandle    = material.baseColorHandle != ResourceHandle_Invalid   ? material.baseColorHandle  : m_renderer.m_defaultMaterial.baseColorHandle;
-            materialBufferRef[materialHandle].normalMapHandle    = material.normalMapHandle != ResourceHandle_Invalid   ? material.normalMapHandle  : m_renderer.m_defaultMaterial.normalMapHandle;
-            materialBufferRef[materialHandle].metalRoughHandle   = material.metalRoughHandle != ResourceHandle_Invalid  ? material.metalRoughHandle : m_renderer.m_defaultMaterial.metalRoughHandle;
-            materialBufferRef[materialHandle].aoHandle           = material.aoHandle != ResourceHandle_Invalid          ? material.aoHandle         : m_renderer.m_defaultMaterial.aoHandle;
-            materialBufferRef[materialHandle].emissiveHandle     = material.emissiveHandle != ResourceHandle_Invalid    ? material.emissiveHandle   : m_renderer.m_defaultMaterial.emissiveHandle;
+            const Material material = m_materialPool.m_resources[materialHandle];
+            materialBufferRef[materialHandle].baseColorHandle    = material.baseColorHandle != ResourceHandle_Invalid   ? material.baseColorHandle  : g_engine.m_materialPool.m_resources[m_renderer.m_defaultMaterialHandle].baseColorHandle;
+            materialBufferRef[materialHandle].normalMapHandle    = material.normalMapHandle != ResourceHandle_Invalid   ? material.normalMapHandle  : g_engine.m_materialPool.m_resources[m_renderer.m_defaultMaterialHandle].normalMapHandle;
+            materialBufferRef[materialHandle].metalRoughHandle   = material.metalRoughHandle != ResourceHandle_Invalid  ? material.metalRoughHandle : g_engine.m_materialPool.m_resources[m_renderer.m_defaultMaterialHandle].metalRoughHandle;
+            materialBufferRef[materialHandle].aoHandle           = material.aoHandle != ResourceHandle_Invalid          ? material.aoHandle         : g_engine.m_materialPool.m_resources[m_renderer.m_defaultMaterialHandle].aoHandle;
+            materialBufferRef[materialHandle].emissiveHandle     = material.emissiveHandle != ResourceHandle_Invalid    ? material.emissiveHandle   : g_engine.m_materialPool.m_resources[m_renderer.m_defaultMaterialHandle].emissiveHandle;
             materialBufferRef[materialHandle].emissiveFactor            = material.emissiveFactor;
             materialBufferRef[materialHandle].baseColorFactor           = material.baseColorFactor;
             materialBufferRef[materialHandle].metallicRoughnessAoFactor = material.metallicRoughnessAoFactor;
@@ -378,6 +376,7 @@ void trayser::Engine::HotReloadPipelines()
     {
 		m_pipelines[i]->ReloadIfChanged();
     }
+    m_rtPipeline.ReloadIfChanged();
 }
 
 void trayser::Engine::LoadSkydome(const std::string& path)

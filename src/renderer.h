@@ -23,11 +23,12 @@ struct Swapchain
 
 struct PerFrame
 {
-	VkCommandBuffer cmdBuffer;
-	VkDescriptorSet textureDescSet;
-	VkSemaphore     acquisitionSemaphore;	// Wait for image to be available
-	VkSemaphore		renderedSemaphore;		// Wait for rendering to be complete
-	VkFence			renderedFence;
+	VkCommandBuffer					cmdBuffer;
+	VkDescriptorSet					textureDescSet;
+	VkSemaphore						acquisitionSemaphore;	// Wait for image to be available
+	VkSemaphore						renderedSemaphore;		// Wait for rendering to be complete
+	VkFence							renderedFence;
+	Device::AccelerationStructure	tlas;
 };
 
 struct DefaultImage
@@ -49,15 +50,16 @@ public:
 	void EndFrame(Device& device);
 	void RequestScreenshot();
 
-	[[nodiscard]] VkCommandBuffer	GetCmdBuffer() const			{ return m_frames[m_frameIndex].cmdBuffer; }
-	[[nodiscard]] VkDescriptorSet	GetTextureDescSet() const		{ return m_frames[m_frameIndex].textureDescSet; }
 	[[nodiscard]] VkImage			GetSwapchainImage() const		{ return m_swapchain.images[m_swapchain.imageIndex]; }
 	[[nodiscard]] VkImageView		GetSwapchainImageView() const	{ return m_swapchain.views[m_swapchain.imageIndex]; }
-	[[nodiscard]] VkSemaphore		GetAcquisitionSemaphore() const	{ return m_frames[m_frameIndex].acquisitionSemaphore; }
-	[[nodiscard]] VkSemaphore		GetRenderedSemaphore() const	{ return m_frames[m_frameIndex].renderedSemaphore; }
-	[[nodiscard]] VkFence			GetRenderedFence() const		{ return m_frames[m_frameIndex].renderedFence; }
 	[[nodiscard]] const PerFrame&	GetFrame() const				{ return m_frames[m_frameIndex]; }
 	[[nodiscard]] PerFrame&			GetFrame()						{ return m_frames[m_frameIndex]; }
+	[[nodiscard]] VkCommandBuffer	GetCmdBuffer() const			{ return GetFrame().cmdBuffer; }
+	[[nodiscard]] VkDescriptorSet	GetTextureDescSet() const		{ return GetFrame().textureDescSet; }
+	[[nodiscard]] VkSemaphore		GetAcquisitionSemaphore() const	{ return GetFrame().acquisitionSemaphore; }
+	[[nodiscard]] VkSemaphore		GetRenderedSemaphore() const	{ return GetFrame().renderedSemaphore; }
+	[[nodiscard]] VkFence			GetRenderedFence() const		{ return GetFrame().renderedFence; }
+	[[nodiscard]] Device::AccelerationStructure& GetTlas()			{ return GetFrame().tlas; }
 
 private:
 	void InitCmdPool(Device& device);
@@ -99,7 +101,7 @@ public:
 	VkDescriptorSetLayout	m_textureDescLayout;
 	PerFrame				m_frames[kMaxFramesInFlight];
 	DefaultImage			m_defaultImage; // 1x1 black image to initialize
-	Material				m_defaultMaterial;
+	MaterialHandle			m_defaultMaterialHandle;
 	uint32_t				m_frameCounter;
 	uint32_t				m_frameIndex;
 	bool					m_screenshotRequested;

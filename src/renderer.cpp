@@ -177,7 +177,7 @@ void trayser::Renderer::InitDefaultImage(Device& device)
 
 void trayser::Renderer::InitDefaultMaterial()
 {
-    m_defaultMaterial = Material(Material::Default{});
+    m_defaultMaterialHandle = g_engine.m_materialPool.Create("default", Material::Default{});
 }
 
 void trayser::Renderer::InitFrames(Device& device)
@@ -344,11 +344,12 @@ void trayser::Renderer::DestroyDefaultImage(Device& device) const
 
 void trayser::Renderer::DestroyDefaultMaterial()
 {
-    g_engine.m_texturePool.Free(m_defaultMaterial.baseColorHandle);
-    g_engine.m_texturePool.Free(m_defaultMaterial.normalMapHandle);
-    g_engine.m_texturePool.Free(m_defaultMaterial.metalRoughHandle);
-    g_engine.m_texturePool.Free(m_defaultMaterial.aoHandle);
-    g_engine.m_texturePool.Free(m_defaultMaterial.emissiveHandle);
+    // TODO remove resources
+    //g_engine.m_texturePool.Free(m_defaultMaterial.baseColorHandle);
+    //g_engine.m_texturePool.Free(m_defaultMaterial.normalMapHandle);
+    //g_engine.m_texturePool.Free(m_defaultMaterial.metalRoughHandle);
+    //g_engine.m_texturePool.Free(m_defaultMaterial.aoHandle);
+    //g_engine.m_texturePool.Free(m_defaultMaterial.emissiveHandle);
 }
 
 void trayser::Renderer::DestroyTextureDescSets(Device& device) const

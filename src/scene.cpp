@@ -243,35 +243,12 @@ void trayser::Scene::BuildTLas()
 
         VmaAllocationCreateInfo dstAlloc{};
         dstAlloc.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-        //dstAlloc.flags = VMA_ALLOCATION_CREATE_BUFFER_DEVICE_ADDRESS_BIT; // for device address
 
-        VmaAllocationInfo dstAllocInfo;
-        vmaCreateBuffer(g_engine.m_device.m_allocator, &dstInfo, &dstAlloc,
-            &tlasInstancesBuffer.buffer, &tlasInstancesBuffer.allocation, &dstAllocInfo);
+        g_engine.m_device.CreateBuffer(dstInfo, dstAlloc, tlasInstancesBuffer);
 
-        // 2) Create staging buffer (host-visible, mapped or map manually)
-        VkBufferCreateInfo stagingInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
-        stagingInfo.size = dstInfo.size;
-        stagingInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-
-        VmaAllocationCreateInfo stagingAlloc{};
-        stagingAlloc.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
-        stagingAlloc.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT; // optional
-
-        Device::Buffer staging;
-        VmaAllocationInfo stagingInfoOut;
-        vmaCreateBuffer(g_engine.m_device.m_allocator, &stagingInfo, &stagingAlloc,
-            &staging.buffer, &staging.allocation, &stagingInfoOut);
-
-        // 3) Write instance data into staging
-        void* mapped = stagingInfoOut.pMappedData;
-        if (!mapped) {
-            vmaMapMemory(g_engine.m_device.m_allocator, staging.allocation, &mapped);
-        }
-        memcpy(mapped, tlasInstances.data(), dstInfo.size);
-        if (stagingInfoOut.pMappedData == nullptr) {
-            vmaUnmapMemory(g_engine.m_device.m_allocator, staging.allocation);
-        }
+        Device::StageBuffer staging;
+        g_engine.m_device.CreateStageBuffer(dstInfo.size, staging);
+        memcpy(staging.mapped, tlasInstances.data(), dstInfo.size);
 
         // 4) Copy staging -> destination
         VkCommandBuffer cmd;
@@ -287,12 +264,8 @@ void trayser::Scene::BuildTLas()
 
         // 5) Destroy staging buffer
         vmaDestroyBuffer(g_engine.m_device.m_allocator, staging.buffer, staging.allocation);
-
-        //EndOneTimeSubmit();
     }
-    VkBufferDeviceAddressInfo addrInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
-    addrInfo.buffer = tlasInstancesBuffer.buffer;
-    VkDeviceAddress tlasInstanceAddr = vkGetBufferDeviceAddress(g_engine.m_device.m_device, &addrInfo);
+    VkDeviceAddress tlasInstanceAddr = g_engine.m_device.GetBufferDeviceAddress(tlasInstancesBuffer.buffer);
 
     // Then create the TLAS geometry
     {
@@ -312,30 +285,32 @@ void trayser::Scene::BuildTLas()
                             .geometry = {.instances = geometryInstances} };
         asBuildRangeInfo = { .primitiveCount = static_cast<uint32_t>(i) };
 
-        g_engine.m_device.CreateAccelerationStructure(VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR, m_TLas, asGeometry,
+        g_engine.m_device.CreateAccelerationStructure(VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR, g_engine.m_renderer.GetTlas(), asGeometry,
             asBuildRangeInfo, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
     }
 
     vmaDestroyBuffer(g_engine.m_device.m_allocator, tlasInstancesBuffer.buffer, tlasInstancesBuffer.allocation);
 }
 
+uint32_t tlasInit = 0;
 void trayser::Scene::RebuildTLas()
 {
-    if (m_TLasDirty)
-    {
-        if (m_TLasInitialized)
+    //if (m_TLasDirty)
+    //{
+        if (tlasInit >= 2)
             DestroyTLas();
 
         BuildTLas();
-        m_TLasDirty = false;
-        m_TLasInitialized = true;
-    }
+        //m_TLasDirty = false;
+        //m_TLasInitialized = true;
+        tlasInit++;
+    //}
 }
 
 void trayser::Scene::DestroyTLas()
 {
     vkDeviceWaitIdle(g_engine.m_device.m_device);
 
-    g_engine.m_device.m_rtFuncs.vkDestroyAccelerationStructureKHR(g_engine.m_device.m_device, m_TLas.accel, nullptr);
-    vmaDestroyBuffer(g_engine.m_device.m_allocator, m_TLas.buffer.buffer, m_TLas.buffer.allocation);
+    g_engine.m_device.m_rtFuncs.vkDestroyAccelerationStructureKHR(g_engine.m_device.m_device, g_engine.m_renderer.GetTlas().accel, nullptr);
+    vmaDestroyBuffer(g_engine.m_device.m_allocator, g_engine.m_renderer.GetTlas().buffer.buffer, g_engine.m_renderer.GetTlas().buffer.allocation);
 }

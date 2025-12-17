@@ -64,12 +64,12 @@ public:
 	GBuffer			m_gBuffer;
 	Renderer		m_renderer;
 
-	RenderMode		m_renderMode	= RenderMode_FinalColor;
+	RenderMode		m_renderMode	= RenderMode_GeometryNormal;
 	TonemapMode		m_tonemapMode	= TonemapMode_ACES;
 	PipelineMode	m_pipelineMode	= PipelineMode_Rasterized;
 
-	static constexpr uint32_t kMeshCount		= 128;
-	static constexpr uint32_t kInstanceCount	= 128;
+	static constexpr uint32_t kMeshCount		= 256;
+	static constexpr uint32_t kInstanceCount	= 256;
 	static constexpr uint32_t kMaterialCount	= 128;
 
 	ResourcePool<Model, 10> m_modelPool;

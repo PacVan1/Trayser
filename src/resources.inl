@@ -27,7 +27,7 @@ inline std::shared_ptr<T> trayser::Resources::Get(const std::string& hashable)
 	return Get<T>(std::hash<std::string>()(hashable));
 }
 
-template<typename T, size_t Capacity>
+template<typename T, uint32_t  Capacity>
 inline void trayser::ResourcePool<T, Capacity>::Init()
 {
 	m_freeSpots.resize(Capacity);
@@ -35,7 +35,7 @@ inline void trayser::ResourcePool<T, Capacity>::Init()
 	m_handleToHash.resize(Capacity, 0);
 }
 
-template<typename T, size_t Capacity>
+template<typename T, uint32_t Capacity>
 inline void trayser::ResourcePool<T, Capacity>::Destroy()
 {
 	for (int i = 0; i < m_resources.size(); i++)
@@ -48,7 +48,7 @@ inline void trayser::ResourcePool<T, Capacity>::Destroy()
 	}
 }
 
-template<typename T, size_t Capacity>
+template<typename T, uint32_t Capacity>
 template<typename ...Args>
 inline trayser::ResourceHandle trayser::ResourcePool<T, Capacity>::Create(const std::string& hashable, Args&& ...args)
 {
@@ -74,13 +74,13 @@ inline trayser::ResourceHandle trayser::ResourcePool<T, Capacity>::Create(const 
 	return handle;
 }
 
-template<typename T, size_t Capacity>
+template<typename T, uint32_t Capacity>
 inline const T& trayser::ResourcePool<T, Capacity>::Get(ResourceHandle handle) const
 {
 	return m_resources[handle];
 }
 
-template<typename T, size_t Capacity>
+template<typename T, uint32_t Capacity>
 inline void trayser::ResourcePool<T, Capacity>::Free(const std::string& hashable)
 {
 	Hash hash = std::hash<std::string>()(hashable);
@@ -98,7 +98,7 @@ inline void trayser::ResourcePool<T, Capacity>::Free(const std::string& hashable
 	m_takenSpots[handle] = false;
 }
 
-template<typename T, size_t Capacity>
+template<typename T, uint32_t Capacity>
 inline void trayser::ResourcePool<T, Capacity>::Free(ResourceHandle& handle)
 {
 	if (handle == ResourceHandle_Invalid)

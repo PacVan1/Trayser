@@ -7,20 +7,20 @@
 namespace trayser
 {
 
-using ResourceHandle = size_t;
+using ResourceHandle = uint32_t;
 
 enum
 {
-	ResourceHandle_Invalid = std::numeric_limits<size_t>::max(),
+	ResourceHandle_Invalid = std::numeric_limits<uint32_t>::max(),
 };
 
-template <typename T, size_t Capacity>
+template <typename T, uint32_t Capacity>
 class ResourcePool
 {
 public:
 
 private:
-	using Hash = size_t;
+	using Hash = uint32_t;
 
 public:
 	void Init();

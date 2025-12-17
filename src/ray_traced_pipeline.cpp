@@ -198,13 +198,13 @@ void trayser::RayTracedPipeline::Update()
     vkCmdBindPipeline(g_engine.m_renderer.GetCmdBuffer(), VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pipeline);
 
     VkAccelerationStructureDeviceAddressInfoKHR ai{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR };
-    ai.accelerationStructure = g_engine.m_scene.m_TLas.accel;
+    ai.accelerationStructure = g_engine.m_renderer.GetTlas().accel;
     VkDeviceAddress addr = g_engine.m_device.m_rtFuncs.vkGetAccelerationStructureDeviceAddressKHR(g_engine.m_device.m_device, &ai);
     assert(addr != 0); // 0 means invalid/never built
 
     {
         DescriptorWriter writer;
-        writer.WriteAccelStruct(0, g_engine.m_scene.m_TLas.accel);
+        writer.WriteAccelStruct(0, g_engine.m_renderer.GetTlas().accel);
         writer.UpdateSet(g_engine.m_device.m_device, m_descriptorSet);
     }
 

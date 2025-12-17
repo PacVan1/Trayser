@@ -188,7 +188,7 @@ public:
 	void DestroyBuffer(const Device::Buffer& buffer) const;
 
 	// Buffer should have this flag: VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
-	VkDeviceAddress GetBufferDeviceAddress(const VkBuffer& buffer) const;
+	[[nodiscard]] VkDeviceAddress GetBufferDeviceAddress(const VkBuffer& buffer) const;
 
 	VkResult CreateAccelerationStructure(AccelerationStructure& outAccelStruct,
 		const VkAccelerationStructureCreateInfoKHR& createInfo) const;
