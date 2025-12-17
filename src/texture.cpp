@@ -37,13 +37,11 @@ trayser::Texture::Texture(const std::string& path, const tinygltf::Model& model,
     }
 
     size_t data_size = width * height * 4;
-    //AllocatedBuffer uploadbuffer = engine.CreateBuffer(data_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 
-    Device::Buffer uploadBuffer;
-    VmaAllocationInfo uploadBufferInfo;
-    VK_CHECK(engine.m_device.CreateBuffer(data_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT, uploadBuffer, &uploadBufferInfo));
+    Device::StageBuffer stageBuffer;
+    VK_CHECK(engine.m_device.CreateStageBuffer(data_size, stageBuffer));
 
-    memcpy(uploadBufferInfo.pMappedData, data, data_size);
+    memcpy(stageBuffer.mapped, data, data_size);
 
     VkExtent3D extent = { width, height, 1 };
 
@@ -83,7 +81,7 @@ trayser::Texture::Texture(const std::string& path, const tinygltf::Model& model,
     copyRegion.imageExtent = extent;
 
     // copy the buffer into the image
-    vkCmdCopyBufferToImage(cmd, uploadBuffer.buffer, newImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+    vkCmdCopyBufferToImage(cmd, stageBuffer.buffer, newImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
         &copyRegion);
 
     vkutil::TransitionImage(cmd, newImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -91,7 +89,7 @@ trayser::Texture::Texture(const std::string& path, const tinygltf::Model& model,
 
     engine.m_device.EndOneTimeSubmit();
 
-    engine.m_device.DestroyBuffer(uploadBuffer);
+    engine.m_device.DestroyStageBuffer(stageBuffer);
     stbi_image_free(data);
 
     g_engine.m_device.BeginOneTimeSubmit(cmd);
@@ -148,140 +146,17 @@ trayser::Texture::Texture(const std::string& path, const tinygltf::Model& model,
     image.allocation = newImage.allocation;
 }
 
-//trayser::Texture::Texture(const std::string& path, VkFormat format, VkImageUsageFlags usage)
-//{
-//    std::filesystem::path fsPath = path;
-//    if (fsPath.extension() == ".hdr")
-//    {
-//        int width, height, channels;
-//        float* stbiData = stbi_loadf(path.c_str(), &width, &height, &channels, 4);
-//        if (!stbiData)
-//            return;
-//
-//        size_t sizeBytes = width * height * 4;
-//        AllocatedBuffer staging = g_engine.CreateBuffer(sizeBytes, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
-//        memcpy(staging.info.pMappedData, stbiData, sizeBytes);
-//
-//        VkExtent3D extent = { width, height, 1 };
-//
-//        AllocatedImage equiImage{};
-//        {
-//        equiImage.imageFormat = format;
-//        equiImage.imageExtent = extent;
-//
-//        VkImageCreateInfo imageCreateInfo = ImageCreateInfo();
-//        imageCreateInfo.imageType   = VK_IMAGE_TYPE_2D;
-//        imageCreateInfo.format      = VK_FORMAT_R16G16B16A16_SFLOAT;
-//        imageCreateInfo.extent      = extent;
-//        imageCreateInfo.usage       = usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-//        imageCreateInfo.mipLevels   = 1;
-//        imageCreateInfo.arrayLayers = 1;
-//        imageCreateInfo.samples     = VK_SAMPLE_COUNT_1_BIT;
-//        imageCreateInfo.tiling      = VK_IMAGE_TILING_OPTIMAL;
-//
-//        // Always allocate images on dedicated GPU memory
-//        VmaAllocationCreateInfo allocInfo = {};
-//        allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-//        allocInfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-//        VK_CHECK(vmaCreateImage(g_engine.m_device.m_allocator, &imageCreateInfo, &allocInfo, &equiImage.image, &equiImage.allocation, nullptr));
-//
-//        // Build a image-view for the image
-//        VkImageViewCreateInfo viewCreateInfo = ImageViewCreateInfo();
-//        viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-//        viewCreateInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
-//        viewCreateInfo.image = equiImage.image;
-//        viewCreateInfo.subresourceRange.baseMipLevel = 0;
-//        viewCreateInfo.subresourceRange.levelCount = 1;
-//        viewCreateInfo.subresourceRange.baseArrayLayer = 0;
-//        viewCreateInfo.subresourceRange.layerCount = 1;
-//        viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-//        VK_CHECK(vkCreateImageView(g_engine.m_device.m_device, &viewCreateInfo, nullptr, &equiImage.imageView));
-//        }
-//
-//        AllocatedImage cubeImage{};
-//        {
-//        cubeImage.imageFormat = format;
-//        cubeImage.imageExtent = extent;
-//
-//        VkImageCreateInfo imageCreateInfo = ImageCreateInfo();
-//        imageCreateInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
-//        imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-//        imageCreateInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
-//        imageCreateInfo.extent = extent;
-//        imageCreateInfo.usage = usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-//        imageCreateInfo.mipLevels = 1;
-//        imageCreateInfo.arrayLayers = 6; // 6 sides on a cube
-//        imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-//        imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-//
-//        // Always allocate images on dedicated GPU memory
-//        VmaAllocationCreateInfo allocInfo = {};
-//        allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-//        allocInfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-//        VK_CHECK(vmaCreateImage(g_engine.m_device.m_allocator, &imageCreateInfo, &allocInfo, &cubeImage.image, &cubeImage.allocation, nullptr));
-//
-//        // Build a image-view for the image
-//        VkImageViewCreateInfo viewCreateInfo = ImageViewCreateInfo();
-//        viewCreateInfo.viewType                         = VK_IMAGE_VIEW_TYPE_CUBE;
-//        viewCreateInfo.format                           = VK_FORMAT_R16G16B16A16_SFLOAT;
-//        viewCreateInfo.image                            = cubeImage.image;
-//        viewCreateInfo.subresourceRange.baseMipLevel    = 0;
-//        viewCreateInfo.subresourceRange.levelCount      = 1;
-//        viewCreateInfo.subresourceRange.baseArrayLayer  = 0;
-//        viewCreateInfo.subresourceRange.layerCount      = 6;
-//        viewCreateInfo.subresourceRange.aspectMask      = VK_IMAGE_ASPECT_COLOR_BIT;
-//        VK_CHECK(vkCreateImageView(g_engine.m_device.m_device, &viewCreateInfo, nullptr, &cubeImage.imageView));
-//        }
-//
-//        // Copy stbi contents to equi image
-//        VkCommandBuffer cmd;
-//        g_engine.m_device.BeginOneTimeSubmit(cmd);
-//
-//        vkutil::TransitionImage(cmd, equiImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-//
-//        VkBufferImageCopy copyRegion = {};
-//        copyRegion.bufferOffset = 0;
-//        copyRegion.bufferRowLength = 0;
-//        copyRegion.bufferImageHeight = 0;
-//        copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-//        copyRegion.imageSubresource.mipLevel = 0;
-//        copyRegion.imageSubresource.baseArrayLayer = 0;
-//        copyRegion.imageSubresource.layerCount = 1;
-//        copyRegion.imageExtent = extent;
-//        vkCmdCopyBufferToImage(cmd, staging.buffer, equiImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
-//
-//        vkutil::TransitionImage(cmd, equiImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-//            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-//
-//        g_engine.m_device.EndOneTimeSubmit();
-//        g_engine.DestroyBuffer(staging);
-//
-//        stbi_image_free(stbiData);
-//
-//        image.image       = cubeImage.image;
-//        imageView   = cubeImage.imageView;
-//        image.allocation  = cubeImage.allocation;
-//        imageExtent = cubeImage.imageExtent;
-//        imageFormat = cubeImage.imageFormat;
-//    }
-//}
-
 trayser::Texture::Texture(u32* data, u32 width, u32 height, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
 {
     auto& engine = g_engine;
 
     size_t data_size = width * height * 4;
-    Device::Buffer uploadbuffer;
-    VmaAllocationInfo allocInfo{};
-    engine.m_device.CreateBuffer(data_size,
-        VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT,
-        uploadbuffer, &allocInfo);
+    Device::StageBuffer stageBuffer;
+    VK_CHECK(engine.m_device.CreateStageBuffer(data_size, stageBuffer));
 
-    memcpy(allocInfo.pMappedData, data, data_size);
+    memcpy(stageBuffer.mapped, data, data_size);
 
     VkExtent3D extent = { width, height, 1 };
-
-    //Device::Image new_image = engine.CreateImage(extent, format, usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, mipmapped);
 
     VkImageCreateInfo createInfo = ImageCreateInfo();
     createInfo.format = format;
@@ -327,7 +202,7 @@ trayser::Texture::Texture(u32* data, u32 width, u32 height, VkFormat format, VkI
     copyRegion.imageExtent = extent;
 
     // copy the buffer into the image
-    vkCmdCopyBufferToImage(cmd, uploadbuffer.buffer, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+    vkCmdCopyBufferToImage(cmd, stageBuffer.buffer, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
         &copyRegion);
 
     vkutil::TransitionImage(cmd, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -335,7 +210,7 @@ trayser::Texture::Texture(u32* data, u32 width, u32 height, VkFormat format, VkI
 
     engine.m_device.EndOneTimeSubmit();
 
-    engine.m_device.DestroyBuffer(uploadbuffer);
+    engine.m_device.DestroyStageBuffer(stageBuffer);
 
     image.image = new_image.image;
     image.allocation = new_image.allocation;
@@ -346,12 +221,10 @@ trayser::Texture::Texture(u16* data, u32 width, u32 height, VkFormat format, VkI
     auto& engine = g_engine;
 
     size_t data_size = width * height * 4 * 2;
-    Device::Buffer uploadbuffer;
-    VmaAllocationInfo allocInfo;
-    engine.m_device.CreateBuffer(data_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT, uploadbuffer, &allocInfo);
-    //engine.CreateBuffer(data_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+    Device::StageBuffer stageBuffer;
+    VK_CHECK(engine.m_device.CreateStageBuffer(data_size, stageBuffer));
 
-    memcpy(allocInfo.pMappedData, data, data_size);
+    memcpy(stageBuffer.mapped, data, data_size);
 
     VkExtent3D extent = { width, height, 1 };
 
@@ -401,7 +274,7 @@ trayser::Texture::Texture(u16* data, u32 width, u32 height, VkFormat format, VkI
     copyRegion.imageExtent = extent;
 
     // copy the buffer into the image
-    vkCmdCopyBufferToImage(cmd, uploadbuffer.buffer, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+    vkCmdCopyBufferToImage(cmd, stageBuffer.buffer, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
         &copyRegion);
 
     vkutil::TransitionImage(cmd, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -409,7 +282,7 @@ trayser::Texture::Texture(u16* data, u32 width, u32 height, VkFormat format, VkI
 
     engine.m_device.EndOneTimeSubmit();
 
-    engine.m_device.DestroyBuffer(uploadbuffer);
+    engine.m_device.DestroyStageBuffer(stageBuffer);
 
     image.image = new_image.image;
     image.allocation = new_image.allocation;
@@ -419,23 +292,10 @@ trayser::Texture::Texture(f16* data, u32 width, u32 height, VkImageUsageFlags us
 {
     VkDeviceSize sizeBytes = VkDeviceSize{ width * height * 4 * 2 }; // w * h * channels * bytes/pixel
 
-    VkBuffer stagBuffer{};
-    VmaAllocation stagAlloc{};
-    VmaAllocationInfo stagInfo{};
-    {
-        VkBufferCreateInfo bufferInfo = BufferCreateInfo();
-        bufferInfo.size = sizeBytes;
-        bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    Device::StageBuffer stageBuffer;
+    VK_CHECK(g_engine.m_device.CreateStageBuffer(sizeBytes, stageBuffer));
 
-        VmaAllocationCreateInfo allocInfo{};
-        allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
-        allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
-
-        VK_CHECK(vmaCreateBuffer(g_engine.m_device.m_allocator, &bufferInfo, &allocInfo, &stagBuffer, &stagAlloc, &stagInfo));
-    }
-
-    // Copy to stage
-    memcpy(stagInfo.pMappedData, data, sizeBytes);
+    memcpy(stageBuffer.mapped, data, sizeBytes);
 
     VkExtent3D extent = { width, height, 1 };
 
@@ -485,15 +345,14 @@ trayser::Texture::Texture(f16* data, u32 width, u32 height, VkImageUsageFlags us
     copyRegion.imageExtent = extent;
 
     // copy the buffer into the image
-    vkCmdCopyBufferToImage(cmd, stagBuffer, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+    vkCmdCopyBufferToImage(cmd, stageBuffer.buffer, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
         &copyRegion);
 
     vkutil::TransitionImage(cmd, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
     g_engine.m_device.EndOneTimeSubmit();
-
-    vmaDestroyBuffer(g_engine.m_device.m_allocator, stagBuffer, image.allocation);
+    g_engine.m_device.DestroyStageBuffer(stageBuffer);
 
     image.image = new_image.image;
     image.allocation = new_image.allocation;
