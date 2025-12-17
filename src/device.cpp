@@ -267,6 +267,12 @@ VkResult trayser::Device::CreateBufferWithAlignment(
         outAllocInfo);
 }
 
+VkDeviceAddress trayser::Device::GetBufferDeviceAddress(const Device::Buffer& buffer) const
+{
+    VkBufferDeviceAddressInfo info = VkBufferDeviceAddressInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, .buffer = buffer.buffer };
+    return vkGetBufferDeviceAddress(m_device, &info);
+}
+
 VkResult trayser::Device::CreateAccelerationStructure(AccelerationStructure& outAccelStruct,
     const VkAccelerationStructureCreateInfoKHR& createInfo) const
 {

@@ -165,9 +165,6 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
         { 0 },
         indexBuffer);
 
-    //indexBuffer = engine->CreateBuffer(indexBufferSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-    //    VMA_MEMORY_USAGE_GPU_ONLY);
-
     //create primitive buffer
     engine->m_device.CreateBuffer(
         indexBufferSize,
@@ -179,16 +176,10 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
         { 0 },
         primitiveBuffer);
 
-    //primitiveBuffer = engine->CreateBuffer(primitiveBufferSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-    //    VMA_MEMORY_USAGE_GPU_ONLY);
-
     //find the adress of the vertex and index buffer
-    VkBufferDeviceAddressInfo deviceAdressInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,.buffer = vertexBuffer.buffer };
-    vertexBufferAddr = vkGetBufferDeviceAddress(engine->m_device.m_device, &deviceAdressInfo);
-    deviceAdressInfo = VkBufferDeviceAddressInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,.buffer = indexBuffer.buffer };
-    indexBufferAddr = vkGetBufferDeviceAddress(engine->m_device.m_device, &deviceAdressInfo);
-    deviceAdressInfo = VkBufferDeviceAddressInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,.buffer = primitiveBuffer.buffer };
-    primitiveBufferAddr = vkGetBufferDeviceAddress(engine->m_device.m_device, &deviceAdressInfo);
+    vertexBufferAddr    = engine->m_device.GetBufferDeviceAddress(vertexBuffer);
+    indexBufferAddr     = engine->m_device.GetBufferDeviceAddress(indexBuffer);
+    primitiveBufferAddr = engine->m_device.GetBufferDeviceAddress(primitiveBuffer);
 
     Device::StageBuffer vertexStage, indexStage, primStage;
     VmaAllocationInfo allocInfo;
