@@ -38,12 +38,6 @@ public:
 	void Destroy();
 	void Render();
 	void Run();
-	//gpu::MeshBuffers UploadMesh(std::span<uint32_t> indices, std::span<Vertex> vertices);
-	//AllocatedBuffer CreateBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
-	//AllocatedImage CreateImage(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
-	//AllocatedImage CreateImage(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
-	//void DestroyImage(const AllocatedImage& img);
-	//void DestroyBuffer(const AllocatedBuffer& buffer);
 	void HotReloadPipelines();
 	void LoadSkydome(const std::string& path);
 	void SetAccumulatorDirty();
