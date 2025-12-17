@@ -1444,7 +1444,7 @@ VkResult trayser::Device::CreateStageBuffer(
     VkBufferUsageFlags bufferUsage, 
     VmaAllocationCreateFlags allocFlags, 
     Device::StageBuffer& outBuffer, 
-    VmaAllocationInfo& outAllocInfo) const
+    VmaAllocationInfo* outAllocInfo) const
 {
     auto bufferCreateInfo = BufferCreateInfo();
     bufferCreateInfo.size   = size;
@@ -1465,7 +1465,7 @@ VkResult trayser::Device::CreateStageBuffer(
 VkResult trayser::Device::CreateStageBuffer(
     VkDeviceSize size, 
     Device::StageBuffer& outBuffer, 
-    VmaAllocationInfo& outAllocInfo) const
+    VmaAllocationInfo* outAllocInfo) const
 {
     auto bufferCreateInfo = BufferCreateInfo();
     bufferCreateInfo.size = size;
@@ -1487,17 +1487,22 @@ VkResult trayser::Device::CreateStageBuffer(
     const VkBufferCreateInfo& bufferCreateInfo, 
     const VmaAllocationCreateInfo& allocCreateInfo, 
     Device::StageBuffer& outBuffer, 
-    VmaAllocationInfo& outAllocInfo) const
+    VmaAllocationInfo* outAllocInfo) const
 {
+    VmaAllocationInfo allocInfo;
+
     VkResult result = vmaCreateBuffer(
         m_allocator,
         &bufferCreateInfo,
         &allocCreateInfo,
         &outBuffer.buffer,
         &outBuffer.allocation,
-        &outAllocInfo);
+        &allocInfo);
 
-    outBuffer.mapped = outAllocInfo.pMappedData;
+    outBuffer.mapped = allocInfo.pMappedData;
+
+    if (outAllocInfo)
+        *outAllocInfo = allocInfo;
 
     return result;
 }

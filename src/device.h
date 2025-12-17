@@ -134,18 +134,18 @@ public:
 		VkBufferUsageFlags bufferUsage,
 		VmaAllocationCreateFlags allocFlags,
 		Device::StageBuffer& outBuffer,
-		VmaAllocationInfo& outAllocInfo) const;
+		VmaAllocationInfo* outAllocInfo = nullptr) const;
 
 	VkResult CreateStageBuffer(
 		VkDeviceSize size,
 		Device::StageBuffer& outBuffer,
-		VmaAllocationInfo& outAllocInfo) const;
+		VmaAllocationInfo* outAllocInfo = nullptr) const;
 
 	VkResult CreateStageBuffer(
 		const VkBufferCreateInfo& bufferCreateInfo,
 		const VmaAllocationCreateInfo& allocCreateInfo,
 		Device::StageBuffer& outBuffer,
-		VmaAllocationInfo& outAllocInfo) const;
+		VmaAllocationInfo* outAllocInfo = nullptr) const;
 
 	void DestroyStageBuffer(const Device::StageBuffer& buffer) const;
 

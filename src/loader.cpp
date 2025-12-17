@@ -182,10 +182,9 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
     primitiveBufferAddr = engine->m_device.GetBufferDeviceAddress(primitiveBuffer);
 
     Device::StageBuffer vertexStage, indexStage, primStage;
-    VmaAllocationInfo allocInfo;
-    engine->m_device.CreateStageBuffer(vertexBufferSize, vertexStage, allocInfo);
-    engine->m_device.CreateStageBuffer(indexBufferSize, indexStage, allocInfo);
-    engine->m_device.CreateStageBuffer(primitiveBufferSize, primStage, allocInfo);
+    engine->m_device.CreateStageBuffer(vertexBufferSize, vertexStage);
+    engine->m_device.CreateStageBuffer(indexBufferSize, indexStage);
+    engine->m_device.CreateStageBuffer(primitiveBufferSize, primStage);
 
     Vertex* vertices                = (Vertex*)vertexStage.mapped;
     u32* indices                    = (u32*)indexStage.mapped;
