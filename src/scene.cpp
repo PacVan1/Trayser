@@ -215,6 +215,9 @@ void trayser::Scene::BuildTLas()
         return t;
         };
 
+    auto& transforms = g_engine.m_scene.m_registry.storage<WorldTransform>();
+    transforms.data();
+
     // First create the instance data for the TLAS
     std::vector<VkAccelerationStructureInstanceKHR> tlasInstances;
     auto view = g_engine.m_scene.m_registry.view<WorldTransform, RenderComponent>();
@@ -247,7 +250,7 @@ void trayser::Scene::BuildTLas()
         g_engine.m_device.CreateBuffer(dstInfo, dstAlloc, tlasInstancesBuffer);
 
         Device::StageBuffer staging;
-        g_engine.m_device.CreateStageBuffer(dstInfo.size, staging);
+        g_engine.m_device.CreateOneTimeStageBuffer(dstInfo.size, staging);
         memcpy(staging.mapped, tlasInstances.data(), dstInfo.size);
 
         // 4) Copy staging -> destination

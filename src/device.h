@@ -129,6 +129,30 @@ public:
 
 	void DestroyImage(const Device::Image& image) const;
 
+	VkResult CreateOneTimeStageBuffer(
+		VkDeviceSize size,
+		VkBufferUsageFlags bufferUsage,
+		VmaAllocationCreateFlags allocFlags,
+		Device::StageBuffer& outBuffer,
+		VmaAllocationInfo* outAllocInfo = nullptr) const;
+
+	VkResult CreateOneTimeStageBuffer(
+		VkDeviceSize size,
+		VkBufferUsageFlags bufferUsage,
+		Device::StageBuffer& outBuffer,
+		VmaAllocationInfo* outAllocInfo = nullptr) const;
+
+	VkResult CreateOneTimeStageBuffer(
+		VkDeviceSize size,
+		Device::StageBuffer& outBuffer,
+		VmaAllocationInfo* outAllocInfo = nullptr) const;
+
+	VkResult CreateOneTimeStageBuffer(
+		const VkBufferCreateInfo& bufferCreateInfo,
+		const VmaAllocationCreateInfo& allocCreateInfo,
+		Device::StageBuffer& outBuffer,
+		VmaAllocationInfo* outAllocInfo = nullptr) const;
+
 	VkResult CreateStageBuffer(
 		VkDeviceSize size,
 		VkBufferUsageFlags bufferUsage,
@@ -160,6 +184,13 @@ public:
 		VkBufferUsageFlags bufferUsage,
 		VmaMemoryUsage memoryUsage,
 		VmaAllocationCreateFlags allocFlags,
+		Device::Buffer& outBuffer,
+		VmaAllocationInfo* outAllocInfo = nullptr) const;
+
+	VkResult CreateBuffer(
+		VkDeviceSize size,
+		VkBufferUsageFlags bufferUsage,
+		VmaMemoryUsage memoryUsage,
 		Device::Buffer& outBuffer,
 		VmaAllocationInfo* outAllocInfo = nullptr) const;
 

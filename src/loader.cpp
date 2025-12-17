@@ -182,63 +182,9 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
     primitiveBufferAddr = engine->m_device.GetBufferDeviceAddress(primitiveBuffer.buffer);
 
     Device::StageBuffer vertexStage, indexStage, primStage;
-    //engine->m_device.CreateStageBuffer(vertexBufferSize, vertexStage);
-    //engine->m_device.CreateStageBuffer(indexBufferSize, indexStage);
-    //engine->m_device.CreateStageBuffer(primitiveBufferSize, primStage);
-
-    {
-    auto bufferCreateInfo = BufferCreateInfo();
-    bufferCreateInfo.size = vertexBufferSize;
-    bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-
-    // Not using these
-    bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    bufferCreateInfo.queueFamilyIndexCount = 0;
-    bufferCreateInfo.pQueueFamilyIndices = nullptr;
-
-    VmaAllocationCreateInfo allocInfo{};
-    allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
-    allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
-
-    VmaAllocationInfo info;
-    g_engine.m_device.CreateStageBuffer(bufferCreateInfo, allocInfo, vertexStage, &info);
-    }
-
-    {
-        auto bufferCreateInfo = BufferCreateInfo();
-        bufferCreateInfo.size = indexBufferSize;
-        bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-
-        // Not using these
-        bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        bufferCreateInfo.queueFamilyIndexCount = 0;
-        bufferCreateInfo.pQueueFamilyIndices = nullptr;
-
-        VmaAllocationCreateInfo allocInfo{};
-        allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
-        allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
-
-        VmaAllocationInfo info;
-        g_engine.m_device.CreateStageBuffer(bufferCreateInfo, allocInfo, indexStage, &info);
-    }
-
-    {
-        auto bufferCreateInfo = BufferCreateInfo();
-        bufferCreateInfo.size = primitiveBufferSize;
-        bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-
-        // Not using these
-        bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        bufferCreateInfo.queueFamilyIndexCount = 0;
-        bufferCreateInfo.pQueueFamilyIndices = nullptr;
-
-        VmaAllocationCreateInfo allocInfo{};
-        allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
-        allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
-
-        VmaAllocationInfo info;
-        g_engine.m_device.CreateStageBuffer(bufferCreateInfo, allocInfo, primStage, &info);
-    }
+    engine->m_device.CreateOneTimeStageBuffer(vertexBufferSize, vertexStage);
+    engine->m_device.CreateOneTimeStageBuffer(indexBufferSize, indexStage);
+    engine->m_device.CreateOneTimeStageBuffer(primitiveBufferSize, primStage);
 
     Vertex* vertices                = (Vertex*)vertexStage.mapped;
     u32* indices                    = (u32*)indexStage.mapped;

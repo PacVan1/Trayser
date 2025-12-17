@@ -204,6 +204,22 @@ VkResult trayser::Device::CreateBuffer(
 }
 
 VkResult trayser::Device::CreateBuffer(
+    VkDeviceSize size, 
+    VkBufferUsageFlags bufferUsage, 
+    VmaMemoryUsage memoryUsage, 
+    Device::Buffer& outBuffer, 
+    VmaAllocationInfo* outAllocInfo) const
+{
+    return CreateBuffer(
+        size, 
+        bufferUsage, 
+        memoryUsage, 
+        0, 
+        outBuffer, 
+        outAllocInfo);
+}
+
+VkResult trayser::Device::CreateBuffer(
     const VkBufferCreateInfo& bufferCreateInfo, 
     const VmaAllocationCreateInfo& allocCreateInfo, 
     Device::Buffer& outBuffer,
@@ -288,28 +304,12 @@ VkResult trayser::Device::CreateAccelerationStructure(AccelerationStructure& out
     outAccelStruct = {};
     VkAccelerationStructureCreateInfoKHR accelStruct = createInfo;
 
-    // Use legacy usage flags directly
-    VkBufferCreateInfo bufferInfo{};
-    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.pNext = nullptr; // no Flags2 chain
-    bufferInfo.size = accelStruct.size;
-    bufferInfo.usage =
-        VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
-        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-    bufferInfo.sharingMode = queueFamilies.empty()
-        ? VK_SHARING_MODE_EXCLUSIVE
-        : VK_SHARING_MODE_CONCURRENT;
-    bufferInfo.queueFamilyIndexCount = static_cast<uint32_t>(queueFamilies.size());
-    bufferInfo.pQueueFamilyIndices = queueFamilies.empty() ? nullptr : queueFamilies.data();
-
-    // Step 1: Create the buffer to hold the acceleration structure
-    //VkResult result = CreateBuffer(outAccelStruct.buffer, bufferInfo, allocInfo);
-    VkResult result = CreateBuffer(bufferInfo, allocInfo, outAccelStruct.buffer);
-
-    if (result != VK_SUCCESS)
-    {
-        return result;
-    }
+    VK_CHECK(CreateBuffer(
+        accelStruct.size, 
+        VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | 
+        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 
+        VMA_MEMORY_USAGE_GPU_ONLY, 
+        outAccelStruct.buffer));
 
     // Step 2: Create the acceleration structure with the buffer
     accelStruct.buffer = outAccelStruct.buffer.buffer;
@@ -321,7 +321,7 @@ VkResult trayser::Device::CreateAccelerationStructure(AccelerationStructure& out
         outAccelStruct.address = m_rtFuncs.vkGetAccelerationStructureDeviceAddressKHR(m_device, &info);
     }
 
-    return result;
+    return VK_SUCCESS;
 }
 
 void trayser::Device::CreateAccelerationStructure(VkAccelerationStructureTypeKHR type, 
@@ -1437,6 +1437,55 @@ VkResult trayser::Device::CreateImage(
 void trayser::Device::DestroyImage(const Device::Image& image) const
 {
     vmaDestroyImage(m_allocator, image.image, image.allocation);
+}
+
+VkResult trayser::Device::CreateOneTimeStageBuffer(
+    VkDeviceSize size, 
+    VkBufferUsageFlags bufferUsage, 
+    VmaAllocationCreateFlags allocFlags, 
+    Device::StageBuffer& outBuffer, 
+    VmaAllocationInfo* outAllocInfo) const
+{
+    auto bufferCreateInfo = BufferCreateInfo();
+    bufferCreateInfo.size = size;
+    bufferCreateInfo.usage = bufferUsage | VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+    // Not using these
+    bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    bufferCreateInfo.queueFamilyIndexCount = 0;
+    bufferCreateInfo.pQueueFamilyIndices = nullptr;
+
+    VmaAllocationCreateInfo allocInfo{};
+    allocInfo.flags = allocFlags | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+    allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+    return CreateStageBuffer(bufferCreateInfo, allocInfo, outBuffer, outAllocInfo);
+}
+
+VkResult trayser::Device::CreateOneTimeStageBuffer(
+    VkDeviceSize size, 
+    VkBufferUsageFlags bufferUsage, 
+    Device::StageBuffer& outBuffer, 
+    VmaAllocationInfo* outAllocInfo) const
+{
+    return CreateOneTimeStageBuffer(size, bufferUsage, 0, outBuffer, outAllocInfo);
+}
+
+VkResult trayser::Device::CreateOneTimeStageBuffer(
+    VkDeviceSize size, 
+    Device::StageBuffer& outBuffer, 
+    VmaAllocationInfo* outAllocInfo) const
+{
+    return CreateOneTimeStageBuffer(size, 0, 0, outBuffer, outAllocInfo);
+}
+
+VkResult trayser::Device::CreateOneTimeStageBuffer(
+    const VkBufferCreateInfo& bufferCreateInfo, 
+    const VmaAllocationCreateInfo& allocCreateInfo, 
+    Device::StageBuffer& outBuffer, 
+    VmaAllocationInfo* outAllocInfo) const
+{
+    return CreateStageBuffer(bufferCreateInfo, allocCreateInfo, outBuffer, outAllocInfo);
 }
 
 VkResult trayser::Device::CreateStageBuffer(
