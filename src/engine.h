@@ -50,7 +50,6 @@ private:
 	void InitImGuiStyle();
 	void InitDefaultData();
 	void InitGpuScene();
-	void InitTextureDescriptor();
 	void UpdateGpuScene();
 	void DestroySwapchain();
 	void BeginRecording(VkCommandBuffer cmd);
@@ -83,24 +82,18 @@ public:
 
 	TextureHandle m_skydomeHandle;
 
-	Device::Buffer			m_gpuScene;
-	Device::Buffer			m_meshBuffer;
-	Device::Buffer			m_instanceBuffer;
-	Device::Buffer			m_materialBuffer;
-	Device::Buffer			m_pointLightBuffer;
-	Device::Buffer			m_dirLightBuffer;
-	VkDeviceAddress			m_gpuSceneAddr;
+	Device::StageBuffer			m_sceneBuffer;
+	Device::StageBuffer			m_meshBuffer;
+	Device::StageBuffer			m_instanceBuffer;
+	Device::StageBuffer			m_materialBuffer;
+	Device::StageBuffer			m_pointLightBuffer;
+	Device::StageBuffer			m_dirLightBuffer;
+	VkDeviceAddress			m_sceneBufferAddr;
 	VkDeviceAddress			m_meshBufferAddr;
 	VkDeviceAddress			m_instanceBufferAddr;
 	VkDeviceAddress			m_materialBufferAddr;
 	VkDeviceAddress			m_pointLightBufferAddr;
 	VkDeviceAddress			m_dirLightBufferAddr;
-	gpu::Scene*				m_sceneMapped;
-	gpu::Mesh*				m_meshMapped;
-	gpu::Instance*			m_instanceMapped;
-	gpu::Material*			m_materialMapped;
-	gpu::PointLight*		m_pointLightMapped;
-	gpu::DirectionalLight*	m_dirLightMapped;
 
 	std::vector<Pipeline*>	m_pipelines;
 	RayTracedPipeline		m_rtPipeline;

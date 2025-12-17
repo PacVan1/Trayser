@@ -243,81 +243,41 @@ void trayser::Engine::InitDefaultData()
 
 void trayser::Engine::InitGpuScene()
 {
-    VmaAllocationInfo allocInfo{};
-
-    m_device.CreateBuffer(
-        VkDeviceSize(sizeof(gpu::Scene)), 
+    m_device.CreateStageBuffer(
+        sizeof(gpu::Scene),
         VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-        VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT, m_gpuScene, &allocInfo);
+        m_sceneBuffer);
+    m_sceneBufferAddr = m_device.GetBufferDeviceAddress(m_sceneBuffer.buffer);
 
-    VkBufferDeviceAddressInfo deviceAdressInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,.buffer = m_gpuScene.buffer };
-    m_gpuSceneAddr = vkGetBufferDeviceAddress(m_device.m_device, &deviceAdressInfo);
-    m_sceneMapped = (gpu::Scene*)allocInfo.pMappedData;
-
-    m_device.CreateBuffer(
+    m_device.CreateStageBuffer(
         sizeof(gpu::Mesh) * kMeshCount,
         VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-        VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT, m_meshBuffer, &allocInfo);
+        m_meshBuffer);
+    m_meshBufferAddr = m_device.GetBufferDeviceAddress(m_meshBuffer.buffer);
 
-    VkBufferDeviceAddressInfo deviceAdressInfo2{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,.buffer = m_meshBuffer.buffer };
-    m_meshBufferAddr = vkGetBufferDeviceAddress(m_device.m_device, &deviceAdressInfo2);
-    m_meshMapped = (gpu::Mesh*)allocInfo.pMappedData;
-
-    m_device.CreateBuffer(
-        sizeof(gpu::Instance) * kInstanceCount,
-        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-        VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT, m_instanceBuffer, &allocInfo);
-    m_instanceMapped = (gpu::Instance*)allocInfo.pMappedData;
-
-    VkBufferDeviceAddressInfo deviceAdressInfo3{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,.buffer = m_instanceBuffer.buffer };
-    m_instanceBufferAddr = vkGetBufferDeviceAddress(m_device.m_device, &deviceAdressInfo3);
-
-    m_device.CreateBuffer(
+    m_device.CreateStageBuffer(
         sizeof(gpu::Material) * kMaterialCount,
         VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-        VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT, m_materialBuffer, &allocInfo);
-    m_materialMapped = (gpu::Material*)allocInfo.pMappedData;
+        m_materialBuffer);
+    m_materialBufferAddr = m_device.GetBufferDeviceAddress(m_materialBuffer.buffer);
 
-    VkBufferDeviceAddressInfo deviceAdressInfo4{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,.buffer = m_materialBuffer.buffer };
-    m_materialBufferAddr = vkGetBufferDeviceAddress(m_device.m_device, &deviceAdressInfo4);
+    m_device.CreateStageBuffer(
+        sizeof(gpu::Instance) * kInstanceCount,
+        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        m_instanceBuffer);
+    m_instanceBufferAddr = m_device.GetBufferDeviceAddress(m_instanceBuffer.buffer);
 
-    m_device.CreateBuffer(
+    m_device.CreateStageBuffer(
         sizeof(gpu::PointLight) * kPointLightCount,
         VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-        VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT, m_pointLightBuffer, &allocInfo);
-    m_pointLightMapped = (gpu::PointLight*)allocInfo.pMappedData;
-
-    VkBufferDeviceAddressInfo deviceAdressInfo5{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,.buffer = m_pointLightBuffer.buffer };
-    m_pointLightBufferAddr = vkGetBufferDeviceAddress(m_device.m_device, &deviceAdressInfo5);
-}
-
-void trayser::Engine::InitTextureDescriptor()
-{
-    //VkDescriptorSetLayoutBinding textureBinding{};
-    //textureBinding.binding = 0; // binding slot in shader
-    //textureBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    //textureBinding.descriptorCount = kTextureCount; // number of textures
-    //textureBinding.stageFlags =  
-    //    VK_SHADER_STAGE_FRAGMENT_BIT | 
-    //    VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | 
-    //    VK_SHADER_STAGE_MISS_BIT_KHR | 
-    //    VK_SHADER_STAGE_RAYGEN_BIT_KHR; // or whichever stage
-    //textureBinding.pImmutableSamplers = nullptr;
-    //
-    //VkDescriptorSetLayoutCreateInfo layoutInfo{};
-    //layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    //layoutInfo.bindingCount = 1;
-    //layoutInfo.pBindings = &textureBinding;
-    //
-    //vkCreateDescriptorSetLayout(m_device.m_device, &layoutInfo, nullptr, &m_allTexturesLayout);
-    //
-    //m_allTexturesSet = m_globalDescriptorAllocator.Allocate(m_device.m_device, m_allTexturesLayout);
+        m_pointLightBuffer);
+    m_pointLightBufferAddr = m_device.GetBufferDeviceAddress(m_pointLightBuffer.buffer);
 }
 
 void trayser::Engine::UpdateGpuScene()
 {
     // Update scene
-    gpu::Scene* sceneRef = m_sceneMapped;
+    gpu::Scene* sceneRef = (gpu::Scene*)m_sceneBuffer.mapped;
 
     sceneRef->camera.proj = m_camera.m_proj;
     sceneRef->camera.proj[1][1] *= -1.0f;
@@ -328,7 +288,7 @@ void trayser::Engine::UpdateGpuScene()
     sceneRef->skydomeHandle = m_skydomeHandle;
     sceneRef->lights.pointLightBufferRef = m_pointLightBufferAddr;
 
-    gpu::PointLight* pointLightBufferRef = m_pointLightMapped;
+    gpu::PointLight* pointLightBufferRef = (gpu::PointLight*)m_pointLightBuffer.mapped;
 
     for (int i = 0; i < kPointLightCount; i++)
     {
@@ -338,7 +298,7 @@ void trayser::Engine::UpdateGpuScene()
     }
 
     // Update meshes
-    gpu::Mesh* meshBufferRef = m_meshMapped;
+    gpu::Mesh* meshBufferRef = (gpu::Mesh*)m_meshBuffer.mapped;
 
     for (int i = 0; i < m_meshPool.m_resources.size(); i++)
     {
@@ -352,8 +312,8 @@ void trayser::Engine::UpdateGpuScene()
     sceneRef->meshBufferRef = m_meshBufferAddr;
 
     // Update instances
-    gpu::Instance* instanceBufferRef = m_instanceMapped;
-    gpu::Material* materialBufferRef = m_materialMapped;
+    gpu::Instance* instanceBufferRef = (gpu::Instance*)m_instanceBuffer.mapped;
+    gpu::Material* materialBufferRef = (gpu::Material*)m_materialBuffer.mapped;
     
     auto view = g_engine.m_scene.m_registry.view<WorldTransform, RenderComponent>();
     int i = 0;

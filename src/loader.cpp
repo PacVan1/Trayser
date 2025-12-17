@@ -177,9 +177,9 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
         primitiveBuffer);
 
     //find the adress of the vertex and index buffer
-    vertexBufferAddr    = engine->m_device.GetBufferDeviceAddress(vertexBuffer);
-    indexBufferAddr     = engine->m_device.GetBufferDeviceAddress(indexBuffer);
-    primitiveBufferAddr = engine->m_device.GetBufferDeviceAddress(primitiveBuffer);
+    vertexBufferAddr    = engine->m_device.GetBufferDeviceAddress(vertexBuffer.buffer);
+    indexBufferAddr     = engine->m_device.GetBufferDeviceAddress(indexBuffer.buffer);
+    primitiveBufferAddr = engine->m_device.GetBufferDeviceAddress(primitiveBuffer.buffer);
 
     Device::StageBuffer vertexStage, indexStage, primStage;
     engine->m_device.CreateStageBuffer(vertexBufferSize, vertexStage);

@@ -199,7 +199,7 @@ void trayser::RasterizedPipeline::Update()
         for (auto& prim : g_engine.m_meshPool.Get(render.mesh).primitives)
         {
             gpu::RasterPushConstants pushConsts{};
-            pushConsts.sceneRef = g_engine.m_gpuSceneAddr;
+            pushConsts.sceneRef = g_engine.m_sceneBufferAddr;
             pushConsts.renderMode = g_engine.m_renderMode;
             pushConsts.instanceIdx = i;
             pushConsts.primitiveIdx = j;

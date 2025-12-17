@@ -212,7 +212,7 @@ void trayser::RayTracedPipeline::Update()
     vkCmdBindDescriptorSets(g_engine.m_renderer.GetCmdBuffer(), VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_layout, 0, 2, descSets, 0, nullptr);
 
     gpu::RTPushConstants pushConsts{};
-    pushConsts.sceneRef = g_engine.m_gpuSceneAddr;
+    pushConsts.sceneRef = g_engine.m_sceneBufferAddr;
     pushConsts.renderMode = g_engine.m_renderMode;
     pushConsts.frame = g_engine.m_frame;
 

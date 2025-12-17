@@ -267,9 +267,9 @@ VkResult trayser::Device::CreateBufferWithAlignment(
         outAllocInfo);
 }
 
-VkDeviceAddress trayser::Device::GetBufferDeviceAddress(const Device::Buffer& buffer) const
+VkDeviceAddress trayser::Device::GetBufferDeviceAddress(const VkBuffer& buffer) const
 {
-    VkBufferDeviceAddressInfo info = VkBufferDeviceAddressInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, .buffer = buffer.buffer };
+    VkBufferDeviceAddressInfo info = VkBufferDeviceAddressInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, .buffer = buffer };
     return vkGetBufferDeviceAddress(m_device, &info);
 }
 
@@ -1457,9 +1457,18 @@ VkResult trayser::Device::CreateStageBuffer(
 
     VmaAllocationCreateInfo allocInfo{};
     allocInfo.flags = allocFlags | VMA_ALLOCATION_CREATE_MAPPED_BIT;
-    allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+    allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
 
     return CreateStageBuffer(bufferCreateInfo, allocInfo, outBuffer, outAllocInfo);
+}
+
+VkResult trayser::Device::CreateStageBuffer(
+    VkDeviceSize size, 
+    VkBufferUsageFlags bufferUsage, 
+    Device::StageBuffer& outBuffer, 
+    VmaAllocationInfo* outAllocInfo) const
+{
+    return CreateStageBuffer(size, bufferUsage, 0, outBuffer, outAllocInfo);
 }
 
 VkResult trayser::Device::CreateStageBuffer(
@@ -1467,20 +1476,7 @@ VkResult trayser::Device::CreateStageBuffer(
     Device::StageBuffer& outBuffer, 
     VmaAllocationInfo* outAllocInfo) const
 {
-    auto bufferCreateInfo = BufferCreateInfo();
-    bufferCreateInfo.size = size;
-    bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-
-    // Not using these
-    bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    bufferCreateInfo.queueFamilyIndexCount = 0;
-    bufferCreateInfo.pQueueFamilyIndices = nullptr;
-
-    VmaAllocationCreateInfo allocInfo{};
-    allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
-    allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
-
-    return CreateStageBuffer(bufferCreateInfo, allocInfo, outBuffer, outAllocInfo);
+    return CreateStageBuffer(size, 0, 0, outBuffer, outAllocInfo);
 }
 
 VkResult trayser::Device::CreateStageBuffer(
