@@ -1472,7 +1472,7 @@ VkResult trayser::Device::CreateStageBuffer(
 
     VmaAllocationCreateInfo allocInfo{};
     allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
-    allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+    allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
 
     return CreateStageBuffer(bufferCreateInfo, allocInfo, outBuffer, outAllocInfo);
 }
