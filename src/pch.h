@@ -46,6 +46,7 @@
 // Custom
 #include <types.h>
 #include <input.h>
+#include <vkfuncs.h>
 #include <slang_compiler.h>
 
 #define PRINT_ERROR(str) fmt::print("\033[31m[ERROR] {}\033[0m\n", str)

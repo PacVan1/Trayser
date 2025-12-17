@@ -112,7 +112,7 @@ void trayser::Model::TraverseNode(tinygltf::Model& loaded, const tinygltf::Node&
 
 trayser::Mesh::~Mesh()
 {
-    g_engine.m_device.m_rtFuncs.vkDestroyAccelerationStructureKHR(g_engine.m_device.m_device, BLas.accel, nullptr);
+    vkfuncs::vkDestroyAccelerationStructureKHR(g_engine.m_device.m_device, BLas.accelStruct, nullptr);
     vmaDestroyBuffer(g_engine.m_device.m_allocator, BLas.buffer.buffer, BLas.buffer.allocation);
 }
 

@@ -107,7 +107,7 @@ void trayser::RayTracedPipeline::Load(VkShaderModule module)
     rtPipelineInfo.pGroups = shader_groups.data();
     rtPipelineInfo.maxPipelineRayRecursionDepth = std::max(3U, g_engine.m_device.m_rtProperties.maxRayRecursionDepth);
     rtPipelineInfo.layout = m_layout;
-    VK_CHECK(g_engine.m_device.m_rtFuncs.vkCreateRayTracingPipelinesKHR(g_engine.m_device.m_device, {}, {}, 1, &rtPipelineInfo, nullptr, &m_pipeline));
+    VK_CHECK(vkfuncs::vkCreateRayTracingPipelinesKHR(g_engine.m_device.m_device, {}, {}, 1, &rtPipelineInfo, nullptr, &m_pipeline));
     //NVVK_DBG_NAME(m_rtPipeline);
 
     //LOGI("Ray tracing pipeline created successfully\n");
@@ -125,7 +125,7 @@ void trayser::RayTracedPipeline::Load(VkShaderModule module)
     // Get shader group handles
     size_t dataSize = handleSize * groupCount;
     m_shaderHandles.resize(dataSize);
-    VK_CHECK(g_engine.m_device.m_rtFuncs.vkGetRayTracingShaderGroupHandlesKHR(device, m_pipeline, 0, groupCount, dataSize, m_shaderHandles.data()));
+    VK_CHECK(vkfuncs::vkGetRayTracingShaderGroupHandlesKHR(device, m_pipeline, 0, groupCount, dataSize, m_shaderHandles.data()));
 
     // Calculate SBT buffer size with proper alignment
     auto     alignUp = [](uint32_t size, uint32_t alignment) { return (size + alignment - 1) & ~(alignment - 1); };
@@ -198,13 +198,13 @@ void trayser::RayTracedPipeline::Update()
     vkCmdBindPipeline(g_engine.m_renderer.GetCmdBuffer(), VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pipeline);
 
     VkAccelerationStructureDeviceAddressInfoKHR ai{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR };
-    ai.accelerationStructure = g_engine.m_renderer.GetTlas().accel;
-    VkDeviceAddress addr = g_engine.m_device.m_rtFuncs.vkGetAccelerationStructureDeviceAddressKHR(g_engine.m_device.m_device, &ai);
+    ai.accelerationStructure = g_engine.m_renderer.GetTlas().accelStruct;
+    VkDeviceAddress addr = vkfuncs::vkGetAccelerationStructureDeviceAddressKHR(g_engine.m_device.m_device, &ai);
     assert(addr != 0); // 0 means invalid/never built
 
     {
         DescriptorWriter writer;
-        writer.WriteAccelStruct(0, g_engine.m_renderer.GetTlas().accel);
+        writer.WriteAccelStruct(0, g_engine.m_renderer.GetTlas().accelStruct);
         writer.UpdateSet(g_engine.m_device.m_device, m_descriptorSet);
     }
 
@@ -225,7 +225,7 @@ void trayser::RayTracedPipeline::Update()
 
     // Ray trace
     const VkExtent2D size = { kInitWindowWidth, kInitWindowHeight };
-    g_engine.m_device.m_rtFuncs.vkCmdTraceRaysKHR(g_engine.m_renderer.GetCmdBuffer(), &m_raygenRegion, &m_missRegion, &m_hitRegion, &m_callableRegion, size.width, size.height, 1);
+    vkfuncs::vkCmdTraceRaysKHR(g_engine.m_renderer.GetCmdBuffer(), &m_raygenRegion, &m_missRegion, &m_hitRegion, &m_callableRegion, size.width, size.height, 1);
 
     // Barrier to make sure the image is ready for Tonemapping
     PipelineBarrier();

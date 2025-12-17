@@ -289,6 +289,33 @@ VkDeviceAddress trayser::Device::GetBufferDeviceAddress(const VkBuffer& buffer) 
     return vkGetBufferDeviceAddress(m_device, &info);
 }
 
+VkResult trayser::Device::CreateAccelerationStructure(
+    VkDeviceSize size, 
+    VkAccelerationStructureTypeKHR type, 
+    AccelerationStructure& outAccelStruct) const
+{
+    VK_CHECK(CreateBuffer(
+        size,
+        VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
+        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+        VMA_MEMORY_USAGE_GPU_ONLY,
+        outAccelStruct.buffer));
+
+    auto createInfo = AccelerationStructureCreateInfoKHR();
+    createInfo.size     = size;
+    createInfo.type     = type;
+    createInfo.buffer   = outAccelStruct.buffer.buffer;
+
+    VK_CHECK(vkfuncs::vkCreateAccelerationStructureKHR(m_device, &createInfo, nullptr, &outAccelStruct.accelStruct));
+
+    VkAccelerationStructureDeviceAddressInfoKHR addrInfo{};
+    addrInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
+    addrInfo.accelerationStructure = outAccelStruct.accelStruct;
+    outAccelStruct.addr = vkfuncs::vkGetAccelerationStructureDeviceAddressKHR(m_device, &addrInfo);
+
+    return VK_SUCCESS;
+}
+
 VkResult trayser::Device::CreateAccelerationStructure(AccelerationStructure& outAccelStruct,
     const VkAccelerationStructureCreateInfoKHR& createInfo) const
 {
@@ -313,12 +340,12 @@ VkResult trayser::Device::CreateAccelerationStructure(AccelerationStructure& out
 
     // Step 2: Create the acceleration structure with the buffer
     accelStruct.buffer = outAccelStruct.buffer.buffer;
-    VK_CHECK(m_rtFuncs.vkCreateAccelerationStructureKHR(m_device, &accelStruct, nullptr, &outAccelStruct.accel));
+    VK_CHECK(vkfuncs::vkCreateAccelerationStructureKHR(m_device, &accelStruct, nullptr, &outAccelStruct.accelStruct));
 
     {
         VkAccelerationStructureDeviceAddressInfoKHR info{ .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR,
-                                                         .accelerationStructure = outAccelStruct.accel };
-        outAccelStruct.address = m_rtFuncs.vkGetAccelerationStructureDeviceAddressKHR(m_device, &info);
+                                                         .accelerationStructure = outAccelStruct.accelStruct };
+        outAccelStruct.addr = vkfuncs::vkGetAccelerationStructureDeviceAddressKHR(m_device, &info);
     }
 
     return VK_SUCCESS;
@@ -351,7 +378,7 @@ void trayser::Device::CreateAccelerationStructure(VkAccelerationStructureTypeKHR
 
     // Find the size of the acceleration structure and the scratch buffer
     VkAccelerationStructureBuildSizesInfoKHR asBuildSize{ .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR };
-    m_rtFuncs.vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &asBuildInfo,
+    vkfuncs::vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &asBuildInfo,
         maxPrimCount.data(), &asBuildSize);
 
     // Make sure the scratch buffer is properly aligned
@@ -370,13 +397,14 @@ void trayser::Device::CreateAccelerationStructure(VkAccelerationStructureTypeKHR
     const VkBufferDeviceAddressInfo info = { .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, .buffer = scratchBuffer.buffer };
     VkDeviceAddress scratchBufferAddr = vkGetBufferDeviceAddress(m_device, &info);
 
-    // Create the acceleration structure
-    VkAccelerationStructureCreateInfoKHR createInfo{
-        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR,
-        .size = asBuildSize.accelerationStructureSize,  // The size of the acceleration structure
-        .type = type,  // The type of acceleration structure (BLAS or TLAS)
-    };
-    VK_CHECK(CreateAccelerationStructure(outAccelStruct, createInfo));
+    //   // Create the acceleration structure
+    //   VkAccelerationStructureCreateInfoKHR createInfo{
+    //       .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR,
+    //       .size = asBuildSize.accelerationStructureSize,  // The size of the acceleration structure
+    //       .type = type,  // The type of acceleration structure (BLAS or TLAS)
+    //   };
+    //   VK_CHECK(CreateAccelerationStructure(outAccelStruct, createInfo));
+    VK_CHECK(CreateAccelerationStructure(asBuildSize.accelerationStructureSize, type, outAccelStruct));
 
     // Build the acceleration structure
     {
@@ -384,11 +412,11 @@ void trayser::Device::CreateAccelerationStructure(VkAccelerationStructureTypeKHR
         BeginOneTimeSubmit(cmd);
 
         // Fill with new information for the build,scratch buffer and destination AS
-        asBuildInfo.dstAccelerationStructure = outAccelStruct.accel;
+        asBuildInfo.dstAccelerationStructure = outAccelStruct.accelStruct;
         asBuildInfo.scratchData.deviceAddress = scratchBufferAddr;
 
         VkAccelerationStructureBuildRangeInfoKHR* pBuildRangeInfo = &buildRangeInfo;
-        m_rtFuncs.vkCmdBuildAccelerationStructuresKHR(cmd, 1, &asBuildInfo, &pBuildRangeInfo);
+        vkfuncs::vkCmdBuildAccelerationStructuresKHR(cmd, 1, &asBuildInfo, &pBuildRangeInfo);
 
         EndOneTimeSubmit();
     }
@@ -420,7 +448,7 @@ void trayser::Device::CreateAccelerationStructure2(VkAccelerationStructureTypeKH
     }
 
     VkAccelerationStructureBuildSizesInfoKHR buildSize{ .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR };
-    m_rtFuncs.vkGetAccelerationStructureBuildSizesKHR(m_device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &buildInfo, maxPrimCount.data(), &buildSize);
+    vkfuncs::vkGetAccelerationStructureBuildSizesKHR(m_device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &buildInfo, maxPrimCount.data(), &buildSize);
 
     // Make sure the scratch buffer is properly aligned
     VkDeviceSize scratchSize = alignUp(buildSize.buildScratchSize, m_asProperties.minAccelerationStructureScratchOffsetAlignment);
@@ -449,11 +477,11 @@ void trayser::Device::CreateAccelerationStructure2(VkAccelerationStructureTypeKH
     BeginOneTimeSubmit(cmd);
 
     // Fill with new information for the build,scratch buffer and destination AS
-    buildInfo.dstAccelerationStructure = outAccelStruct.accel;
+    buildInfo.dstAccelerationStructure = outAccelStruct.accelStruct;
     buildInfo.scratchData.deviceAddress = scratchBufferAddr;
 
     VkAccelerationStructureBuildRangeInfoKHR* pBuildRangeInfo = rangeInfos.data();
-    m_rtFuncs.vkCmdBuildAccelerationStructuresKHR(cmd, 1, &buildInfo, &pBuildRangeInfo);
+    vkfuncs::vkCmdBuildAccelerationStructuresKHR(cmd, 1, &buildInfo, &pBuildRangeInfo);
 
     EndOneTimeSubmit();
 
@@ -697,7 +725,7 @@ void trayser::Device::Init()
     InitSyncStructures();
     //InitImGui();
     InitRayTracing();
-    m_rtFuncs.Init();
+    vkfuncs::Init(m_device);
 
     PRINT_INFO("Initialized device.");
 }
@@ -1349,33 +1377,6 @@ trayser::SwapchainSupport trayser::Device::QuerySwapChainSupport(VkPhysicalDevic
     printf("Present modes count: %u\n", presentModeCount);
 
     return details;
-}
-
-void trayser::RuntimeFuncs::Init()
-{
-    vkCreateAccelerationStructureKHR =
-        (PFN_vkCreateAccelerationStructureKHR)vkGetDeviceProcAddr(g_engine.m_device.m_device, "vkCreateAccelerationStructureKHR"); 
-
-    vkCmdBuildAccelerationStructuresKHR =
-        (PFN_vkCmdBuildAccelerationStructuresKHR)vkGetDeviceProcAddr(g_engine.m_device.m_device, "vkCmdBuildAccelerationStructuresKHR");
-
-    vkGetAccelerationStructureDeviceAddressKHR =
-        (PFN_vkGetAccelerationStructureDeviceAddressKHR)vkGetDeviceProcAddr(g_engine.m_device.m_device, "vkGetAccelerationStructureDeviceAddressKHR");
-
-    vkGetAccelerationStructureBuildSizesKHR =
-        (PFN_vkGetAccelerationStructureBuildSizesKHR)vkGetDeviceProcAddr(g_engine.m_device.m_device, "vkGetAccelerationStructureBuildSizesKHR");
-
-    vkCreateRayTracingPipelinesKHR =
-        (PFN_vkCreateRayTracingPipelinesKHR)vkGetDeviceProcAddr(g_engine.m_device.m_device, "vkCreateRayTracingPipelinesKHR");
-
-    vkGetRayTracingShaderGroupHandlesKHR =
-        (PFN_vkGetRayTracingShaderGroupHandlesKHR)vkGetDeviceProcAddr(g_engine.m_device.m_device, "vkGetRayTracingShaderGroupHandlesKHR");
-
-    vkCmdTraceRaysKHR =
-        (PFN_vkCmdTraceRaysKHR)vkGetDeviceProcAddr(g_engine.m_device.m_device, "vkCmdTraceRaysKHR");
-
-    vkDestroyAccelerationStructureKHR =
-        (PFN_vkDestroyAccelerationStructureKHR)vkGetDeviceProcAddr(g_engine.m_device.m_device, "vkDestroyAccelerationStructureKHR");
 }
 
 trayser::SwapchainSupport trayser::Device::GetSwapchainSupport() const

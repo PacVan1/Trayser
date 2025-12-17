@@ -227,7 +227,7 @@ void trayser::Scene::BuildTLas()
         VkAccelerationStructureInstanceKHR asInstance{};
         asInstance.transform = toTransformMatrixKHR(transform.matrix);  // Position of the instance
         asInstance.instanceCustomIndex = render.mesh;                       // gl_InstanceCustomIndexEXT
-        asInstance.accelerationStructureReference = g_engine.m_meshPool.Get(render.mesh).BLas.address;
+        asInstance.accelerationStructureReference = g_engine.m_meshPool.Get(render.mesh).BLas.addr;
         asInstance.instanceShaderBindingTableRecordOffset = 0;  // We will use the same hit group for all objects
         asInstance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV;  // No culling - double sided
         asInstance.mask = 0xFF;
@@ -314,6 +314,6 @@ void trayser::Scene::DestroyTLas()
 {
     vkDeviceWaitIdle(g_engine.m_device.m_device);
 
-    g_engine.m_device.m_rtFuncs.vkDestroyAccelerationStructureKHR(g_engine.m_device.m_device, g_engine.m_renderer.GetTlas().accel, nullptr);
+    vkfuncs::vkDestroyAccelerationStructureKHR(g_engine.m_device.m_device, g_engine.m_renderer.GetTlas().accelStruct, nullptr);
     vmaDestroyBuffer(g_engine.m_device.m_allocator, g_engine.m_renderer.GetTlas().buffer.buffer, g_engine.m_renderer.GetTlas().buffer.allocation);
 }

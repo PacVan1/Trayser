@@ -89,6 +89,11 @@ VkSamplerCreateInfo trayser::SamplerCreateInfo(const void* pNext)
     return VkSamplerCreateInfo{ .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO, .pNext = pNext };
 }
 
+VkAccelerationStructureCreateInfoKHR trayser::AccelerationStructureCreateInfoKHR(const void* pNext)
+{
+    return VkAccelerationStructureCreateInfoKHR{ .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR, .pNext = pNext };
+}
+
 VkBufferCreateInfo trayser::BufferCreateInfo(const void* pNext)
 {
     return VkBufferCreateInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, .pNext = pNext };

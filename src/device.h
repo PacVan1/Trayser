@@ -57,20 +57,6 @@ struct SwapchainSupport
 	std::vector<VkPresentModeKHR> presentModes;
 };
 
-struct RuntimeFuncs
-{
-	void Init(); 
-
-	PFN_vkCreateAccelerationStructureKHR vkCreateAccelerationStructureKHR;
-	PFN_vkCmdBuildAccelerationStructuresKHR vkCmdBuildAccelerationStructuresKHR;
-	PFN_vkGetAccelerationStructureDeviceAddressKHR vkGetAccelerationStructureDeviceAddressKHR;
-	PFN_vkGetAccelerationStructureBuildSizesKHR vkGetAccelerationStructureBuildSizesKHR;
-	PFN_vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR;
-	PFN_vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandlesKHR;
-	PFN_vkCmdTraceRaysKHR vkCmdTraceRaysKHR;
-	PFN_vkDestroyAccelerationStructureKHR vkDestroyAccelerationStructureKHR;
-};
-
 class Device
 {
 public:
@@ -99,9 +85,9 @@ public:
 
 	struct AccelerationStructure
 	{
-		VkAccelerationStructureKHR  accel{};
-		VkDeviceAddress             address{};
+		VkAccelerationStructureKHR  accelStruct{};
 		Buffer						buffer;
+		VkDeviceAddress             addr;
 	};
 
 public:
@@ -221,6 +207,11 @@ public:
 	// Buffer should have this flag: VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
 	[[nodiscard]] VkDeviceAddress GetBufferDeviceAddress(const VkBuffer& buffer) const;
 
+	VkResult CreateAccelerationStructure(
+		VkDeviceSize size, 
+		VkAccelerationStructureTypeKHR type,
+		AccelerationStructure& outAccelStruct) const;
+
 	VkResult CreateAccelerationStructure(AccelerationStructure& outAccelStruct,
 		const VkAccelerationStructureCreateInfoKHR& createInfo) const;
 
@@ -312,33 +303,32 @@ public:
 	// VMA
 	VmaAllocator				m_allocator;
 
-	RuntimeFuncs				m_rtFuncs;
-
 	// Ray tracing test
 	//AccelerationStructure              m_tlasAccel;     // Top-level acceleration structure
 	VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties;
 	VkPhysicalDeviceAccelerationStructurePropertiesKHR m_asProperties;
 };
 
-[[nodiscard]] inline VkCommandPoolCreateInfo			CommandPoolCreateInfo(const void* pNext = nullptr);
-[[nodiscard]] inline VkCommandBufferAllocateInfo		CommandBufferAllocateInfo(const void* pNext = nullptr);
-[[nodiscard]] inline VkCommandBufferBeginInfo			CommandBufferBeginInfo(const void* pNext = nullptr);
-[[nodiscard]] inline VkFenceCreateInfo					FenceCreateInfo(const void* pNext = nullptr);
-[[nodiscard]] inline VkSemaphoreCreateInfo				SemaphoreCreateInfo(const void* pNext = nullptr);
-[[nodiscard]] inline VkSemaphoreSubmitInfo				SemaphoreSubmitInfo(const void* pNext = nullptr);
-[[nodiscard]] inline VkCommandBufferSubmitInfo			CommandBufferSubmitInfo(const void* pNext = nullptr);
-[[nodiscard]] inline VkSubmitInfo2						SubmitInfo2(const void* pNext = nullptr);
-[[nodiscard]] inline VkPresentInfoKHR					PresentInfoKHR(const void* pNext = nullptr);
-[[nodiscard]] inline VkRenderingAttachmentInfo			RenderingAttachmentInfo(const void* pNext = nullptr);
-[[nodiscard]] inline VkRenderingInfo					RenderingInfo(const void* pNext = nullptr);
-[[nodiscard]] inline VkWriteDescriptorSet				WriteDescriptorSet(const void* pNext = nullptr);
-[[nodiscard]] inline VkImageCreateInfo					ImageCreateInfo(const void* pNext = nullptr);
-[[nodiscard]] inline VkImageViewCreateInfo				ImageViewCreateInfo(const void* pNext = nullptr);
-[[nodiscard]] inline VkPipelineLayoutCreateInfo			PipelineLayoutCreateInfo(const void* pNext = nullptr);
-[[nodiscard]] inline VkPipelineShaderStageCreateInfo	PipelineShaderStageCreateInfo(const void* pNext = nullptr);
-[[nodiscard]] inline VkComputePipelineCreateInfo		ComputePipelineCreateInfo(const void* pNext = nullptr);
-[[nodiscard]] inline VkSamplerCreateInfo				SamplerCreateInfo(const void* pNext = nullptr);
-[[nodiscard]] inline VkBufferCreateInfo					BufferCreateInfo(const void* pNext = nullptr);
+[[nodiscard]] inline VkCommandPoolCreateInfo				CommandPoolCreateInfo(const void* pNext = nullptr);
+[[nodiscard]] inline VkCommandBufferAllocateInfo			CommandBufferAllocateInfo(const void* pNext = nullptr);
+[[nodiscard]] inline VkCommandBufferBeginInfo				CommandBufferBeginInfo(const void* pNext = nullptr);
+[[nodiscard]] inline VkFenceCreateInfo						FenceCreateInfo(const void* pNext = nullptr);
+[[nodiscard]] inline VkSemaphoreCreateInfo					SemaphoreCreateInfo(const void* pNext = nullptr);
+[[nodiscard]] inline VkSemaphoreSubmitInfo					SemaphoreSubmitInfo(const void* pNext = nullptr);
+[[nodiscard]] inline VkCommandBufferSubmitInfo				CommandBufferSubmitInfo(const void* pNext = nullptr);
+[[nodiscard]] inline VkSubmitInfo2							SubmitInfo2(const void* pNext = nullptr);
+[[nodiscard]] inline VkPresentInfoKHR						PresentInfoKHR(const void* pNext = nullptr);
+[[nodiscard]] inline VkRenderingAttachmentInfo				RenderingAttachmentInfo(const void* pNext = nullptr);
+[[nodiscard]] inline VkRenderingInfo						RenderingInfo(const void* pNext = nullptr);
+[[nodiscard]] inline VkWriteDescriptorSet					WriteDescriptorSet(const void* pNext = nullptr);
+[[nodiscard]] inline VkImageCreateInfo						ImageCreateInfo(const void* pNext = nullptr);
+[[nodiscard]] inline VkImageViewCreateInfo					ImageViewCreateInfo(const void* pNext = nullptr);
+[[nodiscard]] inline VkPipelineLayoutCreateInfo				PipelineLayoutCreateInfo(const void* pNext = nullptr);
+[[nodiscard]] inline VkPipelineShaderStageCreateInfo		PipelineShaderStageCreateInfo(const void* pNext = nullptr);
+[[nodiscard]] inline VkComputePipelineCreateInfo			ComputePipelineCreateInfo(const void* pNext = nullptr);
+[[nodiscard]] inline VkSamplerCreateInfo					SamplerCreateInfo(const void* pNext = nullptr);
+[[nodiscard]] inline VkBufferCreateInfo						BufferCreateInfo(const void* pNext = nullptr);
+[[nodiscard]] inline VkAccelerationStructureCreateInfoKHR	AccelerationStructureCreateInfoKHR(const void* pNext = nullptr);
 
 } // namespace trayser
 
