@@ -28,6 +28,14 @@ struct HitPayload
     float3      nextDirection;
 };
 
+struct HitInfo
+{
+    float3              P;
+    float3              sN;
+    float3              gN;
+    MaterialProperties  mat;
+}
+
 float3 SampleSkydome(in float3 rayDirection)
 {
     Scene scene = pushConsts.sceneRef[0];
@@ -123,6 +131,22 @@ float computeLightPdf(float3 lightDir, float3 shadingNormal, float lightRadius, 
     return NdotL / (4.0f * kPi * lightRadius * lightRadius * distanceToLight * distanceToLight);
 }
 
+float3 SampleLights(inout uint32_t rngState, in HitInfo hit, in Scene scene)
+{
+    float3 light = 0.0;
+    for (int i = 0; i < kSphereLightCount; i++)
+    {
+        SphereLight source = scene.lights.sphereLights[i];
+        float3 random = RandomPointWithinSphere(rngState, source);
+        float3 L = random - hit.P;
+        float dist = length(L);
+        float att = 1.0 / (dist * dist);
+        L = normalize(L);
+        light += evalCombinedBRDF(hit.sN, L, -WorldRayDirection(), hit.mat) * att * source.color * source.intensity;
+    }
+    return light;
+}
+
 // Closest hit shader - called when ray hits geometry
 [shader("closesthit")]
 void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes attr)
@@ -139,8 +163,6 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     REF(Primitive) primitiveBufferRef = mesh.primitiveBufferRef;
     Primitive primitive = primitiveBufferRef[GeometryIndex()];
     Material material = materialBufferRef[primitive.materialHandle];
-    REF(PointLight) pointLights = scene.lights.pointLightBufferRef;
-    REF(SphereLight) sphereLights = scene.lights.sphereLightBufferRef;
 
     // Find triangle, vertices and barycentrics
     uint triangleIdx = primitive.baseIndex + PrimitiveIndex() * 3;
@@ -165,27 +187,27 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     // Continue at fully transparent surfaces
     float2 uv = v0.texCoord.xy * w0 + v1.texCoord.xy * w1 + v2.texCoord.xy * w2;
 
-    MaterialProperties matProps;
-    matProps.baseColor = baseColorTexture.SampleLevel(uv, 0.0).rgb * material.baseColorFactor.rgb;
-    matProps.metalness = metalRoughTexture.SampleLevel(uv, 0.0).b * material.metallicRoughnessAoFactor.r;
-    matProps.roughness = metalRoughTexture.SampleLevel(uv, 0.0).g * material.metallicRoughnessAoFactor.g;
-    matProps.emissive = emissiveTexture.SampleLevel(uv, 0.0).rgb * material.emissiveFactor.rgb;
-    matProps.opacity = 1.0;
-    matProps.reflectance = 0.5; // Default to 0.5 for minimal reflectence of 4%
-    matProps.transmissivness = 0.0;
+    HitInfo hit;
+    hit.mat.baseColor = baseColorTexture.SampleLevel(uv, 0.0).rgb * material.baseColorFactor.rgb;
+    hit.mat.metalness = metalRoughTexture.SampleLevel(uv, 0.0).b * material.metallicRoughnessAoFactor.r;
+    hit.mat.roughness = metalRoughTexture.SampleLevel(uv, 0.0).g * material.metallicRoughnessAoFactor.g;
+    hit.mat.emissive = emissiveTexture.SampleLevel(uv, 0.0).rgb * material.emissiveFactor.rgb;
+    hit.mat.opacity = 1.0;
+    hit.mat.reflectance = 0.5; // Default to 0.5 for minimal reflectence of 4%
+    hit.mat.transmissivness = 0.0;
 
     // Continue getting hit info
-    float3 position = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
-    float3 geometryNormal = normalize(v0.normal.xyz * w0 + v1.normal.xyz * w1 + v2.normal.xyz * w2);
+    hit.P = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
+    hit.gN = normalize(v0.normal.xyz * w0 + v1.normal.xyz * w1 + v2.normal.xyz * w2);
     float3x3 normalTransform = float3x3(instance.normalTransform);
     float3 geometryTangent = normalize(v0.tangent.xyz * w0 + v1.tangent.xyz * w1 + v2.tangent.xyz * w2);
-    geometryNormal = normalize(mul(normalTransform, geometryNormal));
+    hit.gN = normalize(mul(normalTransform, hit.gN));
     float3 tangent = normalize(mul((float3x3)instance.transform, geometryTangent.xyz));
-    tangent = normalize(tangent - geometryNormal * dot(geometryNormal, tangent));
-    float3 bitangent = cross(geometryNormal, tangent) * v0.tangent.w;
-    float3x3 tbn = float3x3(tangent, bitangent, geometryNormal);
+    tangent = normalize(tangent - hit.gN * dot(hit.gN, tangent));
+    float3 bitangent = cross(hit.gN, tangent) * v0.tangent.w;
+    float3x3 tbn = float3x3(tangent, bitangent, hit.gN);
     float3 mapNormal = normalize(normalMapTexture.SampleLevel(uv.xy, 0.0).xyz * 2.0 - 1.0);
-    float3 shadingNormal = normalize(mul(mapNormal, tbn));
+    hit.sN = normalize(mul(mapNormal, tbn));
 
     //payload.radiance += payload.throughput * matProps.emissive;
 
@@ -193,29 +215,16 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     {
     case RenderMode.FinalColor:
     {
-        // Point lights
-        for (int i = 0; i < kSphereLightCount; i++)
-        {
-            SphereLight sphereLight = sphereLights[i];
-            float3 random = RandomPointWithinSphere(payload.rngState, sphereLight);
-            float3 L = random - position;
-            float dist = length(L);
-            float att = 1.0 / (dist * dist);
-            L = normalize(L);
-            float3 light = evalCombinedBRDF(shadingNormal, L, -WorldRayDirection(), matProps) * att * sphereLight.color * sphereLight.intensity;
-            payload.radiance += payload.throughput * light;
-        }
-
         // TEMP for MIS test
         //    int brdfType;
         //    if (matProps.metalness == 1.0f && matProps.roughness == 0.0f) {
         //        // Fast path for mirrors
         //        brdfType = SPECULAR_TYPE;
         //    } else {
-        //    
+        //
         //        // Decide whether to sample diffuse or specular BRDF (based on Fresnel term)
         //        float brdfProbability = GetBrdfProbability(matProps, -WorldRayDirection(), shadingNormal);
-        //    
+        //
         //        if (RandomFloat(payload.rngState) < brdfProbability) {
         //            brdfType = SPECULAR_TYPE;
         //            payload.throughput /= brdfProbability;
@@ -224,7 +233,7 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
         //            payload.throughput /= (1.0f - brdfProbability);
         //        }
         //    }
-        //    
+        //
         //    // Run importance sampling of selected BRDF to generate reflecting ray direction
         //    float3 brdfWeight;
         //    float2 u = RandomFloat2(payload.rngState);
@@ -237,6 +246,7 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
         //    payload.throughput *= brdfWeight;
         //    payload.hitPosition = OffsetRay(position, geometryNormal);
         //    payload.nextDirection = rayDirection;
+        payload.radiance = payload.throughput * SampleLights(payload.rngState, hit, scene);
         payload.bouncesLeft = 0;
         return;
     }
@@ -245,7 +255,7 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
         payload.bouncesLeft = 0;
         break;
     case RenderMode.GeometryNormal:
-        payload.radiance = (float3(geometryNormal) + 1.0) * 0.5;
+        payload.radiance = (float3(hit.gN) + 1.0) * 0.5;
         payload.bouncesLeft = 0;
         break;
     case RenderMode.GeometryTangent:
@@ -265,11 +275,11 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
         payload.bouncesLeft = 0;
         break;
     case RenderMode.ShadingNormal:
-        payload.radiance = (float3(shadingNormal) + 1.0) * 0.5;
+        payload.radiance = (float3(hit.sN) + 1.0) * 0.5;
         payload.bouncesLeft = 0;
         break;
     case RenderMode.BaseColor:
-        payload.radiance = float3(LinearToSrgb(matProps.baseColor));
+        payload.radiance = float3(LinearToSrgb(hit.mat.baseColor));
         payload.bouncesLeft = 0;
         break;
     case RenderMode.NormalMap:
@@ -277,19 +287,19 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
         payload.bouncesLeft = 0;
         break;
     case RenderMode.Metallic:
-        payload.radiance = float3(matProps.metalness);
+        payload.radiance = float3(hit.mat.metalness);
         payload.bouncesLeft = 0;
         break;
     case RenderMode.Roughness:
-        payload.radiance = float3(matProps.roughness);
+        payload.radiance = float3(hit.mat.roughness);
         payload.bouncesLeft = 0;
         break;
     case RenderMode.Emission:
-        payload.radiance = float3(LinearToSrgb(matProps.emissive));
+        payload.radiance = float3(LinearToSrgb(hit.mat.emissive));
         payload.bouncesLeft = 0;
         break;
     case RenderMode.WorldPos:
-        payload.radiance = float3(position);
+        payload.radiance = float3(hit.P);
         payload.bouncesLeft = 0;
         break;
     case RenderMode.Depth:

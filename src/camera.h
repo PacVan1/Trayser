@@ -11,6 +11,9 @@ class Camera
 public:
 	void Init();
 	void Input();
+	void UpdateBaseVectors();
+	void UpdateViewMatrix();
+	void UpdateProjMatrix();
 
 public:
 	glm::vec3 m_ahead;

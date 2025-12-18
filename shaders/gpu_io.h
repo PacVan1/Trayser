@@ -30,7 +30,6 @@ using int2      = glm::ivec2;
 #define END_ENUM_DEF(type) k##type##Count };
 #else
 #include "brdf.h"
-//#include "random.h"
 #include "mis.h"
 #define REF(type) type*
 #define PUSH_CONST(type) type
@@ -44,6 +43,10 @@ using int2      = glm::ivec2;
 #define DEF_ENUM_ENTRY_VAL(type, entry, value) entry = value,
 #define END_ENUM_DEF(type) kCount, };
 #endif
+
+#define SPHERE_LIGHT_COUNT  5
+#define POINT_LIGHT_COUNT   10
+#define DIR_LIGHT_COUNT     10
 
 static constexpr uint32_t kTextureCount     = 128;
 static constexpr uint32_t kSphereLightCount = 5;
@@ -153,9 +156,9 @@ struct DirectionalLight
 
 struct Lights
 {
-    REF(PointLight)         pointLightBufferRef;
-    REF(DirectionalLight)   dirLightBufferRef;
-    REF(SphereLight)        sphereLightBufferRef;
+    PointLight          pointLights[POINT_LIGHT_COUNT];
+    DirectionalLight    dirLights[DIR_LIGHT_COUNT];
+    SphereLight         sphereLights[SPHERE_LIGHT_COUNT];
 };
 
 struct Material

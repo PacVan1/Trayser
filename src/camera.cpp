@@ -46,18 +46,32 @@ void trayser::Camera::Input()
 
 	m_fov	-= (float)input.GetMouseScroll();
 
-	m_ahead.x	= cos(glm::radians(m_yaw)) * cos(glm::radians(m_pitch));
-	m_ahead.y	= sin(glm::radians(m_pitch));
-	m_ahead.z	= sin(glm::radians(m_yaw)) * cos(glm::radians(m_pitch));
-	m_ahead		= glm::normalize(m_ahead);
-	m_right		= glm::normalize(glm::cross(m_ahead, glm::vec3(0.0f, 1.0f, 0.0f)));
-	m_up		= glm::normalize(glm::cross(m_right, m_ahead));
-
-	m_view = glm::lookAt(m_transform.translation, m_transform.translation + m_ahead, glm::vec3(0.0f, 1.0f, 0.0f));
-	VkExtent2D extent = { g_engine.m_gBuffer.extent.width, g_engine.m_gBuffer.extent.height };
-	m_proj = glm::perspective(glm::radians(m_fov), (float)extent.width / (float)extent.height, 10000.0f, 0.1f);
+	UpdateBaseVectors();
+	UpdateViewMatrix();
+	UpdateProjMatrix();
 
 	// For ray tracing accumulator
 	if (updated)
 		g_engine.m_renderer.ResetFrameCounter();
+}
+
+void trayser::Camera::UpdateBaseVectors()
+{
+	m_ahead.x = cos(glm::radians(m_yaw)) * cos(glm::radians(m_pitch));
+	m_ahead.y = sin(glm::radians(m_pitch));
+	m_ahead.z = sin(glm::radians(m_yaw)) * cos(glm::radians(m_pitch));
+	m_ahead = glm::normalize(m_ahead);
+	m_right = glm::normalize(glm::cross(m_ahead, glm::vec3(0.0f, 1.0f, 0.0f)));
+	m_up = glm::normalize(glm::cross(m_right, m_ahead));
+}
+
+void trayser::Camera::UpdateViewMatrix()
+{
+	m_view = glm::lookAt(m_transform.translation, m_transform.translation + m_ahead, glm::vec3(0.0f, 1.0f, 0.0f));
+}
+
+void trayser::Camera::UpdateProjMatrix()
+{
+	VkExtent2D extent = { g_engine.m_gBuffer.extent.width, g_engine.m_gBuffer.extent.height };
+	m_proj = glm::perspective(glm::radians(m_fov), (float)extent.width / (float)extent.height, 10000.0f, 0.1f);
 }

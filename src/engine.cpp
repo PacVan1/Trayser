@@ -58,6 +58,13 @@ void trayser::Engine::Init()
     tf4.dirty       = true;
     tf4.translation = float3(3.75, 3.0, 0.0);
     tf4.scale       = float3(0.8, 0.8, 0.8);
+    m_camera.m_yaw = -90.0;
+    m_camera.m_pitch = -15.0;
+    m_camera.m_transform.translation = float3(0.0, 1.7, 9.5);
+    m_camera.m_fov = 70.0;
+    m_camera.UpdateBaseVectors();
+    m_camera.UpdateViewMatrix();
+    m_camera.UpdateProjMatrix();
 #else
     ModelHandle handle = m_modelPool.Create(kModelPaths[ModelResource_Sphere], kModelPaths[ModelResource_Sphere], this);
     const Model& model = m_modelPool.Get(handle);
@@ -281,18 +288,6 @@ void trayser::Engine::InitGpuScene()
         VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
         m_instanceBuffer);
     m_instanceBufferAddr = m_device.GetBufferDeviceAddress(m_instanceBuffer.buffer);
-
-    m_device.CreateStageBuffer(
-        sizeof(gpu::PointLight) * kPointLightCount,
-        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-        m_pointLightBuffer);
-    m_pointLightBufferAddr = m_device.GetBufferDeviceAddress(m_pointLightBuffer.buffer);
-
-    m_device.CreateStageBuffer(
-        sizeof(gpu::SphereLight) * kSphereLightCount,
-        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-        m_sphereLightBuffer);
-    m_sphereLightBufferAddr = m_device.GetBufferDeviceAddress(m_sphereLightBuffer.buffer);
 }
 
 void trayser::Engine::UpdateGpuScene()
@@ -307,15 +302,17 @@ void trayser::Engine::UpdateGpuScene()
     sceneRef->camera.invProj = glm::inverse(sceneRef->camera.proj);
     sceneRef->camera.invView = glm::inverse(sceneRef->camera.view);
     sceneRef->skydomeHandle = m_skydomeHandle;
-    sceneRef->lights.pointLightBufferRef = m_pointLightBufferAddr;
 
-    gpu::PointLight* pointLightBufferRef = (gpu::PointLight*)m_pointLightBuffer.mapped;
+    gpu::Lights* lightsRef              = reinterpret_cast<gpu::Lights*>(reinterpret_cast<char*>(sceneRef) + offsetof(gpu::Scene, lights));
+    gpu::PointLight* pointLightRef      = reinterpret_cast<gpu::PointLight*>(reinterpret_cast<char*>(lightsRef) + offsetof(gpu::Lights, pointLights)); 
+    gpu::DirectionalLight* dirLightRef  = reinterpret_cast<gpu::DirectionalLight*>(reinterpret_cast<char*>(lightsRef) + offsetof(gpu::Lights, dirLights)); 
+    gpu::SphereLight* sphereLightRef    = reinterpret_cast<gpu::SphereLight*>(reinterpret_cast<char*>(lightsRef) + offsetof(gpu::Lights, sphereLights));
 
     for (int i = 0; i < kPointLightCount; i++)
     {
-        pointLightBufferRef[i].position = float3(float(i) - (kPointLightCount / 2), 0.0f, 2.0f);
-        pointLightBufferRef[i].intensity = 1.0f;
-        pointLightBufferRef[i].color = float3(1.0f, 1.0f, 1.0f);
+        pointLightRef[i].position = float3(float(i) - (kPointLightCount / 2), 0.0f, 2.0f);
+        pointLightRef[i].intensity = 1.0f;
+        pointLightRef[i].color = float3(1.0f, 1.0f, 1.0f);
     }
 
     // Update meshes
@@ -367,7 +364,6 @@ void trayser::Engine::UpdateGpuScene()
     sceneRef->materialBufferRef = m_materialBufferAddr;
 
     // Update spherical lights
-    gpu::SphereLight* sphereLightRef = (gpu::SphereLight*)m_sphereLightBuffer.mapped;
     {
         auto view = g_engine.m_scene.m_registry.view<WorldTransform, SphereLight>();
         int i = 0;
@@ -382,7 +378,6 @@ void trayser::Engine::UpdateGpuScene()
             i++;
         }
     }
-    sceneRef->lights.sphereLightBufferRef = m_sphereLightBufferAddr;
 
     std::vector<VkDescriptorImageInfo> imageInfos;
     std::vector<VkWriteDescriptorSet> writes;

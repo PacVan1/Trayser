@@ -86,9 +86,6 @@ public:
 	Device::StageBuffer	m_meshBuffer;
 	Device::StageBuffer	m_instanceBuffer;
 	Device::StageBuffer	m_materialBuffer;
-	Device::StageBuffer	m_pointLightBuffer;
-	Device::StageBuffer	m_dirLightBuffer;
-	Device::StageBuffer	m_sphereLightBuffer;
 	VkDeviceAddress		m_sceneBufferAddr;
 	VkDeviceAddress		m_meshBufferAddr;
 	VkDeviceAddress		m_instanceBufferAddr;
