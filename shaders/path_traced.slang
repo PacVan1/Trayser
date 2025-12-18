@@ -140,7 +140,7 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     Primitive primitive = primitiveBufferRef[GeometryIndex()];
     Material material = materialBufferRef[primitive.materialHandle];
     REF(PointLight) pointLights = scene.lights.pointLightBufferRef;
-    //REF(DirectionalLight) dirLights = scene.lights.dirLightBufferRef;
+    REF(SphereLight) sphereLights = scene.lights.sphereLightBufferRef;
 
     // Find triangle, vertices and barycentrics
     uint triangleIdx = primitive.baseIndex + PrimitiveIndex() * 3;
@@ -157,46 +157,28 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     float w1 = attr.barycentrics.x;
     float w2 = attr.barycentrics.y;
 
-
     Sampler2D baseColorTexture = textures[material.baseColorHandle];
     Sampler2D normalMapTexture = textures[material.normalMapHandle];
     Sampler2D metalRoughTexture = textures[material.metalRoughHandle];
     Sampler2D emissiveTexture = textures[material.emissiveHandle];
 
     // Continue at fully transparent surfaces
-    float3 position = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
-    float3 geometryNormal = normalize(v0.normal.xyz * w0 + v1.normal.xyz * w1 + v2.normal.xyz * w2);
     float2 uv = v0.texCoord.xy * w0 + v1.texCoord.xy * w1 + v2.texCoord.xy * w2;
-    float4 baseColor = baseColorTexture.SampleLevel(uv, 0.0);
-
-    //if (baseColor.a == 0.0)
-    //{
-    //    RayDesc ray;
-    //    ray.Origin = position;
-    //    ray.Direction = WorldRayDirection();
-    //    ray.TMin = kMinT;
-    //    ray.TMax = kMaxT;
-    //    TraceRay(tlas, RAY_FLAG_NONE, 0xff, 0, 0, 0, ray, payload);
-    //    return;
-    //}
 
     MaterialProperties matProps;
-    matProps.baseColor = baseColor.rgb * material.baseColorFactor.rgb;
+    matProps.baseColor = baseColorTexture.SampleLevel(uv, 0.0).rgb * material.baseColorFactor.rgb;
     matProps.metalness = metalRoughTexture.SampleLevel(uv, 0.0).b * material.metallicRoughnessAoFactor.r;
     matProps.roughness = metalRoughTexture.SampleLevel(uv, 0.0).g * material.metallicRoughnessAoFactor.g;
     matProps.emissive = emissiveTexture.SampleLevel(uv, 0.0).rgb * material.emissiveFactor.rgb;
-    //matProps.baseColor = float3(1.0, 0.0, 0.0);
-    //matProps.metalness = 0.1;
-    //matProps.roughness = 0.05;
-    //matProps.emissive = float3(0.0);
     matProps.opacity = 1.0;
     matProps.reflectance = 0.5; // Default to 0.5 for minimal reflectence of 4%
     matProps.transmissivness = 0.0;
 
     // Continue getting hit info
-    float3 geometryTangent = normalize(v0.tangent.xyz * w0 + v1.tangent.xyz * w1 + v2.tangent.xyz * w2);
-
+    float3 position = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
+    float3 geometryNormal = normalize(v0.normal.xyz * w0 + v1.normal.xyz * w1 + v2.normal.xyz * w2);
     float3x3 normalTransform = float3x3(instance.normalTransform);
+    float3 geometryTangent = normalize(v0.tangent.xyz * w0 + v1.tangent.xyz * w1 + v2.tangent.xyz * w2);
     geometryNormal = normalize(mul(normalTransform, geometryNormal));
     float3 tangent = normalize(mul((float3x3)instance.transform, geometryTangent.xyz));
     tangent = normalize(tangent - geometryNormal * dot(geometryNormal, tangent));
@@ -204,115 +186,58 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     float3x3 tbn = float3x3(tangent, bitangent, geometryNormal);
     float3 mapNormal = normalize(normalMapTexture.SampleLevel(uv.xy, 0.0).xyz * 2.0 - 1.0);
     float3 shadingNormal = normalize(mul(mapNormal, tbn));
-    //float3 shadingNormal = geometryNormal;
 
-    payload.radiance += payload.throughput * matProps.emissive;
+    //payload.radiance += payload.throughput * matProps.emissive;
 
     switch (pushConsts.renderMode)
     {
     case RenderMode.FinalColor:
     {
         // Point lights
-        // for (int i = 0; i < kPointLightCount; i++)
-        // {
-        //     PointLight pointLight = pointLights[i];
-        //     float3 L = pointLight.position - position;
-        //     float dist = length(L);
-        //     L = normalize(L);
-        //     float3 light = evalCombinedBRDF(shadingNormal, L, -WorldRayDirection(), matProps) / dist * dist * pointLight.color * pointLight.intensity;
-        //     payload.radiance += payload.throughput * light;
-        // }
+        for (int i = 0; i < kSphereLightCount; i++)
+        {
+            SphereLight sphereLight = sphereLights[i];
+            float3 random = RandomPointWithinSphere(payload.rngState, sphereLight);
+            float3 L = random - position;
+            float dist = length(L);
+            float att = 1.0 / (dist * dist);
+            L = normalize(L);
+            float3 light = evalCombinedBRDF(shadingNormal, L, -WorldRayDirection(), matProps) * att * sphereLight.color * sphereLight.intensity;
+            payload.radiance += payload.throughput * light;
+        }
 
         // TEMP for MIS test
-        int brdfType;
-        if (matProps.metalness == 1.0f && matProps.roughness == 0.0f) {
-            // Fast path for mirrors
-            brdfType = SPECULAR_TYPE;
-        } else {
-        
-            // Decide whether to sample diffuse or specular BRDF (based on Fresnel term)
-            float brdfProbability = GetBrdfProbability(matProps, -WorldRayDirection(), shadingNormal);
-        
-            if (RandomFloat(payload.rngState) < brdfProbability) {
-                brdfType = SPECULAR_TYPE;
-                payload.throughput /= brdfProbability;
-            } else {
-                brdfType = DIFFUSE_TYPE;
-                payload.throughput /= (1.0f - brdfProbability);
-            }
-        }
-        
-        // Run importance sampling of selected BRDF to generate reflecting ray direction
-        float3 brdfWeight;
-        float2 u = RandomFloat2(payload.rngState);
-        float3 rayDirection;
-        if (!evalIndirectCombinedBRDF(u, shadingNormal, geometryNormal, -WorldRayDirection(), matProps, brdfType, rayDirection, brdfWeight)) {
-            payload.bouncesLeft = 0;
-            return; // Ray was eaten by the surface :(
-        }
+        //    int brdfType;
+        //    if (matProps.metalness == 1.0f && matProps.roughness == 0.0f) {
+        //        // Fast path for mirrors
+        //        brdfType = SPECULAR_TYPE;
+        //    } else {
+        //    
+        //        // Decide whether to sample diffuse or specular BRDF (based on Fresnel term)
+        //        float brdfProbability = GetBrdfProbability(matProps, -WorldRayDirection(), shadingNormal);
+        //    
+        //        if (RandomFloat(payload.rngState) < brdfProbability) {
+        //            brdfType = SPECULAR_TYPE;
+        //            payload.throughput /= brdfProbability;
+        //        } else {
+        //            brdfType = DIFFUSE_TYPE;
+        //            payload.throughput /= (1.0f - brdfProbability);
+        //        }
+        //    }
+        //    
+        //    // Run importance sampling of selected BRDF to generate reflecting ray direction
+        //    float3 brdfWeight;
+        //    float2 u = RandomFloat2(payload.rngState);
+        //    float3 rayDirection;
+        //    if (!evalIndirectCombinedBRDF(u, shadingNormal, geometryNormal, -WorldRayDirection(), matProps, brdfType, rayDirection, brdfWeight)) {
+        //        payload.bouncesLeft = 0;
+        //        return; // Ray was eaten by the surface :(
+        //    }
         // Account for surface properties using the BRDF "weight"
-        payload.throughput *= brdfWeight;
-
-        // Sphere sphere;
-        // sphere.position = float3(3.75, 3.0, 0.0);
-        // sphere.radius = 0.85;
-        // float3 random = RandomPointWithinSphere(payload.rngState, sphere);
-        // float3 L = random - position;
-        // float dist = length(L);
-        // L = normalize(L);
-        // float3 lRadiance = 1.0 / dist * dist;
-        // float lightPdf = computeLightPdf(-L, shadingNormal, sphere.radius, dist);
-        // 
-        // int brdfType;
-        // if (matProps.metalness == 1.0f && matProps.roughness == 0.0f) {
-        //     // Fast path for mirrors
-        //     brdfType = SPECULAR_TYPE;
-        // } else {
-        // 
-        //     // Decide whether to sample diffuse or specular BRDF (based on Fresnel term)
-        //     float brdfProbability = GetBrdfProbability(matProps, -WorldRayDirection(), shadingNormal);
-        // 
-        //     if (RandomFloat(payload.rngState) < brdfProbability) {
-        //         brdfType = SPECULAR_TYPE;
-        //         payload.throughput /= brdfProbability;
-        //     } else {
-        //         brdfType = DIFFUSE_TYPE;
-        //         payload.throughput /= (1.0f - brdfProbability);
-        //     }
-        // }
-        // 
-        // // Sample from BRDF
-        // float3 brdfRayDir;
-        // float3 brdfSampleWeight;
-        // bool brdfSampled = evalIndirectCombinedBRDF(RandomFloat2(payload.rngState), shadingNormal, geometryNormal, -WorldRayDirection(), matProps, brdfType, brdfRayDir, brdfSampleWeight);
-        // 
-        // // Calculate the BRDF PDF
-        // float brdfPdf = 0.0f;
-        // if (brdfType == DIFFUSE_TYPE) {
-        //     // For diffuse BRDF, use cosine-weighted PDF
-        //     brdfPdf = diffusePdf(dot(shadingNormal, brdfRayDir));
-        // } else if (brdfType == SPECULAR_TYPE) {
-        //     // For specular BRDF, use GGX PDF
-        //     brdfPdf = sampleGGXVNDFReflectionPdf(matProps.roughness, matProps.roughness * matProps.roughness, dot(shadingNormal, brdfRayDir), dot(shadingNormal, -WorldRayDirection()), dot(brdfRayDir, -WorldRayDirection()));
-        // }
-        // 
-        // float3 finalRayDir = brdfRayDir;                     // Final direction (can be light or BRDF sample)
-        // float3 finalSampleWeight = float3(0.0f, 0.0f, 0.0f); // Final weight
-        // 
-        // // MIS Weight Combination
-        // if (brdfSampled) {
-        //     // Combine using MIS balance heuristic
-        //     finalSampleWeight = (lightPdf / (lightPdf + brdfPdf)) * L + (brdfPdf / (lightPdf + brdfPdf)) * brdfSampleWeight;
-        // } else {
-        //     finalSampleWeight = lRadiance; // If no BRDF sample, use only light sample
-        // }
-
-        //float3 light = evalCombinedBRDF(shadingNormal, L, -WorldRayDirection(), matProps) / dist * dist * 2.0;
-        //payload.radiance *= finalSampleWeight;
-
-        payload.hitPosition = OffsetRay(position, geometryNormal);
-        payload.nextDirection = rayDirection;
-        //payload.bouncesLeft = 0;  
+        //    payload.throughput *= brdfWeight;
+        //    payload.hitPosition = OffsetRay(position, geometryNormal);
+        //    payload.nextDirection = rayDirection;
+        payload.bouncesLeft = 0;
         return;
     }
     case RenderMode.TexCoord0:

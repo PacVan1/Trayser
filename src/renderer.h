@@ -102,6 +102,7 @@ public:
 	PerFrame				m_frames[kMaxFramesInFlight];
 	DefaultImage			m_defaultImage; // 1x1 black image to initialize
 	MaterialHandle			m_defaultMaterialHandle;
+	MaterialHandle			m_defaultEmissiveHandle;
 	uint32_t				m_frameCounter;
 	uint32_t				m_frameIndex;
 	bool					m_screenshotRequested;

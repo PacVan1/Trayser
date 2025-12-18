@@ -46,6 +46,7 @@ using int2      = glm::ivec2;
 #endif
 
 static constexpr uint32_t kTextureCount     = 128;
+static constexpr uint32_t kSphereLightCount = 5;
 static constexpr uint32_t kPointLightCount  = 10;
 static constexpr uint32_t kDirLightCount    = 10;
 static constexpr float kGamma               = 2.2;
@@ -123,11 +124,13 @@ struct Camera
     FLOAT4X4 invView;           // Inverse view matrix
 };
 
-struct Sphere
+struct SphereLight
 {
     float3  position;
-    float   radius;
-    float   radiusSq;
+    float   radius;     // scale
+    float3  color;
+    float   radiusSq;   // sqr(scale)
+    float   intensity;
     float   area;
     float   _pad[2];
 };
@@ -152,6 +155,7 @@ struct Lights
 {
     REF(PointLight)         pointLightBufferRef;
     REF(DirectionalLight)   dirLightBufferRef;
+    REF(SphereLight)        sphereLightBufferRef;
 };
 
 struct Material
@@ -284,7 +288,7 @@ float3 RandomDirection(inout uint32_t seed)
     float phi = TWO_PI * RandomFloat(seed);
     return SphericalToCartesian(1.0, phi, theta);
 }
-float3 RandomPointWithinSphere(inout uint32_t seed, in Sphere sphere)
+float3 RandomPointWithinSphere(inout uint32_t seed, in SphereLight sphere)
 {
     float3 dir = RandomDirection(seed);
     return sphere.position + dir * sphere.radius;

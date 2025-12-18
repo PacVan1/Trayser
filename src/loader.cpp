@@ -344,7 +344,7 @@ trayser::Mesh::Mesh(Engine* engine, tinygltf::Model& loaded, const tinygltf::Mes
         // Materials -----------------------------------------------------------------
         int matIdx = prim.material;
         newPrim.materialId = LoadMaterial(loaded, matIdx, folder);
-        primitivesAddr[i].materialHandle = newPrim.materialId = newPrim.materialId != ResourceHandle_Invalid ? newPrim.materialId : g_engine.m_renderer.m_defaultMaterialHandle;
+        primitivesAddr[i].materialHandle = newPrim.materialId = newPrim.materialId != ResourceHandle_Invalid ? newPrim.materialId : g_engine.m_renderer.m_defaultEmissiveHandle;
         primitivesAddr[i].baseVertex = newPrim.baseVertex;
         primitivesAddr[i].vertexCount = newPrim.vertexCount;
         primitivesAddr[i].baseIndex = newPrim.baseIndex;
@@ -664,13 +664,74 @@ trayser::Material::Material(Default)
     {
     uint32_t packedColor = glm::packUnorm4x8(float4(0.0));
     emissiveHandle = g_engine.m_texturePool.Create(
-        "default_emissive",
+        "default_emissive_off",
         &packedColor,
         1, // width
         1, // height
         VK_FORMAT_R8G8B8A8_SRGB,
         VK_IMAGE_USAGE_SAMPLED_BIT);
     emissiveFactor = float4(1.0);
+    }
+}
+
+trayser::Material::Material(Emissive)
+{
+    {
+        uint32_t packedColor = glm::packUnorm4x8(float4(1.0));
+        baseColorHandle = g_engine.m_texturePool.Create(
+            "default_base_color",
+            &packedColor,
+            1, // width
+            1, // height
+            VK_FORMAT_R8G8B8A8_SRGB,
+            VK_IMAGE_USAGE_SAMPLED_BIT);
+        baseColorFactor = float4(1.0, 1.0, 1.0, 1.0);
+    }
+
+    {
+        uint32_t packedColor = glm::packUnorm4x8(float4(0.5, 0.5, 1.0, 1.0));
+        normalMapHandle = g_engine.m_texturePool.Create(
+            "default_normal_map",
+            &packedColor,
+            1, // width
+            1, // height
+            VK_FORMAT_R8G8B8A8_UNORM,
+            VK_IMAGE_USAGE_SAMPLED_BIT);
+    }
+
+    {
+        uint32_t packedColor = glm::packUnorm4x8(float4(0.0, 1.0, 1.0, 1.0));
+        metalRoughHandle = g_engine.m_texturePool.Create(
+            "default_metal_rough",
+            &packedColor,
+            1, // width
+            1, // height
+            VK_FORMAT_R8G8B8A8_UNORM,
+            VK_IMAGE_USAGE_SAMPLED_BIT);
+        metallicRoughnessAoFactor = float4(0.5, 0.5, 0.5, 1.0);
+    }
+
+    {
+        uint32_t packedColor = glm::packUnorm4x8(float4(1.0));
+        aoHandle = g_engine.m_texturePool.Create(
+            "default_ambient_occlusion",
+            &packedColor,
+            1, // width
+            1, // height
+            VK_FORMAT_R8G8B8A8_UNORM,
+            VK_IMAGE_USAGE_SAMPLED_BIT);
+    }
+
+    {
+        uint32_t packedColor = glm::packUnorm4x8(float4(1.0));
+        emissiveHandle = g_engine.m_texturePool.Create(
+            "default_emissive_on",
+            &packedColor,
+            1, // width
+            1, // height
+            VK_FORMAT_R8G8B8A8_SRGB,
+            VK_IMAGE_USAGE_SAMPLED_BIT);
+        emissiveFactor = float4(2.0);
     }
 }
 

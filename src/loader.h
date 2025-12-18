@@ -22,6 +22,7 @@ struct Material
 {
     // Tagging
     struct Default {};
+    struct Emissive {};
 
     ResourceHandle baseColorHandle    = ResourceHandle_Invalid;   // Base color index to textures
     ResourceHandle normalMapHandle    = ResourceHandle_Invalid;   // Normal map index to textures
@@ -35,6 +36,7 @@ struct Material
 
     Material() = default;
     Material(Default);
+    Material(Emissive);
     Material(const tinygltf::Model&, const tinygltf::Material&, const std::string& folder);
 };
 

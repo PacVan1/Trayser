@@ -316,6 +316,56 @@ VkResult trayser::Device::CreateAccelerationStructure(
     return VK_SUCCESS;
 }
 
+VkResult trayser::Device::BuildAccelerationStructure(
+    std::vector<VkAccelerationStructureGeometryKHR>& geometries, 
+    std::vector<VkAccelerationStructureBuildRangeInfoKHR>& buildRangeInfos, 
+    VkAccelerationStructureTypeKHR type, 
+    VkBuildAccelerationStructureFlagsKHR flags, 
+    AccelerationStructure& outAccelStruct) const
+{
+    auto alignUp = [](auto value, size_t alignment) noexcept { return ((value + alignment - 1) & ~(alignment - 1)); };
+
+    VkAccelerationStructureBuildGeometryInfoKHR buildInfo{};
+    buildInfo.sType         = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+    buildInfo.type          = type;
+    buildInfo.flags         = flags;
+    buildInfo.mode          = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+    buildInfo.geometryCount = geometries.size();
+    buildInfo.pGeometries   = geometries.data();
+
+    std::vector<uint32_t> primCounts(buildRangeInfos.size());
+    for (int i = 0; i < buildRangeInfos.size(); i++)
+        primCounts[i] = buildRangeInfos[i].primitiveCount;
+
+    VkAccelerationStructureBuildSizesInfoKHR asBuildSize{ .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR };
+    vkfuncs::vkGetAccelerationStructureBuildSizesKHR(m_device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &buildInfo,
+        primCounts.data(), &asBuildSize);
+    VkDeviceSize scratchSize = alignUp(asBuildSize.buildScratchSize, m_asProperties.minAccelerationStructureScratchOffsetAlignment);
+
+    Device::Buffer scratchBuffer;
+    VK_CHECK(CreateBufferWithAlignment(scratchSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+        | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR, VMA_MEMORY_USAGE_AUTO, { 0 }, m_asProperties.minAccelerationStructureScratchOffsetAlignment, scratchBuffer));
+
+    VkDeviceAddress scratchBufferAddr = GetBufferDeviceAddress(scratchBuffer.buffer);
+
+    VK_CHECK(CreateAccelerationStructure(asBuildSize.accelerationStructureSize, type, outAccelStruct));
+
+    auto cmd = BeginOneTimeSubmit();
+
+    // Fill with new information for the build,scratch buffer and destination AS
+    buildInfo.dstAccelerationStructure = outAccelStruct.accelStruct;
+    buildInfo.scratchData.deviceAddress = scratchBufferAddr;
+
+    std::vector<VkAccelerationStructureBuildRangeInfoKHR*> pBuildRangeInfos(buildRangeInfos.size());
+    for (int i = 0; i < buildRangeInfos.size(); i++)
+        pBuildRangeInfos[i] = &buildRangeInfos[i];
+    vkfuncs::vkCmdBuildAccelerationStructuresKHR(cmd, 1, &buildInfo, pBuildRangeInfos.data());
+
+    EndOneTimeSubmit();
+
+    DestroyBuffer(scratchBuffer);
+}
+
 VkResult trayser::Device::CreateAccelerationStructure(AccelerationStructure& outAccelStruct,
     const VkAccelerationStructureCreateInfoKHR& createInfo) const
 {
@@ -351,59 +401,40 @@ VkResult trayser::Device::CreateAccelerationStructure(AccelerationStructure& out
     return VK_SUCCESS;
 }
 
-void trayser::Device::CreateAccelerationStructure(VkAccelerationStructureTypeKHR type, 
-    AccelerationStructure&                    outAccelStruct, 
-    VkAccelerationStructureGeometryKHR&       geometry, 
-    VkAccelerationStructureBuildRangeInfoKHR& buildRangeInfo, 
-    VkBuildAccelerationStructureFlagsKHR      flags)
+void trayser::Device::CreateAccelerationStructure(
+    VkAccelerationStructureTypeKHR              type, 
+    AccelerationStructure&                      outAccelStruct, 
+    VkAccelerationStructureGeometryKHR&         geometry, 
+    VkAccelerationStructureBuildRangeInfoKHR&   buildRangeInfo, 
+    VkBuildAccelerationStructureFlagsKHR        flags)
 {
-    VkDevice device = m_device;
-
-    // Helper function to align a value to a given alignment
     auto alignUp = [](auto value, size_t alignment) noexcept { return ((value + alignment - 1) & ~(alignment - 1)); };
 
-    // Fill the build information with the current information, the rest is filled later (scratch buffer and destination AS)
     VkAccelerationStructureBuildGeometryInfoKHR asBuildInfo{
         .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
-        .type = type,  // The type of acceleration structure (BLAS or TLAS)
-        .flags = flags,   // Build flags (e.g. prefer fast trace)
-        .mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR,  // Build mode vs update
-        .geometryCount = 1,                                               // Deal with one geometry at a time
-        .pGeometries = &geometry,  // The geometry to build the acceleration structure from
+        .type = type,
+        .flags = flags,
+        .mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR,
+        .geometryCount = 1,
+        .pGeometries = &geometry,
     };
 
-    // One geometry at a time (could be multiple)
     std::vector<uint32_t> maxPrimCount(1);
     maxPrimCount[0] = buildRangeInfo.primitiveCount;
 
     // Find the size of the acceleration structure and the scratch buffer
     VkAccelerationStructureBuildSizesInfoKHR asBuildSize{ .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR };
-    vkfuncs::vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &asBuildInfo,
+    vkfuncs::vkGetAccelerationStructureBuildSizesKHR(m_device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &asBuildInfo,
         maxPrimCount.data(), &asBuildSize);
-
-    // Make sure the scratch buffer is properly aligned
     VkDeviceSize scratchSize = alignUp(asBuildSize.buildScratchSize, m_asProperties.minAccelerationStructureScratchOffsetAlignment);
 
     // Create the scratch buffer to store the temporary data for the build
-    //trayser::Buffer scratchBuffer;
     Device::Buffer scratchBuffer;
-    //VK_CHECK(CreateBuffer(scratchBuffer, scratchSize,
-    //    VK_BUFFER_USAGE_2_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT
-    //    | VK_BUFFER_USAGE_2_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR, m_asProperties.minAccelerationStructureScratchOffsetAlignment));
-
     VK_CHECK(CreateBufferWithAlignment(scratchSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
         | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR, VMA_MEMORY_USAGE_AUTO, {0}, m_asProperties.minAccelerationStructureScratchOffsetAlignment, scratchBuffer));
 
-    const VkBufferDeviceAddressInfo info = { .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, .buffer = scratchBuffer.buffer };
-    VkDeviceAddress scratchBufferAddr = vkGetBufferDeviceAddress(m_device, &info);
+    VkDeviceAddress scratchBufferAddr = GetBufferDeviceAddress(scratchBuffer.buffer);
 
-    //   // Create the acceleration structure
-    //   VkAccelerationStructureCreateInfoKHR createInfo{
-    //       .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR,
-    //       .size = asBuildSize.accelerationStructureSize,  // The size of the acceleration structure
-    //       .type = type,  // The type of acceleration structure (BLAS or TLAS)
-    //   };
-    //   VK_CHECK(CreateAccelerationStructure(outAccelStruct, createInfo));
     VK_CHECK(CreateAccelerationStructure(asBuildSize.accelerationStructureSize, type, outAccelStruct));
 
     // Build the acceleration structure
@@ -420,8 +451,7 @@ void trayser::Device::CreateAccelerationStructure(VkAccelerationStructureTypeKHR
 
         EndOneTimeSubmit();
     }
-    // Cleanup the scratch buffer
-    //m_allocator.destroyBuffer(scratchBuffer);
+    DestroyBuffer(scratchBuffer);
 }
 
 void trayser::Device::CreateAccelerationStructure2(VkAccelerationStructureTypeKHR type, 

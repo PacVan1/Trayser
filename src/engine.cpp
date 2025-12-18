@@ -8,6 +8,8 @@
 #include <stb_image.h>
 #include <iostream>
 
+#define VEACH_SCENE
+
 void trayser::Engine::Init()
 {
     m_compiler.Init();
@@ -20,29 +22,51 @@ void trayser::Engine::Init()
     m_meshPool.Init();
     m_materialPool.Init();
     m_texturePool.Init();
-    
     m_renderer.Init(m_device);
     InitImGuiStyle();
-
     Model::MikkTSpaceInit();
-
-    ModelHandle handle = m_modelPool.Create(kModelPaths[ModelResource_Sphere], kModelPaths[ModelResource_Sphere], this);
-    const Model& model1 = m_modelPool.Get(handle);
     m_scene.Init();
-    m_scene.CreateModel(model1);
-    m_camera.m_transform.translation = float3(3.0, 0.0, 0.0);
     m_camera.Init();
+
+#ifdef VEACH_SCENE
+    ModelHandle handle1 = m_modelPool.Create(kModelPaths[ModelResource_Sphere], kModelPaths[ModelResource_Sphere], this);
+    ModelHandle handle2 = m_modelPool.Create(kModelPaths[ModelResource_Veach], kModelPaths[ModelResource_Veach], this);
+    const Model& model1 = m_modelPool.Get(handle1);
+    const Model& model2 = m_modelPool.Get(handle2);
+    m_scene.CreateModel(model2); // Veach
+    Entity entity1 = m_scene.CreateModel(model1); // Four spheres
+    Entity entity2 = m_scene.CreateModel(model1);
+    Entity entity3 = m_scene.CreateModel(model1);
+    Entity entity4 = m_scene.CreateModel(model1);
+    auto& tf1 = m_scene.m_registry.get<LocalTransform>(entity1);
+    auto& tf2 = m_scene.m_registry.get<LocalTransform>(entity2);
+    auto& tf3 = m_scene.m_registry.get<LocalTransform>(entity3);
+    auto& tf4 = m_scene.m_registry.get<LocalTransform>(entity4);
+    m_scene.m_registry.emplace<SphereLight>(entity1); // Add light components for updating
+    m_scene.m_registry.emplace<SphereLight>(entity2);
+    m_scene.m_registry.emplace<SphereLight>(entity3);
+    m_scene.m_registry.emplace<SphereLight>(entity4);
+    tf1.dirty       = true;
+    tf1.translation = float3(-3.75, 3.0, 0.0);
+    tf1.scale       = float3(0.2, 0.2, 0.2);
+    tf2.dirty       = true;
+    tf2.translation = float3(-1.25, 3.0, 0.0);
+    tf2.scale       = float3(0.4, 0.4, 0.4);
+    tf3.dirty       = true;
+    tf3.translation = float3(1.25, 3.0, 0.0);
+    tf3.scale       = float3(0.6, 0.6, 0.6);
+    tf4.dirty       = true;
+    tf4.translation = float3(3.75, 3.0, 0.0);
+    tf4.scale       = float3(0.8, 0.8, 0.8);
+#else
+    ModelHandle handle = m_modelPool.Create(kModelPaths[ModelResource_Sphere], kModelPaths[ModelResource_Sphere], this);
+    const Model& model = m_modelPool.Get(handle);
+    m_scene.CreateModel(model);
+#endif
 
     m_scene.Update(1.0f);
 
-    //m_device.CreateBLas2();
-
-    //m_device.CreateTopLevelAs();
-
-    //LoadSkydome(kSkydomePaths[0]);
-
     InitPipelines();
-
     InitGpuScene();
 }
 
@@ -270,6 +294,12 @@ void trayser::Engine::InitGpuScene()
         VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
         m_pointLightBuffer);
     m_pointLightBufferAddr = m_device.GetBufferDeviceAddress(m_pointLightBuffer.buffer);
+
+    m_device.CreateStageBuffer(
+        sizeof(gpu::SphereLight) * kSphereLightCount,
+        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        m_sphereLightBuffer);
+    m_sphereLightBufferAddr = m_device.GetBufferDeviceAddress(m_sphereLightBuffer.buffer);
 }
 
 void trayser::Engine::UpdateGpuScene()
@@ -290,9 +320,9 @@ void trayser::Engine::UpdateGpuScene()
 
     for (int i = 0; i < kPointLightCount; i++)
     {
-        pointLightBufferRef[i].position  = float3(float(i) - (kPointLightCount / 2), 0.0f, 2.0f);
+        pointLightBufferRef[i].position = float3(float(i) - (kPointLightCount / 2), 0.0f, 2.0f);
         pointLightBufferRef[i].intensity = 1.0f;
-        pointLightBufferRef[i].color     = float3(1.0f, 1.0f, 1.0f);
+        pointLightBufferRef[i].color = float3(1.0f, 1.0f, 1.0f);
     }
 
     // Update meshes
@@ -312,9 +342,10 @@ void trayser::Engine::UpdateGpuScene()
     // Update instances
     gpu::Instance* instanceBufferRef = (gpu::Instance*)m_instanceBuffer.mapped;
     gpu::Material* materialBufferRef = (gpu::Material*)m_materialBuffer.mapped;
-    
-    auto view = g_engine.m_scene.m_registry.view<WorldTransform, RenderComponent>();
+
     int i = 0;
+    {
+    auto view = g_engine.m_scene.m_registry.view<WorldTransform, RenderComponent>();
     for (const auto& [entity, transform, render] : view.each())
     {
         instanceBufferRef[i].transform = transform.matrix;
@@ -338,8 +369,27 @@ void trayser::Engine::UpdateGpuScene()
         }
         i++;
     }
+    }
     sceneRef->instanceBufferRef = m_instanceBufferAddr;
     sceneRef->materialBufferRef = m_materialBufferAddr;
+
+    // Update spherical lights
+    gpu::SphereLight* sphereLightRef = (gpu::SphereLight*)m_sphereLightBuffer.mapped;
+    {
+        auto view = g_engine.m_scene.m_registry.view<WorldTransform, SphereLight>();
+        int i = 0;
+        for (const auto& [entity, transform] : view.each())
+        {
+            sphereLightRef[i].position = transform.matrix[3];
+            sphereLightRef[i].color = float3(1.0);
+            sphereLightRef[i].intensity = 2.0;
+            sphereLightRef[i].radius = 0.8 - i * 0.2;
+            sphereLightRef[i].radiusSq = 1.0;
+            sphereLightRef[i].area = 1.0;
+            i++;
+        }
+    }
+    sceneRef->lights.sphereLightBufferRef = m_sphereLightBufferAddr;
 
     std::vector<VkDescriptorImageInfo> imageInfos;
     std::vector<VkWriteDescriptorSet> writes;

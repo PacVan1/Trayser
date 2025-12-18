@@ -32,6 +32,9 @@ struct WorldTransform
     glm::mat4 matrix = glm::mat4(1.0f);
 };
 
+// Empty struct for finding all transforms that use a gpu::SphereLight
+struct SphereLight {};
+
 struct RenderComponent
 {
     //std::shared_ptr<Mesh> mesh;

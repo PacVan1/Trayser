@@ -212,6 +212,13 @@ public:
 		VkAccelerationStructureTypeKHR type,
 		AccelerationStructure& outAccelStruct) const;
 
+	VkResult BuildAccelerationStructure(
+		std::vector<VkAccelerationStructureGeometryKHR>& geometries,
+		std::vector<VkAccelerationStructureBuildRangeInfoKHR>& buildRangeInfos,
+		VkAccelerationStructureTypeKHR type,
+		VkBuildAccelerationStructureFlagsKHR flags,
+		AccelerationStructure& outAccelStruct) const;
+
 	VkResult CreateAccelerationStructure(AccelerationStructure& outAccelStruct,
 		const VkAccelerationStructureCreateInfoKHR& createInfo) const;
 

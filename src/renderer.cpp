@@ -178,6 +178,7 @@ void trayser::Renderer::InitDefaultImage(Device& device)
 void trayser::Renderer::InitDefaultMaterial()
 {
     m_defaultMaterialHandle = g_engine.m_materialPool.Create("default", Material::Default{});
+    m_defaultEmissiveHandle = g_engine.m_materialPool.Create("default_emissive", Material::Emissive{});
 }
 
 void trayser::Renderer::InitFrames(Device& device)

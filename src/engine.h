@@ -82,18 +82,20 @@ public:
 
 	TextureHandle m_skydomeHandle;
 
-	Device::StageBuffer			m_sceneBuffer;
-	Device::StageBuffer			m_meshBuffer;
-	Device::StageBuffer			m_instanceBuffer;
-	Device::StageBuffer			m_materialBuffer;
-	Device::StageBuffer			m_pointLightBuffer;
-	Device::StageBuffer			m_dirLightBuffer;
-	VkDeviceAddress			m_sceneBufferAddr;
-	VkDeviceAddress			m_meshBufferAddr;
-	VkDeviceAddress			m_instanceBufferAddr;
-	VkDeviceAddress			m_materialBufferAddr;
-	VkDeviceAddress			m_pointLightBufferAddr;
-	VkDeviceAddress			m_dirLightBufferAddr;
+	Device::StageBuffer	m_sceneBuffer;
+	Device::StageBuffer	m_meshBuffer;
+	Device::StageBuffer	m_instanceBuffer;
+	Device::StageBuffer	m_materialBuffer;
+	Device::StageBuffer	m_pointLightBuffer;
+	Device::StageBuffer	m_dirLightBuffer;
+	Device::StageBuffer	m_sphereLightBuffer;
+	VkDeviceAddress		m_sceneBufferAddr;
+	VkDeviceAddress		m_meshBufferAddr;
+	VkDeviceAddress		m_instanceBufferAddr;
+	VkDeviceAddress		m_materialBufferAddr;
+	VkDeviceAddress		m_pointLightBufferAddr;
+	VkDeviceAddress		m_dirLightBufferAddr;
+	VkDeviceAddress		m_sphereLightBufferAddr;
 
 	std::vector<Pipeline*>	m_pipelines;
 	RayTracedPipeline		m_rtPipeline;
