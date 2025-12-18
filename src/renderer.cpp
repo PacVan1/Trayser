@@ -488,6 +488,11 @@ void trayser::Renderer::RequestScreenshot()
     m_screenshotRequested = true;
 }
 
+void trayser::Renderer::ResetFrameCounter()
+{
+    m_frameCounter = 0;
+}
+
 void trayser::Renderer::RenderImGui()
 {
     ImGui::Render();

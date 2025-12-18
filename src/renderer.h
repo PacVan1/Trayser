@@ -42,6 +42,13 @@ struct DefaultImage
 class Renderer
 {
 public:
+	struct OfflineSettings
+	{
+		int m_sppThreshold				= 128;
+		bool m_screenshotAtThreshold	= false;
+	};
+
+public:
 	void Init(Device& device);
 	void Destroy(Device& device);
 
@@ -49,6 +56,7 @@ public:
 	void NewFrame(Device& device);
 	void EndFrame(Device& device);
 	void RequestScreenshot();
+	void ResetFrameCounter(); // Will also reset accumulator
 
 	[[nodiscard]] VkImage			GetSwapchainImage() const		{ return m_swapchain.images[m_swapchain.imageIndex]; }
 	[[nodiscard]] VkImageView		GetSwapchainImageView() const	{ return m_swapchain.views[m_swapchain.imageIndex]; }
@@ -60,6 +68,8 @@ public:
 	[[nodiscard]] VkSemaphore		GetRenderedSemaphore() const	{ return GetFrame().renderedSemaphore; }
 	[[nodiscard]] VkFence			GetRenderedFence() const		{ return GetFrame().renderedFence; }
 	[[nodiscard]] Device::AccelerationStructure& GetTlas()			{ return GetFrame().tlas; }
+	[[nodiscard]] bool				IsSppThresholdMet() const		{ return m_frameCounter >= m_offlineSettings.m_sppThreshold; }
+	[[nodiscard]] bool				IsFrameCounterReset() const		{ return m_frameCounter == 0; }
 
 private:
 	void InitCmdPool(Device& device);
@@ -103,7 +113,8 @@ public:
 	DefaultImage			m_defaultImage; // 1x1 black image to initialize
 	MaterialHandle			m_defaultMaterialHandle;
 	MaterialHandle			m_defaultEmissiveHandle;
-	uint32_t				m_frameCounter;
+	OfflineSettings			m_offlineSettings;
+	uint32_t				m_frameCounter; // Used as spp
 	uint32_t				m_frameIndex;
 	bool					m_screenshotRequested;
 };

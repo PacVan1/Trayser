@@ -59,5 +59,5 @@ void trayser::Camera::Input()
 
 	// For ray tracing accumulator
 	if (updated)
-		g_engine.m_frame = 0; // TODO clean up
+		g_engine.m_renderer.ResetFrameCounter();
 }

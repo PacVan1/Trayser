@@ -189,9 +189,6 @@ void trayser::RayTracedPipeline::Load(VkShaderModule module)
 
 void trayser::RayTracedPipeline::Update()
 {
-    //if (g_engine.m_frame >= m_sppThreshold)
-    //    return;
-
     ClearIfAccumulatorReset();
 
     // Ray trace pipeline
@@ -214,7 +211,7 @@ void trayser::RayTracedPipeline::Update()
     gpu::RTPushConstants pushConsts{};
     pushConsts.sceneRef = g_engine.m_sceneBufferAddr;
     pushConsts.renderMode = g_engine.m_renderMode;
-    pushConsts.frame = g_engine.m_frame;
+    pushConsts.frame = g_engine.m_renderer.m_frameCounter;
 
     vkCmdPushConstants(g_engine.m_renderer.GetCmdBuffer(),
         m_layout,
@@ -273,7 +270,7 @@ void trayser::RayTracedPipeline::PipelineBarrier() const
 
 void trayser::RayTracedPipeline::ClearIfAccumulatorReset()
 {
-    if (g_engine.m_frame != 0)
+    if (!g_engine.m_renderer.IsFrameCounterReset())
         return;
 
     // Clear the image to a specified color (e.g., black)

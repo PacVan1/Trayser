@@ -90,18 +90,11 @@ void trayser::Engine::Render()
 
     UpdateGpuScene();
 
-    if (m_rayTraced)
+    if (!m_renderer.IsSppThresholdMet())
     {
-        //m_pipelines[PipelineType_RayTraced]->Update();
         m_rtPipeline.Update();
+        m_pipelines[PipelineType_Tonemap]->Update();
     }
-    else
-    {
-        m_pipelines[PipelineType_Background]->Update();
-        m_pipelines[PipelineType_Rasterized]->Update();
-    }
-
-    m_pipelines[PipelineType_Tonemap]->Update();
 
     // Transition the draw image and the swapchain image into their correct transfer layouts
     vkutil::TransitionImage(cmd, m_gBuffer.colorImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);

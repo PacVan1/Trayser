@@ -42,7 +42,7 @@ class PathTracingSettings final : public IWindow
 {
 public:
 	bool m_takeScreenshotAtSppThreshold = false;
-	bool m_reachedSppThreshold = false;
+	bool m_reachedSppThreshold			= false;
 
 public:
 	void Update() override;

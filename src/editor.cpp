@@ -53,23 +53,20 @@ static void EditLocalTransform(LocalTransform& transform)
 
 void PathTracingSettings::Update()
 {
-	ImGui::SliderInt("Samples/pixel threshold", &g_engine.m_rtPipeline.m_sppThreshold, 0, 1024);
-	ImGui::Checkbox("Take screenshot at threshold", &m_takeScreenshotAtSppThreshold);
+	ImGui::DragInt("Samples/pixel threshold", &g_engine.m_renderer.m_offlineSettings.m_sppThreshold, 1, 0, 1024);
 	ImGui::ProgressBar(
-		(float)g_engine.m_frame / (float)g_engine.m_rtPipeline.m_sppThreshold,
+		(float)g_engine.m_renderer.m_frameCounter / (float)g_engine.m_renderer.m_offlineSettings.m_sppThreshold,
 		ImVec2(-(1754944e-38), 0.0), "Samples/pixel");
-
-	if (g_engine.m_frame >= g_engine.m_rtPipeline.m_sppThreshold)
+	if (ImGui::Button("Reset accumulator"))
 	{
-		if (!m_reachedSppThreshold)
-		{
-			g_engine.m_renderer.RequestScreenshot();
-			m_reachedSppThreshold = true;
-		}
+		g_engine.m_renderer.ResetFrameCounter();
 	}
-	else
+	ImGui::Checkbox("Take screenshot at threshold", &g_engine.m_renderer.m_offlineSettings.m_screenshotAtThreshold);
+
+	if (g_engine.m_renderer.IsSppThresholdMet() && g_engine.m_renderer.m_offlineSettings.m_screenshotAtThreshold)
 	{
-		m_reachedSppThreshold = false;
+		g_engine.m_renderer.RequestScreenshot();
+		g_engine.m_renderer.m_offlineSettings.m_screenshotAtThreshold = false;
 	}
 }
 
