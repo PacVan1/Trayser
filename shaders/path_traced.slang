@@ -13,7 +13,6 @@
 [[vk::binding(1, 1)]] RWTexture2D<float4> outImage;
 [[vk::binding(2, 1)]] RWTexture2D<float4> outAccumulator;
 
-static const float kMinT        = 0.01f;
 static const float kMaxT        = 50.0f;
 
 static const uint32_t kMaxBounces = 3;
@@ -27,14 +26,6 @@ struct HitPayload
     float3      hitPosition;
     float3      nextDirection;
 };
-
-struct HitInfo
-{
-    float3              P;
-    float3              sN;
-    float3              gN;
-    MaterialProperties  mat;
-}
 
 float3 SampleSkydome(in float3 rayDirection)
 {
@@ -57,7 +48,7 @@ void GetPrimaryRayDesc(in float4x4 invView, in float4x4 invProj, in float2 pixel
 
     ray.Origin      = mul(invView, float4(0.0, 0.0, 0.0, 1.0)).xyz;
     ray.Direction   = mul(invView, float4(normalize(viewCoords.xyz), 0.0)).xyz;
-    ray.TMin        = kMinT;
+    ray.TMin        = kEpsilon;
     ray.TMax        = kMaxT;
 }
 
@@ -118,35 +109,6 @@ void rgMain()
     outImage[pixelCoord] = outAccumulator[pixelCoord] * scale;
 }
 
-// PDF of light sampling from a spherical light source
-// NdotL is the cosine of the angle between the shading normal and the direction to the light
-// r is the radius of the light sphere
-// d is the distance from the shading point to the light source
-
-float computeLightPdf(float3 lightDir, float3 shadingNormal, float lightRadius, float distanceToLight) {
-    // Compute cosine of the angle between shading normal and light direction
-    float NdotL = max(0.0f, dot(shadingNormal, lightDir));
-
-    // PDF based on area of the light and the cosine term
-    return NdotL / (4.0f * kPi * lightRadius * lightRadius * distanceToLight * distanceToLight);
-}
-
-float3 SampleLights(inout uint32_t rngState, in HitInfo hit, in Scene scene)
-{
-    float3 light = 0.0;
-    for (int i = 0; i < kSphereLightCount; i++)
-    {
-        SphereLight source = scene.lights.sphereLights[i];
-        float3 random = RandomPointWithinSphere(rngState, source);
-        float3 L = random - hit.P;
-        float dist = length(L);
-        float att = 1.0 / (dist * dist);
-        L = normalize(L);
-        light += evalCombinedBRDF(hit.sN, L, -WorldRayDirection(), hit.mat) * att * source.color * source.intensity;
-    }
-    return light;
-}
-
 // Closest hit shader - called when ray hits geometry
 [shader("closesthit")]
 void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes attr)
@@ -198,6 +160,7 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
 
     // Continue getting hit info
     hit.P = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
+    hit.V = -WorldRayDirection();
     hit.gN = normalize(v0.normal.xyz * w0 + v1.normal.xyz * w1 + v2.normal.xyz * w2);
     float3x3 normalTransform = float3x3(instance.normalTransform);
     float3 geometryTangent = normalize(v0.tangent.xyz * w0 + v1.tangent.xyz * w1 + v2.tangent.xyz * w2);
@@ -209,45 +172,60 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     float3 mapNormal = normalize(normalMapTexture.SampleLevel(uv.xy, 0.0).xyz * 2.0 - 1.0);
     hit.sN = normalize(mul(mapNormal, tbn));
 
-    //payload.radiance += payload.throughput * matProps.emissive;
+    payload.radiance += payload.throughput * hit.mat.emissive;
 
     switch (pushConsts.renderMode)
     {
     case RenderMode.FinalColor:
     {
-        // TEMP for MIS test
-        //    int brdfType;
-        //    if (matProps.metalness == 1.0f && matProps.roughness == 0.0f) {
-        //        // Fast path for mirrors
-        //        brdfType = SPECULAR_TYPE;
-        //    } else {
-        //
-        //        // Decide whether to sample diffuse or specular BRDF (based on Fresnel term)
-        //        float brdfProbability = GetBrdfProbability(matProps, -WorldRayDirection(), shadingNormal);
-        //
-        //        if (RandomFloat(payload.rngState) < brdfProbability) {
-        //            brdfType = SPECULAR_TYPE;
-        //            payload.throughput /= brdfProbability;
-        //        } else {
-        //            brdfType = DIFFUSE_TYPE;
-        //            payload.throughput /= (1.0f - brdfProbability);
-        //        }
-        //    }
-        //
-        //    // Run importance sampling of selected BRDF to generate reflecting ray direction
-        //    float3 brdfWeight;
-        //    float2 u = RandomFloat2(payload.rngState);
-        //    float3 rayDirection;
-        //    if (!evalIndirectCombinedBRDF(u, shadingNormal, geometryNormal, -WorldRayDirection(), matProps, brdfType, rayDirection, brdfWeight)) {
-        //        payload.bouncesLeft = 0;
-        //        return; // Ray was eaten by the surface :(
-        //    }
+        #ifdef USING_BRDF_SAMPLING
+        int brdfType;
+        if (hit.mat.metalness == 1.0f && hit.mat.roughness == 0.0f) 
+        {
+            // Fast path for mirrors
+            brdfType = SPECULAR_TYPE;
+        } 
+        else 
+        {
+        
+            // Decide whether to sample diffuse or specular BRDF (based on Fresnel term)
+            float brdfProbability = GetBrdfProbability(hit.mat, -WorldRayDirection(), hit.sN);
+        
+            if (RandomFloat(payload.rngState) < brdfProbability) 
+            {
+                brdfType = SPECULAR_TYPE;
+                payload.throughput /= brdfProbability;
+            } 
+            else 
+            {
+                brdfType = DIFFUSE_TYPE;
+                payload.throughput /= (1.0f - brdfProbability);
+            }
+        }
+        
+        // Run importance sampling of selected BRDF to generate reflecting ray direction
+        float3 brdfWeight;
+        float2 u = RandomFloat2(payload.rngState);
+        float3 rayDirection;
+        if (!evalIndirectCombinedBRDF(u, hit.sN, hit.gN, -WorldRayDirection(), hit.mat, brdfType, rayDirection, brdfWeight)) 
+        {
+            payload.bouncesLeft = 0;
+            return; // Ray was eaten by the surface :(
+        }
+
         // Account for surface properties using the BRDF "weight"
-        //    payload.throughput *= brdfWeight;
-        //    payload.hitPosition = OffsetRay(position, geometryNormal);
-        //    payload.nextDirection = rayDirection;
-        payload.radiance = payload.throughput * SampleLights(payload.rngState, hit, scene);
+        payload.throughput *= brdfWeight;
+        payload.hitPosition = OffsetRay(hit.P, hit.gN);
+        payload.nextDirection = rayDirection;
+
+        #else
+
+        for (int i = 0; i < 4; i++)
+        {
+            payload.radiance += payload.throughput * IntegrateLight(payload.rngState, hit, scene.lights.sphereLights[i]);
+        }
         payload.bouncesLeft = 0;
+        #endif
         return;
     }
     case RenderMode.TexCoord0:

@@ -53,7 +53,7 @@ static void EditLocalTransform(LocalTransform& transform)
 
 void PathTracingSettings::Update()
 {
-	ImGui::DragInt("Samples/pixel threshold", &g_engine.m_renderer.m_offlineSettings.m_sppThreshold, 1, 0, 1024);
+	ImGui::DragInt("Samples/pixel threshold", &g_engine.m_renderer.m_offlineSettings.m_sppThreshold, 1, 0, 8192);
 	ImGui::ProgressBar(
 		(float)g_engine.m_renderer.m_frameCounter / (float)g_engine.m_renderer.m_offlineSettings.m_sppThreshold,
 		ImVec2(-(1754944e-38), 0.0), "Samples/pixel");

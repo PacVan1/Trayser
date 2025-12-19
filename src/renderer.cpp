@@ -609,9 +609,16 @@ void trayser::Renderer::TakeScreenshot(Device& device) const
 
     device.EndOneTimeSubmit();
     
-    std::string path = "../../screenshots/";
+    std::string path    = "../../screenshots/";
     std::string date    = GetCurrentTimeString();
-    std::string name    = path + date + std::string(".png");
+    std::string name    = path + date;
+#ifdef USING_BRDF_SAMPLING
+    name                += "-using_brdf_sampling";
+#else
+    name                += "-using_light_sampling";
+#endif
+    name                += "-" + std::to_string(m_offlineSettings.m_sppThreshold) + "spp";
+    name                += ".png";
     int width           = g_engine.m_gBuffer.colorImage.extent.width;
     int height          = g_engine.m_gBuffer.colorImage.extent.height;
     int channels        = 4; // RGBA

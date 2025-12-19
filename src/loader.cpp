@@ -731,7 +731,7 @@ trayser::Material::Material(Emissive)
             1, // height
             VK_FORMAT_R8G8B8A8_SRGB,
             VK_IMAGE_USAGE_SAMPLED_BIT);
-        emissiveFactor = float4(2.0);
+        emissiveFactor = float4(8.0);
     }
 }
 

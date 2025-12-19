@@ -60,8 +60,8 @@ void trayser::Engine::Init()
     tf4.scale       = float3(0.8, 0.8, 0.8);
     m_camera.m_yaw = -90.0;
     m_camera.m_pitch = -15.0;
-    m_camera.m_transform.translation = float3(0.0, 1.7, 9.5);
     m_camera.m_fov = 70.0;
+    m_camera.m_transform.translation = float3(0.0, 1.7, 9.5);
     m_camera.UpdateBaseVectors();
     m_camera.UpdateViewMatrix();
     m_camera.UpdateProjMatrix();
@@ -369,11 +369,11 @@ void trayser::Engine::UpdateGpuScene()
         int i = 0;
         for (const auto& [entity, transform] : view.each())
         {
-            sphereLightRef[i].position = transform.matrix[3];
+            sphereLightRef[i].position = transform.GetPosition();
             sphereLightRef[i].color = float3(1.0);
-            sphereLightRef[i].intensity = 2.0;
-            sphereLightRef[i].radius = 0.8 - i * 0.2;
-            sphereLightRef[i].radiusSq = 1.0;
+            sphereLightRef[i].intensity = 8.0;
+            sphereLightRef[i].radius = transform.GetScale();
+            sphereLightRef[i].radius2 = sphereLightRef[i].radius * sphereLightRef[i].radius;
             sphereLightRef[i].area = 1.0;
             i++;
         }

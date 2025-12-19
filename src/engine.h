@@ -64,7 +64,7 @@ public:
 	GBuffer			m_gBuffer;
 	Renderer		m_renderer;
 
-	RenderMode		m_renderMode	= RenderMode_GeometryNormal;
+	RenderMode		m_renderMode	= RenderMode_FinalColor;
 	TonemapMode		m_tonemapMode	= TonemapMode_ACES;
 	PipelineMode	m_pipelineMode	= PipelineMode_Rasterized;
 

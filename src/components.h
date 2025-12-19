@@ -29,7 +29,19 @@ struct LocalTransform
 
 struct WorldTransform
 {
-    glm::mat4 matrix = glm::mat4(1.0f);
+    float4x4 matrix = float4x4(1.0f);
+
+    float3 GetPosition()
+    {
+        return float3(matrix[3]);
+    }
+    // Only works with uniform scaling
+    float GetScale()
+    {
+        float4x4& m = matrix;
+        float s = glm::length(float3(m[0][0], m[1][0], m[2][0]));
+        return s;
+    }
 };
 
 // Empty struct for finding all transforms that use a gpu::SphereLight

@@ -48,6 +48,10 @@ using int2      = glm::ivec2;
 #define POINT_LIGHT_COUNT   10
 #define DIR_LIGHT_COUNT     10
 
+//#define USING_MIS
+#define USING_BRDF_SAMPLING
+//#define USING_LIGHT_SAMPLING
+
 static constexpr uint32_t kTextureCount     = 128;
 static constexpr uint32_t kSphereLightCount = 5;
 static constexpr uint32_t kPointLightCount  = 10;
@@ -58,6 +62,7 @@ static constexpr float kPi                  = 3.14159265359;
 static constexpr float k2Pi                 = 2.0 * kPi;
 static constexpr float kInvPi               = 1.0 / kPi;
 static constexpr float2 kInvTan             = float2(0.1591, 0.3183);
+static constexpr float kEpsilon             = 1e-3;
 
 BEGIN_ENUM_DEF(RenderMode)
 DEF_ENUM_ENTRY(RenderMode, FinalColor)
@@ -132,7 +137,7 @@ struct SphereLight
     float3  position;
     float   radius;     // scale
     float3  color;
-    float   radiusSq;   // sqr(scale)
+    float   radius2;   // sqr(scale)
     float   intensity;
     float   area;
     float   _pad[2];
@@ -206,6 +211,15 @@ struct PUSH_CONST(RasterPushConstants)
 
 #ifdef __SLANG__
 using namespace gpu;
+struct HitInfo
+{
+    float3              P;
+    float3              V;
+    float3              sN;
+    float3              gN;
+    MaterialProperties  mat;
+}
+
 float3 GetPosition(in Camera camera)
 {
     return mul(camera.invView, float4(0, 0, 0, 1)).xyz;
@@ -295,6 +309,208 @@ float3 RandomPointWithinSphere(inout uint32_t seed, in SphereLight sphere)
 {
     float3 dir = RandomDirection(seed);
     return sphere.position + dir * sphere.radius;
+}
+struct LightSampleInfo
+{
+    float3 outDir;
+    float3 color;
+    float pdf;
+};
+void UniformDirectionWithinCone(inout uint32_t rngState, in float3 dir, in float dist, in float radius, out LightSampleInfo outInfo)
+{
+    float sinThetaMax   = radius / dist;
+    float cosThetaMax   = sqrt(1.0 - clamp(sinThetaMax * sinThetaMax, 0.0, 1.0));
+    float cosTheta      = lerp(cosThetaMax, 1.0, RandomFloat(rngState));
+    float sinTheta2     = 1.0 - cosTheta * cosTheta;
+    float sinTheta      = sqrt(sinTheta2);
+    float3 u            = normalize(cross(dir.yzx, dir));
+    float3 v            = cross(dir, u);
+    float phi           = k2Pi * RandomFloat(rngState);
+    outInfo.pdf         = 1.0 / (k2Pi * (1.0 - cosThetaMax));
+    outInfo.outDir      = (u * cos(phi) + v * sin(phi)) * sinTheta + dir * cosTheta;
+}
+void SampleLightSource(inout uint32_t rngState, in HitInfo hit, in SphereLight sphere, out LightSampleInfo outInfo)
+{
+    float3 dir  = sphere.position - hit.P;	// Direction to light center
+    float dist2 = dot(dir, dir);		    // Squared distance to light center
+    float dist  = sqrt(dist2);		        // Distance to light center
+    dir = normalize(dir);
+
+    UniformDirectionWithinCone(rngState, dir, dist, sphere.radius, outInfo);
+    outInfo.color = sphere.color * sphere.intensity;
+}
+float3 SampleLight(inout uint32_t rngState, in HitInfo hit, in SphereLight sphere)
+{
+    float3 contribution = float3(0.0);
+
+    LightSampleInfo info;
+    SampleLightSource(rngState, hit, sphere, info);
+
+    float dotNWo = dot(info.outDir, hit.sN);
+
+    if ((dotNWo > 0.0) && (info.pdf > kEpsilon))
+    {
+        float3 brdf = evalCombinedBRDF(hit.sN, info.outDir, hit.V, hit.mat);
+        //if (dot(brdf, brdf) > 0.0)
+        //{
+            contribution = (info.color * brdf * dotNWo) / info.pdf;
+        //}
+    }
+
+    return contribution;
+}
+float3 UniformSampleCone(in float2 u, in float cosThetaMax, in float3 xbasis, in float3 ybasis, in float3 zbasis)
+{
+    float cosTheta = (1.0 - u.x) + u.x * cosThetaMax;
+    float sinTheta = sqrt(1. - cosTheta * cosTheta);
+    float phi = u.y * TWO_PI;
+    float3 samplev = PolarToCartesian(sinTheta, cosTheta, sin(phi), cos(phi));
+    return samplev.x * xbasis + samplev.y * ybasis + samplev.z * zbasis;
+}
+float3 PolarToCartesian(float sinTheta,
+    float cosTheta,
+    float sinPhi,
+    float cosPhi)
+{
+    return float3(sinTheta * cosPhi,
+        sinTheta * sinPhi,
+        cosTheta);
+}
+void CalcBinormals(float3 normal,
+    out float3 tangent,
+    out float3 binormal)
+{
+    if (abs(normal.x) > abs(normal.y))
+    {
+        tangent = normalize(float3(-normal.z, 0., normal.x));
+    }
+    else
+    {
+        tangent = normalize(float3(0., normal.z, -normal.y));
+    }
+
+    binormal = cross(normal, tangent);
+}
+float DistSquared(float3 v1, float3 v2)
+{
+    return (v1.x - v2.x) * (v1.x - v2.x) +
+        (v1.y - v2.y) * (v1.y - v2.y) +
+        (v1.z - v2.z) * (v1.z - v2.z);
+}
+float4 IntersectSphere(in float3 rayO, in float3 rayD, in SphereLight sphere)
+{
+    if (DistSquared(rayO, sphere.position) < sphere.radius2)
+    {
+        return float4(-1.0, float3(0.0));
+    }
+
+    float3 sphro = rayO - sphere.position;
+    float a = dot(rayD, rayD);
+    float b = dot(sphro, rayD);
+    float c = dot(sphro, sphro) - sphere.radius2;
+    float sign = lerp(-1.0, 1.0, step(0.0, a));
+    float t = (-b + sign * sqrt(b * b - a * c)) / a;
+
+    float3 n = normalize(rayO + t * rayD - sphere.position);
+    return float4(step(0.0, t), n);
+
+}
+float3 SampleLight2(inout uint32_t seed, in HitInfo hit, in SphereLight light, out float pdf)
+{
+    float2 u = RandomFloat2(seed);
+
+    float3 tangent = float3(0.0), binormal = float3(0.0);
+    float3 ldir = normalize(light.position - hit.P);
+    CalcBinormals(ldir, tangent, binormal);
+
+    float sinThetaMax2 = light.radius2 / DistSquared(light.position, hit.P);
+    float cosThetaMax = sqrt(max(0.0, 1.0 - sinThetaMax2));
+    float3 lightSample = UniformSampleCone(u, cosThetaMax, tangent, binormal, ldir);
+
+    pdf = -1.0;
+    if (dot(lightSample, hit.sN) > 0.0)
+    {
+        pdf = 1.0 / (k2Pi * (1.0 - cosThetaMax));
+    }
+
+    return lightSample;
+}
+float3 IntegrateLight(inout uint32_t seed, in HitInfo hit, in SphereLight light)
+{        
+    float lpdf = -1.0;
+    float3 lightSample = SampleLight2(seed, hit, light, lpdf);
+
+    if (lpdf > 0.0)
+    {
+        float4 r = IntersectSphere(hit.P, lightSample, light);
+        if (r.x > .0)
+        {
+            float3 le = light.color * light.intensity / (r.x * r.x);
+            return evalCombinedBRDF(hit.sN, lightSample, hit.V, hit.mat) *
+                le / lpdf;
+        }
+    }
+    return float3(0.0);
+}
+float3 IntegrateLightMIS(inout uint32_t seed, in HitInfo hit, in SphereLight light)
+{
+    // sample light
+    float lpdf = -1.0;
+    float3 lightSample = SampleLight2(seed, hit, light, lpdf);
+
+    if (lpdf > 0.0)
+    {
+        float4 r = IntersectSphere(hit.P, lightSample, light);
+        if (r.x > .0)
+        {
+            float brdfPdf = brdf_pdf(wi, lightSample, surface, material);
+            float misWeight = power_heuristic(1., lpdf, 1., bpdf);
+            if (g_samplingType == LIGHT_IMPORTANCE_SAMPLING)
+            {
+                misWeight = 1.;
+            }
+
+            float3 le = light.color * light.intensity / (r.x * r.x);
+            return evalCombinedBRDF(hit.sN, lightSample, hit.V, hit.mat) *
+                le / lpdf;
+        }
+    }
+
+    // sample brdf        
+    float bpdf = -1.;
+    vec3 brdfSample = evalIndirectCombinedBRDF(surface, material, bpdf);
+    if (bpdf > 0.)
+    {
+        vec4 r = intersect_sphere(surface.point, brdfSample, light.xyz, light.w);
+        if (r.x > 0.)
+        {
+            vec3 colorSamples = mix(vec3(1.), vec3(.4, 1., .4), g_colorSamples);
+
+            float lpdf = light_pdf(light, surface);
+            float misWeight = power_heuristic(1., bpdf, 1., lpdf);
+            if (g_samplingType == BRDF_IMPORTANCE_SAMPLING)
+            {
+                misWeight = 1.;
+            }
+
+            float visibility = calc_visibility(surface.point + brdfSample * .01, brdfSample, r.x);
+
+            vec3 le = light_emission(surface.point, surface.point + brdfSample * r.x, r.yzw);
+            // specular
+            lcol += material.specIntensity * colorSamples * visibility * brdf(wi, brdfSample, surface.normal, material) *
+                le *
+                abs(dot(brdfSample, surface.normal)) *
+                (misWeight / bpdf);
+
+            // diffuse - cheated lambertian
+            // reuse visibility
+            lcol += material.baseColor * visibility * abs(dot(surface.normal, brdfSample)) * le * INV_TWO_PI *
+                (misWeight / bpdf);
+
+        }
+    }
+
+    return float3(0.0);
 }
 uint32_t InitRNGState(uint32_t x, uint32_t y, uint32_t frame)
 {
