@@ -278,7 +278,7 @@ void trayser::Engine::InitGpuScene()
     m_meshBufferAddr = m_device.GetBufferDeviceAddress(m_meshBuffer.buffer);
 
     m_device.CreateStageBuffer(
-        sizeof(gpu::Material) * kMaterialCount,
+        sizeof(gpu::MaterialParams) * kMaterialCount,
         VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
         m_materialBuffer);
     m_materialBufferAddr = m_device.GetBufferDeviceAddress(m_materialBuffer.buffer);
@@ -331,7 +331,7 @@ void trayser::Engine::UpdateGpuScene()
 
     // Update instances
     gpu::Instance* instanceBufferRef = (gpu::Instance*)m_instanceBuffer.mapped;
-    gpu::Material* materialBufferRef = (gpu::Material*)m_materialBuffer.mapped;
+    gpu::MaterialParams* materialBufferRef = (gpu::MaterialParams*)m_materialBuffer.mapped;
 
     int i = 0;
     {

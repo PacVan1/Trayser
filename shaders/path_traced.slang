@@ -121,10 +121,10 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
     Mesh mesh = meshBufferRef[instance.meshHandle];
     REF(Vertex) vertexBufferRef = mesh.vertexBufferRef;
     REF(uint32_t) indexBufferRef = mesh.indexBufferRef;
-    REF(Material) materialBufferRef = scene.materialBufferRef;
+    REF(MaterialParams) materialBufferRef = scene.materialBufferRef;
     REF(Primitive) primitiveBufferRef = mesh.primitiveBufferRef;
     Primitive primitive = primitiveBufferRef[GeometryIndex()];
-    Material material = materialBufferRef[primitive.materialHandle];
+    MaterialParams material = materialBufferRef[primitive.materialHandle];
 
     // Find triangle, vertices and barycentrics
     uint triangleIdx = primitive.baseIndex + PrimitiveIndex() * 3;
@@ -219,11 +219,11 @@ void chMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes a
         payload.nextDirection = rayDirection;
 
         #else
-
-        for (int i = 0; i < 4; i++)
-        {
-            payload.radiance += payload.throughput * IntegrateLight(payload.rngState, hit, scene.lights.sphereLights[i]);
-        }
+        // for (int i = 0; i < 4; i++)
+        //{
+        //     payload.radiance += payload.throughput * IntegrateLight(payload.rngState, hit, scene.lights.sphereLights[i]);
+        // }
+        payload.radiance += payload.throughput * IntegrateLight(payload.rngState, hit, scene.lights.sphereLights[3]);
         payload.bouncesLeft = 0;
         #endif
         return;

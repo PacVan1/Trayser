@@ -30,6 +30,7 @@ using int2      = glm::ivec2;
 #define END_ENUM_DEF(type) k##type##Count };
 #else
 #include "brdf.h"
+#include "../third_party/BRDF/brdf.h"
 #include "mis.h"
 #define REF(type) type*
 #define PUSH_CONST(type) type
@@ -48,8 +49,8 @@ using int2      = glm::ivec2;
 #define POINT_LIGHT_COUNT   10
 #define DIR_LIGHT_COUNT     10
 
-//#define USING_MIS
-#define USING_BRDF_SAMPLING
+#define USING_MIS
+//#define USING_BRDF_SAMPLING
 //#define USING_LIGHT_SAMPLING
 
 static constexpr uint32_t kTextureCount     = 128;
@@ -166,7 +167,7 @@ struct Lights
     SphereLight         sphereLights[SPHERE_LIGHT_COUNT];
 };
 
-struct Material
+struct MaterialParams
 {
     float4   baseColorFactor;
     float4   metallicRoughnessAoFactor;
@@ -181,13 +182,13 @@ struct Material
 
 struct Scene
 {
-    Camera          camera;
-    Lights          lights;
-    REF(Mesh)       meshBufferRef;
-    REF(Instance)   instanceBufferRef;
-    REF(Material)   materialBufferRef;
-    uint32_t        skydomeHandle;
-    uint32_t        _pad[3];
+    Camera              camera;
+    Lights              lights;
+    REF(Mesh)           meshBufferRef;
+    REF(Instance)       instanceBufferRef;
+    REF(MaterialParams) materialBufferRef;
+    uint32_t            skydomeHandle;
+    uint32_t            _pad[3];
 };
 
 struct PUSH_CONST(RTPushConstants)
@@ -446,14 +447,40 @@ float3 IntegrateLight(inout uint32_t seed, in HitInfo hit, in SphereLight light)
         if (r.x > .0)
         {
             float3 le = light.color * light.intensity / (r.x * r.x);
-            return evalCombinedBRDF(hit.sN, lightSample, hit.V, hit.mat) *
-                le / lpdf;
+            //return evalCombinedBRDF(hit.sN, lightSample, hit.V, hit.mat) *
+            //    le / lpdf;
+
+            brdf::microfacet::Material material;
+			material.baseColor = hit.mat.baseColor;
+			material.metalness = hit.mat.metalness;
+			material.roughness = hit.mat.roughness;
+            material.emissive = hit.mat.emissive;
+            
+            return brdf::microfacet::EvalBrdf(hit.V, lightSample, material, hit.sN) * le / lpdf;
         }
     }
     return float3(0.0);
 }
+float PowerHeuristic(float nf,
+    float fPdf,
+    float ng,
+    float gPdf)
+{
+    float f = nf * fPdf;
+    float g = ng * gPdf;
+    return (f * f) / (f * f + g * g);
+}
+float LightPdf(SphereLight light,
+    HitInfo hit)
+{
+    float sinThetaMax2 = light.radius2 / DistSquared(light.position, hit.P);
+    float cosThetaMax = sqrt(max(0.0, 1.0 - sinThetaMax2));
+    return 1.0 / (k2Pi * (1.0 - cosThetaMax));
+}
 float3 IntegrateLightMIS(inout uint32_t seed, in HitInfo hit, in SphereLight light)
 {
+    float3 contribution = 0.0;
+
     // sample light
     float lpdf = -1.0;
     float3 lightSample = SampleLight2(seed, hit, light, lpdf);
@@ -463,54 +490,67 @@ float3 IntegrateLightMIS(inout uint32_t seed, in HitInfo hit, in SphereLight lig
         float4 r = IntersectSphere(hit.P, lightSample, light);
         if (r.x > .0)
         {
-            float brdfPdf = brdf_pdf(wi, lightSample, surface, material);
-            float misWeight = power_heuristic(1., lpdf, 1., bpdf);
-            if (g_samplingType == LIGHT_IMPORTANCE_SAMPLING)
-            {
-                misWeight = 1.;
-            }
+            BrdfData brdfData = prepareBRDFData(hit.sN, lightSample, hit.V, hit.mat);
+            float specPdf = specularPdf(brdfData.alpha, brdfData.alphaSquared, brdfData.NdotH, brdfData.NdotV, brdfData.LdotH);
+            float diffPdf = diffusePdf(brdfData.NdotL);
+            float brdfPdf = diffPdf * 0.5 + specPdf * 0.5;
+            float misWeight = PowerHeuristic(1.0, lpdf, 1.0, brdfPdf);
 
             float3 le = light.color * light.intensity / (r.x * r.x);
-            return evalCombinedBRDF(hit.sN, lightSample, hit.V, hit.mat) *
-                le / lpdf;
+            contribution += evalCombinedBRDF(hit.sN, lightSample, hit.V, hit.mat) *
+                le * (misWeight / lpdf);
         }
     }
 
-    // sample brdf        
-    float bpdf = -1.;
-    vec3 brdfSample = evalIndirectCombinedBRDF(surface, material, bpdf);
-    if (bpdf > 0.)
+    int brdfType;
+    if (hit.mat.metalness == 1.0f && hit.mat.roughness == 0.0f)
     {
-        vec4 r = intersect_sphere(surface.point, brdfSample, light.xyz, light.w);
-        if (r.x > 0.)
+        // Fast path for mirrors
+        brdfType = SPECULAR_TYPE;
+    }
+    else
+    {
+
+        // Decide whether to sample diffuse or specular BRDF (based on Fresnel term)
+        float brdfProbability = GetBrdfProbability(hit.mat, -WorldRayDirection(), hit.sN);
+
+        if (RandomFloat(seed) < brdfProbability)
         {
-            vec3 colorSamples = mix(vec3(1.), vec3(.4, 1., .4), g_colorSamples);
+            brdfType = SPECULAR_TYPE;
+            //payload.throughput /= brdfProbability;
+        }
+        else
+        {
+            brdfType = DIFFUSE_TYPE;
+            //payload.throughput /= (1.0f - brdfProbability);
+        }
+    }
 
-            float lpdf = light_pdf(light, surface);
-            float misWeight = power_heuristic(1., bpdf, 1., lpdf);
-            if (g_samplingType == BRDF_IMPORTANCE_SAMPLING)
-            {
-                misWeight = 1.;
-            }
+    // sample brdf       
+    float3 brdfW = 0.0;
+    float3 brdfSample = 0.0;
+    bool isShaded = evalIndirectCombinedBRDF(RandomFloat2(seed), hit.sN, hit.gN, hit.V, hit.mat, brdfType, brdfSample, brdfW);
+    if (isShaded)
+    {
+        BrdfData brdfData = prepareBRDFData(hit.sN, brdfSample, hit.V, hit.mat);
+        float specPdf = specularPdf(brdfData.alpha, brdfData.alphaSquared, brdfData.NdotH, brdfData.NdotV, brdfData.LdotH);
+        float diffPdf = diffusePdf(brdfData.NdotL);
+        float brdfPdf = brdfType == DIFFUSE_TYPE ? diffPdf : specPdf;
 
-            float visibility = calc_visibility(surface.point + brdfSample * .01, brdfSample, r.x);
+        float4 r = IntersectSphere(hit.P, brdfSample, light);
+        if (r.x > 0.0)
+        {
+            float lpdf = LightPdf(light, hit);
+            float misWeight = PowerHeuristic(1.0, brdfPdf, 1.0, lpdf);
 
-            vec3 le = light_emission(surface.point, surface.point + brdfSample * r.x, r.yzw);
-            // specular
-            lcol += material.specIntensity * colorSamples * visibility * brdf(wi, brdfSample, surface.normal, material) *
-                le *
-                abs(dot(brdfSample, surface.normal)) *
-                (misWeight / bpdf);
-
-            // diffuse - cheated lambertian
-            // reuse visibility
-            lcol += material.baseColor * visibility * abs(dot(surface.normal, brdfSample)) * le * INV_TWO_PI *
-                (misWeight / bpdf);
+            float3 le = light.color * light.intensity / (r.x * r.x);
+            contribution += evalCombinedBRDF(hit.sN, brdfSample, hit.V, hit.mat) *
+                le * (misWeight / brdfPdf);
 
         }
     }
 
-    return float3(0.0);
+    return contribution;
 }
 uint32_t InitRNGState(uint32_t x, uint32_t y, uint32_t frame)
 {

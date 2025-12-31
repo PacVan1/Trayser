@@ -35,7 +35,6 @@ target_link_libraries(Trayser PUBLIC
   fmt::fmt 
   stb_image 
   SDL2::SDL2 
-  vkbootstrap 
   imgui 
   fastgltf::fastgltf 
   entt 
