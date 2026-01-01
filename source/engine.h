@@ -13,7 +13,7 @@
 #include <device.h>
 #include <gbuffer.h>
 #include <slang_compiler.h>
-#include <../shaders/gpu_io.h>
+#include <gpu_io.h>
 
 #include <renderer.h>
 

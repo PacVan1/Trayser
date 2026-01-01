@@ -4,7 +4,7 @@
 
 #include <engine.h>
 #include <renderer.h>
-#include <../shaders/gpu_io.h>
+#include <gpu_io.h>
 
 #include <imgui.h>
 #include <imgui_impl_vulkan.h>

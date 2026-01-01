@@ -13,10 +13,6 @@
 #include <glm/gtx/quaternion.hpp>
 #include <glm/gtx/matrix_decompose.hpp>
 
-#include <fastgltf/glm_element_traits.hpp>
-#include <fastgltf/parser.hpp>
-#include <fastgltf/tools.hpp>
-
 #include <vk_mem_alloc.h>
 
 std::string ReadTextFile(const std::string& path)

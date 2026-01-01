@@ -12,7 +12,7 @@
 #include <entt/entt.hpp>
 
 #include <magic_enum/magic_enum.hpp>
-#include <../shaders/gpu_io.h>
+#include <gpu_io.h>
 
 #define VK_CHECK(x)                                                     \
     do {                                                                \
@@ -81,25 +81,25 @@ using ModelResource = int;
 
 const std::string kModelPaths[kModelResourceCount] =
 {
-    "../../assets/Khronos/CompareAmbientOcclusion/glTF-Binary/CompareAmbientOcclusion.glb",
-    "../../assets/Khronos/CompareBaseColor/glTF-Binary/CompareBaseColor.glb",
-    "../../assets/Khronos/CompareMetallic/glTF-Binary/CompareMetallic.glb",
-    "../../assets/Khronos/CompareRoughness/glTF-Binary/CompareRoughness.glb",
-    "../../assets/TestModels/cornell_box/scene.gltf",
-    "../../assets/Khronos/DamagedHelmet/glTF-Binary/DamagedHelmet.glb",
-    "../../assets/Khronos/FlightHelmet/glTF/FlightHelmet.gltf",
-    "../../assets/Khronos/Lantern/glTF-Binary/Lantern.glb",
-    "../../assets/TestModels/Lucy/lucy.glb",
-    "../../assets/Khronos/MetalRoughSpheres/glTF-Binary/MetalRoughSpheres.glb",
-    "../../assets/Khronos/NormalTangentMirrorTest/glTF-Binary/NormalTangentMirrorTest.glb",
-    "../../assets/Khronos/NormalTangentTest/glTF-Binary/NormalTangentTest.glb",
-    "../../assets/Khronos/OrientationTest/glTF-Binary/OrientationTest.glb",
-    "../../assets/Khronos/SciFiHelmet/glTF/SciFiHelmet.gltf",
-    "../../assets/Khronos/Sponza/glTF/Sponza.gltf",
-    "../../assets/TestModels/VeachRemake/veach_remake.glb",
-    "../../assets/TestModels/Sphere/Sphere.glb",
-    "../../assets/Khronos/TextureLinearInterpolationTest/glTF-Binary/TextureLinearInterpolationTest.glb",
-    "../../assets/Khronos/TextureEncodingTest/glTF-Binary/TextureEncodingTest.glb"
+    "../assets/Khronos/CompareAmbientOcclusion/glTF-Binary/CompareAmbientOcclusion.glb",
+    "../assets/Khronos/CompareBaseColor/glTF-Binary/CompareBaseColor.glb",
+    "../assets/Khronos/CompareMetallic/glTF-Binary/CompareMetallic.glb",
+    "../assets/Khronos/CompareRoughness/glTF-Binary/CompareRoughness.glb",
+    "../assets/TestModels/cornell_box/scene.gltf",
+    "../assets/Khronos/DamagedHelmet/glTF-Binary/DamagedHelmet.glb",
+    "../assets/Khronos/FlightHelmet/glTF/FlightHelmet.gltf",
+    "../assets/Khronos/Lantern/glTF-Binary/Lantern.glb",
+    "../assets/TestModels/Lucy/lucy.glb",
+    "../assets/Khronos/MetalRoughSpheres/glTF-Binary/MetalRoughSpheres.glb",
+    "../assets/Khronos/NormalTangentMirrorTest/glTF-Binary/NormalTangentMirrorTest.glb",
+    "../assets/Khronos/NormalTangentTest/glTF-Binary/NormalTangentTest.glb",
+    "../assets/Khronos/OrientationTest/glTF-Binary/OrientationTest.glb",
+    "../assets/Khronos/SciFiHelmet/glTF/SciFiHelmet.gltf",
+    "../assets/Khronos/Sponza/glTF/Sponza.gltf",
+    "../assets/TestModels/VeachRemake/veach_remake.glb",
+    "../assets/TestModels/Sphere/Sphere.glb",
+    "../assets/Khronos/TextureLinearInterpolationTest/glTF-Binary/TextureLinearInterpolationTest.glb",
+    "../assets/Khronos/TextureEncodingTest/glTF-Binary/TextureEncodingTest.glb"
 };
 
 const std::string kModelResourceStr = GetNullSeparated<ModelResource_>();

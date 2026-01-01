@@ -40,11 +40,11 @@ void trayser::SlangCompiler::Init()
 
     m_searchPaths =
     {
-        "../src"
-        "../../src"
-        "../../../src"
-        "../../../../src"
-        "shaders"
+        "../source",
+        "../../source",
+        "../../../source",
+        "../../../../source",
+        "shaders",
         "../shaders",
         "../../shaders",
         "../../../shaders",
