@@ -1,11 +1,5 @@
 ﻿cmake_minimum_required (VERSION 3.8)
-
 project ("Trayser")
-
-find_package(Vulkan REQUIRED)
-
-set (CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin")
-set (CMAKE_LIBRARY_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin")
 
 # Add the executable ########################################
 file(GLOB_RECURSE HEADER_FILES
@@ -62,6 +56,13 @@ set_property(TARGET Trayser PROPERTY CXX_STANDARD 20)
 target_compile_definitions(Trayser PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE)
 target_include_directories(Trayser PUBLIC ${PROJECT_SOURCE_DIR}/source)
 target_precompile_headers(Trayser PRIVATE ${PROJECT_SOURCE_DIR}/source/pch.h)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin")
+
+# Enable multi-processor compilation for MSVC
+if (MSVC) 
+add_compile_options(/MP) 
+endif() 
 
 # Warnings as errors
 #if (MSVC)
@@ -70,11 +71,6 @@ target_precompile_headers(Trayser PRIVATE ${PROJECT_SOURCE_DIR}/source/pch.h)
 #    target_compile_options(Trayser PRIVATE -Werror)
 #endif()
 
-# Enable multi-threaded compilation
-if (MSVC)
-    add_compile_options(/MP)
-endif()
-
 if(WIN32)
   add_custom_command(TARGET Trayser POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_RUNTIME_DLLS:Trayser> $<TARGET_FILE_DIR:Trayser>
@@ -82,6 +78,7 @@ if(WIN32)
     )
 endif()
 
+# Project filters ############################################
 set(SLANG_INCLUDE_DIR "$ENV{VULKAN_SDK}/Include")
 set(SLANG_LIB_DIR "$ENV{VULKAN_SDK}/Lib")
 set(SLANG_BIN_DIR "$ENV{VULKAN_SDK}/Bin")
@@ -102,6 +99,7 @@ file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/shaders)
 file(GLOB_RECURSE SLANG_SOURCE_FILES
     "${PROJECT_SOURCE_DIR}/shaders/*.slang"
     "${PROJECT_SOURCE_DIR}/shaders/*.h"
+    "${PROJECT_SOURCE_DIR}/shaders/*.hpp"
     )
 
 # Add them to the project but not to compilation
