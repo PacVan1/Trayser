@@ -30,7 +30,7 @@ using int2      = glm::ivec2;
 #define END_ENUM_DEF(type) k##type##Count };
 #else
 #include "brdf.h"
-#include "../third_party/BRDF/brdf.h"
+#include "../external/BRDF/brdf.h"
 #include "mis.h"
 #define REF(type) type*
 #define PUSH_CONST(type) type
@@ -447,16 +447,16 @@ float3 IntegrateLight(inout uint32_t seed, in HitInfo hit, in SphereLight light)
         if (r.x > .0)
         {
             float3 le = light.color * light.intensity / (r.x * r.x);
-            //return evalCombinedBRDF(hit.sN, lightSample, hit.V, hit.mat) *
-            //    le / lpdf;
+            return evalCombinedBRDF(hit.sN, lightSample, hit.V, hit.mat) *
+                le / lpdf;
 
-            brdf::microfacet::Material material;
-			material.baseColor = hit.mat.baseColor;
-			material.metalness = hit.mat.metalness;
-			material.roughness = hit.mat.roughness;
-            material.emissive = hit.mat.emissive;
-            
-            return brdf::microfacet::EvalBrdf(hit.V, lightSample, material, hit.sN) * le / lpdf;
+            //brdf::microfacet::Material material;
+			//material.baseColor = hit.mat.baseColor;
+			//material.metalness = hit.mat.metalness;
+			//material.roughness = hit.mat.roughness;
+            //material.emissive = hit.mat.emissive;
+            //
+            //return brdf::microfacet::EvalBrdf(hit.V, lightSample, material, hit.sN) * le / lpdf;
         }
     }
     return float3(0.0);
